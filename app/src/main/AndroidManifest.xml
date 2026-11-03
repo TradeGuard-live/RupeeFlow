@@ -42,9 +42,10 @@
         </receiver>
 
         <!-- Notification Listener Service (Companion fallback for UPI/Banking apps) -->
+        <!-- ✅ Hardened exported=true with BIND_NOTIFICATION_LISTENER_SERVICE permission required on Android 12+ -->
         <service
             android:name=".data.sms.RupeeFlowNotificationListener"
-            android:exported="false"
+            android:exported="true"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />

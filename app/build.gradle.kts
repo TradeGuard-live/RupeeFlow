@@ -27,6 +27,26 @@ android {
         }
     }
 
+    // ✅ Industry-grade release signing config with safe fallback to debug keystore for CI/Dev
+    signingConfigs {
+        create("release") {
+            val keystoreFile = System.getenv("KEYSTORE_FILE")?.let { file(it) }
+            if (keystoreFile != null && keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
+                keyAlias = System.getenv("KEY_ALIAS") ?: ""
+                keyPassword = System.getenv("KEY_PASSWORD") ?: ""
+            } else {
+                // Fallback to debug keystore for development / CI builds without committed secrets
+                val debugKeystore = signingConfigs.getByName("debug")
+                storeFile = debugKeystore.storeFile
+                storePassword = debugKeystore.storePassword
+                keyAlias = debugKeystore.keyAlias
+                keyPassword = debugKeystore.keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -34,7 +54,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             applicationIdSuffix = ""

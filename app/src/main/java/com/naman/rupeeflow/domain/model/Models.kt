@@ -76,12 +76,13 @@ data class Transaction(
         }
 }
 
+// ✅ Production hardening: default values for backward compatibility and clean construction
 data class Settlement(
     val id: Long = 0,
     val payerId: Long?, // null means "ME", else friend ID
     val receiverId: Long?, // null means "ME", else friend ID
     val amountPaise: Long,
-    val settlementDate: Long,
+    val settlementDate: Long = System.currentTimeMillis(),
     val paymentMethod: PaymentMethod = PaymentMethod.UPI,
     val referenceNumber: String? = null,
     val notes: String? = null,
@@ -89,16 +90,17 @@ data class Settlement(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+// ✅ Production hardening: robust default parameters for testability and non-SMS sources
 data class PendingTransaction(
     val id: Long = 0,
     val detectedAmountPaise: Long,
     val detectedType: TransactionType,
-    val detectedBank: String?,
-    val detectedAccount: String?,
-    val detectedMerchant: String?,
-    val referenceNumber: String?,
+    val detectedBank: String? = null,
+    val detectedAccount: String? = null,
+    val detectedMerchant: String? = null,
+    val referenceNumber: String? = null,
     val rawContent: String,
-    val timestamp: Long,
+    val timestamp: Long = System.currentTimeMillis(),
     val status: PendingStatus = PendingStatus.PENDING,
     val source: TransactionSource = TransactionSource.SMS
 )
