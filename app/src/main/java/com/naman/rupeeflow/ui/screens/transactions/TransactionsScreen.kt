@@ -33,6 +33,7 @@ fun TransactionsScreen(
 
     var showFastAddSheet by remember { mutableStateOf(false) }
     var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
+    var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
 
     Scaffold(
         containerColor = MidnightDark,
@@ -250,7 +251,19 @@ fun TransactionsScreen(
             onDismiss = { selectedTransaction = null },
             onToggleIgnore = { viewModel.toggleIgnore(it) },
             onDuplicate = { viewModel.duplicateTransaction(it) },
-            onDelete = { viewModel.deleteTransaction(it) }
+            onDelete = { viewModel.deleteTransaction(it) },
+            onEdit = { toEdit -> editingTransaction = toEdit }
+        )
+    }
+
+    // ✅ Edit Transaction Dialog
+    editingTransaction?.let { txn ->
+        EditTransactionDialog(
+            transaction = txn,
+            categories = state.categories,
+            friends = state.friends,
+            onDismiss = { editingTransaction = null },
+            onSave = { updated -> viewModel.saveTransaction(updated) }
         )
     }
 }

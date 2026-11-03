@@ -43,9 +43,35 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
         // ✅ Migration from version 1 to 2
         // Updates foreign key rules to RESTRICT to prevent friend identity collisions,
         // safely copying all existing records across transactions, participants, and settlements.
+        // Explicitly turns foreign keys OFF during migration and copies participants prior to table drops
+        // to prevent cascade deletions.
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // 1. Transactions table
+                // Disable foreign key constraints during table recreate to prevent cascade drops
+                db.execSQL("PRAGMA foreign_keys = OFF;")
+
+                // 1. Transaction Participants table (create & copy first to safeguard children)
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `transaction_participants_new` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `transactionId` INTEGER NOT NULL,
+                        `friendId` INTEGER,
+                        `shareAmountPaise` INTEGER NOT NULL,
+                        `percentage` REAL NOT NULL,
+                        `splitMethod` TEXT NOT NULL,
+                        FOREIGN KEY(`transactionId`) REFERENCES `transactions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`friendId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+                    )
+                """.trimIndent())
+                db.execSQL("""
+                    INSERT INTO `transaction_participants_new` (
+                        `id`, `transactionId`, `friendId`, `shareAmountPaise`, `percentage`, `splitMethod`
+                    )
+                    SELECT `id`, `transactionId`, `friendId`, `shareAmountPaise`, `percentage`, `splitMethod`
+                    FROM `transaction_participants`
+                """.trimIndent())
+
+                // 2. Transactions table
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `transactions_new` (
                         `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -80,37 +106,6 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                         `transactionStatus`, `source`, `merchantName`, `referenceNumber`, `createdAt`, `updatedAt`
                     FROM `transactions`
                 """.trimIndent())
-                db.execSQL("DROP TABLE `transactions`")
-                db.execSQL("ALTER TABLE `transactions_new` RENAME TO `transactions`")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_categoryId` ON `transactions` (`categoryId`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_paidByFriendId` ON `transactions` (`paidByFriendId`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_transactionDate` ON `transactions` (`transactionDate`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_transactionStatus` ON `transactions` (`transactionStatus`)")
-
-                // 2. Transaction Participants table
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS `transaction_participants_new` (
-                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        `transactionId` INTEGER NOT NULL,
-                        `friendId` INTEGER,
-                        `shareAmountPaise` INTEGER NOT NULL,
-                        `percentage` REAL NOT NULL,
-                        `splitMethod` TEXT NOT NULL,
-                        FOREIGN KEY(`transactionId`) REFERENCES `transactions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
-                        FOREIGN KEY(`friendId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
-                    )
-                """.trimIndent())
-                db.execSQL("""
-                    INSERT INTO `transaction_participants_new` (
-                        `id`, `transactionId`, `friendId`, `shareAmountPaise`, `percentage`, `splitMethod`
-                    )
-                    SELECT `id`, `transactionId`, `friendId`, `shareAmountPaise`, `percentage`, `splitMethod`
-                    FROM `transaction_participants`
-                """.trimIndent())
-                db.execSQL("DROP TABLE `transaction_participants`")
-                db.execSQL("ALTER TABLE `transaction_participants_new` RENAME TO `transaction_participants`")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transaction_participants_transactionId` ON `transaction_participants` (`transactionId`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transaction_participants_friendId` ON `transaction_participants` (`friendId`)")
 
                 // 3. Settlements table
                 db.execSQL("""
@@ -138,11 +133,32 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                         `paymentMethod`, `referenceNumber`, `notes`, `isReversed`, `createdAt`
                     FROM `settlements`
                 """.trimIndent())
+
+                // Drop old tables
+                db.execSQL("DROP TABLE `transaction_participants`")
+                db.execSQL("DROP TABLE `transactions`")
                 db.execSQL("DROP TABLE `settlements`")
+
+                // Rename new tables to standard names
+                db.execSQL("ALTER TABLE `transaction_participants_new` RENAME TO `transaction_participants`")
+                db.execSQL("ALTER TABLE `transactions_new` RENAME TO `transactions`")
                 db.execSQL("ALTER TABLE `settlements_new` RENAME TO `settlements`")
+
+                // Recreate indexes
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_categoryId` ON `transactions` (`categoryId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_paidByFriendId` ON `transactions` (`paidByFriendId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_transactionDate` ON `transactions` (`transactionDate`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_transactionStatus` ON `transactions` (`transactionStatus`)")
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transaction_participants_transactionId` ON `transaction_participants` (`transactionId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transaction_participants_friendId` ON `transaction_participants` (`friendId`)")
+
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_settlements_payerId` ON `settlements` (`payerId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_settlements_receiverId` ON `settlements` (`receiverId`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_settlements_settlementDate` ON `settlements` (`settlementDate`)")
+
+                // Re-enable foreign key constraints
+                db.execSQL("PRAGMA foreign_keys = ON;")
             }
         }
 

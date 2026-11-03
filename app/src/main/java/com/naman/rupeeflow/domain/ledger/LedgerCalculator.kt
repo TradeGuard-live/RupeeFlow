@@ -215,19 +215,19 @@ object LedgerCalculator {
                 TransactionType.EXPENSE -> {
                     // Only count the user's personal expense share; exclude friends' portion
                     val myShare = txn.userExpensePaise
-                    totalExpensePaise += myShare
+                    totalExpensePaise = Math.addExact(totalExpensePaise, myShare)
 
                     if (txn.paymentMethod == PaymentMethod.CASH) {
-                        cashSpendingPaise += myShare
+                        cashSpendingPaise = Math.addExact(cashSpendingPaise, myShare)
                     } else {
-                        onlineSpendingPaise += myShare
+                        onlineSpendingPaise = Math.addExact(onlineSpendingPaise, myShare)
                     }
                 }
                 TransactionType.INCOME -> {
-                    totalIncomePaise += txn.amountPaise
+                    totalIncomePaise = Math.addExact(totalIncomePaise, txn.amountPaise)
                 }
                 TransactionType.REFUND -> {
-                    totalRefundPaise += txn.amountPaise
+                    totalRefundPaise = Math.addExact(totalRefundPaise, txn.amountPaise)
                 }
                 else -> {
                     // Transfers and adjustments are excluded from spending/income

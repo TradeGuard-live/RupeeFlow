@@ -30,7 +30,8 @@ fun SettlementDetailDialog(
     onDismiss: () -> Unit,
     onReverse: (Settlement) -> Unit,
     onUnreverse: (Settlement) -> Unit,
-    onDelete: (Settlement) -> Unit
+    onDelete: (Settlement) -> Unit,
+    onEdit: (Settlement) -> Unit = {}
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showReverseConfirm by remember { mutableStateOf(false) }
@@ -170,6 +171,21 @@ fun SettlementDetailDialog(
 
                 // Action Buttons
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // ✅ Edit Settlement Button
+                    Button(
+                        onClick = {
+                            onDismiss()
+                            onEdit(settlement)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = VibrantCyan, contentColor = MidnightDark),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Edit Settlement", fontWeight = FontWeight.Bold)
+                    }
+
                     if (!settlement.isReversed) {
                         OutlinedButton(
                             onClick = { showReverseConfirm = true },

@@ -39,9 +39,9 @@ data class Transaction(
     val title: String,
     val description: String = "",
     val amountPaise: Long,
-    val categoryId: Long,
+    val categoryId: Long = 1L,
     val category: Category? = null,
-    val transactionDate: Long,
+    val transactionDate: Long = System.currentTimeMillis(),
     val paymentMethod: PaymentMethod = PaymentMethod.UPI,
     val accountSource: String? = null,
     val paidByFriendId: Long? = null, // null means "ME"

@@ -30,7 +30,8 @@ fun TransactionDetailDialog(
     onDismiss: () -> Unit,
     onToggleIgnore: (Transaction) -> Unit,
     onDuplicate: (Transaction) -> Unit,
-    onDelete: (Transaction) -> Unit
+    onDelete: (Transaction) -> Unit,
+    onEdit: (Transaction) -> Unit = {}
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -198,6 +199,32 @@ fun TransactionDetailDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // ✅ Edit Button
+                    Button(
+                        onClick = {
+                            onDismiss()
+                            onEdit(transaction)
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = VibrantCyan,
+                            contentColor = MidnightDark
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Edit",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
                     // Ignore / Restore Button
                     OutlinedButton(
                         onClick = {
@@ -219,7 +246,7 @@ fun TransactionDetailDialog(
                             contentDescription = null,
                             modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = if (transaction.isIgnored) "Restore" else "Ignore",
                             style = MaterialTheme.typography.labelSmall
@@ -238,8 +265,8 @@ fun TransactionDetailDialog(
                         border = androidx.compose.foundation.BorderStroke(1.dp, ElectricBlue)
                     ) {
                         Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Duplicate", style = MaterialTheme.typography.labelSmall)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Copy", style = MaterialTheme.typography.labelSmall)
                     }
 
                     // Delete Button

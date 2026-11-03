@@ -65,11 +65,30 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE amountPaise = :amountPaise AND transactionDate BETWEEN :startMillis AND :endMillis LIMIT 1")
     suspend fun findDuplicate(amountPaise: Long, startMillis: Long, endMillis: Long): TransactionEntity?
 
+    // ✅ Atomic save/update inside a single Room transaction
+    // Enforces strict share balance validation, duplicate participant rejection,
+    // and safe participant replacement.
     @androidx.room.Transaction
     suspend fun saveTransactionWithParticipants(
         transaction: TransactionEntity,
         participants: List<TransactionParticipantEntity>
     ): Long {
+        require(transaction.amountPaise > 0L) { "Transaction amount must be greater than zero" }
+
+        if (participants.isNotEmpty()) {
+            val totalSharePaise = participants.sumOf { it.shareAmountPaise }
+            require(totalSharePaise == transaction.amountPaise) {
+                "Participant shares ($totalSharePaise paise) must strictly equal total amount (${transaction.amountPaise} paise)"
+            }
+            val friendIds = participants.map { it.friendId }
+            require(friendIds.distinct().size == friendIds.size) {
+                "Duplicate participants are not allowed"
+            }
+            require(participants.all { it.shareAmountPaise >= 0L }) {
+                "Participant shares cannot be negative"
+            }
+        }
+
         val txnId = if (transaction.id == 0L) {
             insertTransactionEntity(transaction)
         } else {
@@ -79,7 +98,7 @@ interface TransactionDao {
         }
 
         if (participants.isNotEmpty()) {
-            val updatedParticipants = participants.map { it.copy(transactionId = txnId) }
+            val updatedParticipants = participants.map { it.copy(id = 0L, transactionId = txnId) }
             insertParticipantEntities(updatedParticipants)
         }
 

@@ -40,6 +40,7 @@ fun OverviewScreen(
 
     var showFastAddSheet by remember { mutableStateOf(false) }
     var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
+    var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
     var settlingFriend by remember { mutableStateOf<Friend?>(null) }
 
     val todayDateStr = remember {
@@ -425,7 +426,19 @@ fun OverviewScreen(
             onDismiss = { selectedTransaction = null },
             onToggleIgnore = { viewModel.toggleIgnore(it) },
             onDuplicate = { viewModel.duplicateTransaction(it) },
-            onDelete = { viewModel.deleteTransaction(it) }
+            onDelete = { viewModel.deleteTransaction(it) },
+            onEdit = { toEdit -> editingTransaction = toEdit }
+        )
+    }
+
+    // ✅ Edit Transaction Dialog
+    editingTransaction?.let { txn ->
+        EditTransactionDialog(
+            transaction = txn,
+            categories = state.categories,
+            friends = state.allFriends,
+            onDismiss = { editingTransaction = null },
+            onSave = { updated -> viewModel.saveTransaction(updated) }
         )
     }
 

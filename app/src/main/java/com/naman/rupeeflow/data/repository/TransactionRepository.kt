@@ -82,8 +82,14 @@ class TransactionRepositoryImpl(
         }
     }
 
+    // ✅ Atomic save/edit preserving id and createdAt, updating updatedAt
     override suspend fun saveTransaction(transaction: Transaction): Long {
-        val entity = transaction.toEntity()
+        val existing = if (transaction.id > 0L) transactionDao.getTransactionById(transaction.id)?.transaction else null
+        val createdAt = existing?.createdAt ?: if (transaction.createdAt > 0L) transaction.createdAt else System.currentTimeMillis()
+        val entity = transaction.toEntity().copy(
+            createdAt = createdAt,
+            updatedAt = System.currentTimeMillis()
+        )
         val participantEntities = transaction.participants.map { it.toEntity(transaction.id) }
         return transactionDao.saveTransactionWithParticipants(entity, participantEntities)
     }

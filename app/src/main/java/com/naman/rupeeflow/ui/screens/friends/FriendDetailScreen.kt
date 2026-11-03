@@ -40,6 +40,9 @@ fun FriendDetailScreen(
     var reversingSettlementId by remember { mutableStateOf<Long?>(null) }
     var unreversingSettlementId by remember { mutableStateOf<Long?>(null) }
     var selectedSettlementForDetail by remember { mutableStateOf<Settlement?>(null) }
+    var editingSettlement by remember { mutableStateOf<Settlement?>(null) }
+    var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
+    var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
     var showMenu by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
@@ -307,7 +310,12 @@ fun FriendDetailScreen(
                     val myParticipant = txn.participants.firstOrNull { it.friendId == null }
                     val friendParticipant = txn.participants.firstOrNull { it.friendId == friend.id }
 
-                    RupeeFlowCard(modifier = Modifier.fillMaxWidth(), cornerRadius = 14.dp) {
+                    RupeeFlowCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { selectedTransactionForDetail = txn },
+                        cornerRadius = 14.dp
+                    ) {
                         Column {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -434,7 +442,41 @@ fun FriendDetailScreen(
             onDismiss = { selectedSettlementForDetail = null },
             onReverse = { viewModel.reverseSettlement(it.id) },
             onUnreverse = { viewModel.unreverseSettlement(it.id) },
-            onDelete = { viewModel.deleteSettlement(it) }
+            onDelete = { viewModel.deleteSettlement(it) },
+            onEdit = { toEdit -> editingSettlement = toEdit }
+        )
+    }
+
+    // ✅ Edit Settlement Dialog
+    editingSettlement?.let { settlement ->
+        EditSettlementDialog(
+            settlement = settlement,
+            friends = state.allFriends.ifEmpty { listOfNotNull(friend) },
+            onDismiss = { editingSettlement = null },
+            onSave = { updated -> viewModel.updateSettlement(updated) }
+        )
+    }
+
+    // Transaction Detail Dialog
+    selectedTransactionForDetail?.let { txn ->
+        TransactionDetailDialog(
+            transaction = txn,
+            onDismiss = { selectedTransactionForDetail = null },
+            onToggleIgnore = { viewModel.toggleIgnore(it) },
+            onDuplicate = { viewModel.duplicateTransaction(it) },
+            onDelete = { viewModel.deleteTransaction(it) },
+            onEdit = { toEdit -> editingTransaction = toEdit }
+        )
+    }
+
+    // ✅ Edit Transaction Dialog
+    editingTransaction?.let { txn ->
+        EditTransactionDialog(
+            transaction = txn,
+            categories = state.categories,
+            friends = state.allFriends.ifEmpty { listOfNotNull(friend) },
+            onDismiss = { editingTransaction = null },
+            onSave = { updated -> viewModel.saveTransaction(updated) }
         )
     }
 

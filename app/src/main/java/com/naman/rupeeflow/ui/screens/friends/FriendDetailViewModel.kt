@@ -2,6 +2,7 @@ package com.naman.rupeeflow.ui.screens.friends
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.naman.rupeeflow.data.repository.CategoryRepository
 import com.naman.rupeeflow.data.repository.FriendRepository
 import com.naman.rupeeflow.data.repository.SettlementRepository
 import com.naman.rupeeflow.data.repository.TransactionRepository
@@ -19,14 +20,17 @@ data class FriendDetailUiState(
     val totalPaymentsReceivedPaise: Long = 0L,
     val totalPaymentsMadePaise: Long = 0L,
     val remainingBalancePaise: Long = 0L,
-    val filterType: String = "ALL" // "ALL", "EXPENSES", "SETTLEMENTS"
+    val filterType: String = "ALL", // "ALL", "EXPENSES", "SETTLEMENTS"
+    val allFriends: List<Friend> = emptyList(),
+    val categories: List<Category> = emptyList()
 )
 
 class FriendDetailViewModel(
     private val friendId: Long,
     private val friendRepository: FriendRepository,
     private val transactionRepository: TransactionRepository,
-    private val settlementRepository: SettlementRepository
+    private val settlementRepository: SettlementRepository,
+    private val categoryRepository: CategoryRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FriendDetailUiState())
@@ -38,11 +42,14 @@ class FriendDetailViewModel(
 
     private fun loadFriendDetails() {
         viewModelScope.launch {
+            val categoriesFlow = categoryRepository?.getAllCategories() ?: flowOf(emptyList())
             combine(
                 friendRepository.getFriendByIdFlow(friendId),
                 transactionRepository.getAllTransactions(),
-                settlementRepository.getSettlementsForFriend(friendId)
-            ) { rawFriend, allTxns, settlements ->
+                settlementRepository.getSettlementsForFriend(friendId),
+                friendRepository.getAllFriends(),
+                categoriesFlow
+            ) { rawFriend, allTxns, settlements, allFriends, categories ->
                 if (rawFriend == null) return@combine null
 
                 // Compute ledger for this friend
@@ -58,16 +65,18 @@ class FriendDetailViewModel(
                 // Shared expenses sum
                 val totalShared = relatedTxns
                     .filter { it.transactionStatus == TransactionStatus.ACTIVE && it.transactionType == TransactionType.EXPENSE }
-                    .sumOf { it.amountPaise }
+                    .sumOf { txn ->
+                        val friendPart = txn.participants.firstOrNull { it.friendId == friendId }
+                        friendPart?.shareAmountPaise ?: 0L
+                    }
 
-                // Total settlements where friend paid ME
-                val paymentsReceived = settlements
-                    .filter { it.payerId == friendId && !it.isReversed }
+                // Settlements sum
+                val validSettlements = settlements.filter { !it.isReversed }
+                val received = validSettlements
+                    .filter { it.payerId == friendId && it.receiverId == null }
                     .sumOf { it.amountPaise }
-
-                // Total settlements where ME paid friend
-                val paymentsMade = settlements
-                    .filter { it.receiverId == friendId && !it.isReversed }
+                val paid = validSettlements
+                    .filter { it.payerId == null && it.receiverId == friendId }
                     .sumOf { it.amountPaise }
 
                 FriendDetailUiState(
@@ -76,15 +85,16 @@ class FriendDetailViewModel(
                     relatedTransactions = relatedTxns,
                     settlements = settlements,
                     totalSharedExpensesPaise = totalShared,
-                    totalPaymentsReceivedPaise = paymentsReceived,
-                    totalPaymentsMadePaise = paymentsMade,
-                    remainingBalancePaise = computedFriend.netBalancePaise
+                    totalPaymentsReceivedPaise = received,
+                    totalPaymentsMadePaise = paid,
+                    remainingBalancePaise = computedFriend.netBalancePaise,
+                    filterType = _uiState.value.filterType,
+                    allFriends = allFriends,
+                    categories = categories
                 )
             }.collect { state ->
                 if (state != null) {
-                    _uiState.update { current ->
-                        state.copy(filterType = current.filterType)
-                    }
+                    _uiState.value = state
                 }
             }
         }
@@ -97,6 +107,13 @@ class FriendDetailViewModel(
     fun recordSettlement(settlement: Settlement) {
         viewModelScope.launch {
             settlementRepository.recordSettlement(settlement)
+        }
+    }
+
+    // ✅ Update existing settlement with ledger recalculation
+    fun updateSettlement(settlement: Settlement) {
+        viewModelScope.launch {
+            settlementRepository.updateSettlement(settlement)
         }
     }
 
@@ -115,6 +132,37 @@ class FriendDetailViewModel(
     fun deleteSettlement(settlement: Settlement) {
         viewModelScope.launch {
             settlementRepository.deleteSettlement(settlement)
+        }
+    }
+
+    // ✅ Transaction operations
+    fun saveTransaction(transaction: Transaction) {
+        viewModelScope.launch {
+            transactionRepository.saveTransaction(transaction)
+        }
+    }
+
+    fun toggleIgnore(transaction: Transaction) {
+        viewModelScope.launch {
+            val nextStatus = if (transaction.isIgnored) TransactionStatus.ACTIVE else TransactionStatus.IGNORED
+            transactionRepository.updateTransactionStatus(transaction.id, nextStatus)
+        }
+    }
+
+    fun duplicateTransaction(transaction: Transaction) {
+        viewModelScope.launch {
+            val copy = transaction.copy(
+                id = 0,
+                transactionDate = System.currentTimeMillis(),
+                createdAt = System.currentTimeMillis()
+            )
+            transactionRepository.saveTransaction(copy)
+        }
+    }
+
+    fun deleteTransaction(transaction: Transaction) {
+        viewModelScope.launch {
+            transactionRepository.deleteTransaction(transaction.id)
         }
     }
 

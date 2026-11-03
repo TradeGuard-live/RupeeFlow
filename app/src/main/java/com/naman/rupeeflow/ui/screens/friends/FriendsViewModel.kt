@@ -114,4 +114,11 @@ class FriendsViewModel(
             settlementRepository.recordSettlement(settlement)
         }
     }
+
+    // ✅ Edit existing settlement
+    fun updateSettlement(settlement: Settlement) {
+        viewModelScope.launch {
+            settlementRepository.updateSettlement(settlement)
+        }
+    }
 }

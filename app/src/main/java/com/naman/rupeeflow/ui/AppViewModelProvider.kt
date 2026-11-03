@@ -78,7 +78,8 @@ object AppViewModelProvider {
                 friendId = friendId,
                 friendRepository = app.appContainer.friendRepository,
                 transactionRepository = app.appContainer.transactionRepository,
-                settlementRepository = app.appContainer.settlementRepository
+                settlementRepository = app.appContainer.settlementRepository,
+                categoryRepository = app.appContainer.categoryRepository
             )
         }
     }
