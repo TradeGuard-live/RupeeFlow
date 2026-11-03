@@ -12,121 +12,101 @@ import java.io.File
 @RunWith(RobolectricTestRunner::class)
 class DatabaseMigrationTest {
 
-    @Test
-    fun testMigration1To2_PreservesAllExistingRecords() {
-        val context = RuntimeEnvironment.getApplication()
-        val tempDbFile = File.createTempFile("test_migration", ".db")
-        tempDbFile.deleteOnExit()
+    private fun createV1Schema(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `categories` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `name` TEXT NOT NULL,
+                `iconName` TEXT NOT NULL,
+                `colorHex` TEXT NOT NULL,
+                `isDefault` INTEGER NOT NULL
+            )
+        """.trimIndent())
 
-        val helper = FrameworkSQLiteOpenHelperFactory().create(
-            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
-                .name(tempDbFile.absolutePath)
-                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
-                    override fun onCreate(db: SupportSQLiteDatabase) {
-                        // Create Version 1 schema
-                        db.execSQL("""
-                            CREATE TABLE IF NOT EXISTS `categories` (
-                                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                                `name` TEXT NOT NULL,
-                                `iconName` TEXT NOT NULL,
-                                `colorHex` TEXT NOT NULL,
-                                `isDefault` INTEGER NOT NULL
-                            )
-                        """.trimIndent())
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `friends` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `name` TEXT NOT NULL,
+                `phoneNumber` TEXT,
+                `email` TEXT,
+                `notes` TEXT,
+                `createdAt` INTEGER NOT NULL,
+                `isArchived` INTEGER NOT NULL
+            )
+        """.trimIndent())
 
-                        db.execSQL("""
-                            CREATE TABLE IF NOT EXISTS `friends` (
-                                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                                `name` TEXT NOT NULL,
-                                `phoneNumber` TEXT,
-                                `email` TEXT,
-                                `notes` TEXT,
-                                `createdAt` INTEGER NOT NULL,
-                                `isArchived` INTEGER NOT NULL
-                            )
-                        """.trimIndent())
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `transactions` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `title` TEXT NOT NULL,
+                `description` TEXT NOT NULL,
+                `amountPaise` INTEGER NOT NULL,
+                `categoryId` INTEGER NOT NULL,
+                `transactionDate` INTEGER NOT NULL,
+                `paymentMethod` TEXT NOT NULL,
+                `accountSource` TEXT,
+                `paidByFriendId` INTEGER,
+                `splitMethod` TEXT NOT NULL,
+                `transactionType` TEXT NOT NULL,
+                `transactionStatus` TEXT NOT NULL,
+                `source` TEXT NOT NULL,
+                `merchantName` TEXT,
+                `referenceNumber` TEXT,
+                `createdAt` INTEGER NOT NULL,
+                `updatedAt` INTEGER NOT NULL,
+                FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT,
+                FOREIGN KEY(`paidByFriendId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+            )
+        """.trimIndent())
 
-                        db.execSQL("""
-                            CREATE TABLE IF NOT EXISTS `transactions` (
-                                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                                `title` TEXT NOT NULL,
-                                `description` TEXT NOT NULL,
-                                `amountPaise` INTEGER NOT NULL,
-                                `categoryId` INTEGER NOT NULL,
-                                `transactionDate` INTEGER NOT NULL,
-                                `paymentMethod` TEXT NOT NULL,
-                                `accountSource` TEXT,
-                                `paidByFriendId` INTEGER,
-                                `splitMethod` TEXT NOT NULL,
-                                `transactionType` TEXT NOT NULL,
-                                `transactionStatus` TEXT NOT NULL,
-                                `source` TEXT NOT NULL,
-                                `merchantName` TEXT,
-                                `referenceNumber` TEXT,
-                                `createdAt` INTEGER NOT NULL,
-                                `updatedAt` INTEGER NOT NULL,
-                                FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT,
-                                FOREIGN KEY(`paidByFriendId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
-                            )
-                        """.trimIndent())
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `transaction_participants` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `transactionId` INTEGER NOT NULL,
+                `friendId` INTEGER,
+                `shareAmountPaise` INTEGER NOT NULL,
+                `percentage` REAL NOT NULL,
+                `splitMethod` TEXT NOT NULL,
+                FOREIGN KEY(`transactionId`) REFERENCES `transactions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                FOREIGN KEY(`friendId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+            )
+        """.trimIndent())
 
-                        db.execSQL("""
-                            CREATE TABLE IF NOT EXISTS `transaction_participants` (
-                                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                                `transactionId` INTEGER NOT NULL,
-                                `friendId` INTEGER,
-                                `shareAmountPaise` INTEGER NOT NULL,
-                                `percentage` REAL NOT NULL,
-                                `splitMethod` TEXT NOT NULL,
-                                FOREIGN KEY(`transactionId`) REFERENCES `transactions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
-                                FOREIGN KEY(`friendId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
-                            )
-                        """.trimIndent())
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `settlements` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `payerId` INTEGER,
+                `receiverId` INTEGER,
+                `amountPaise` INTEGER NOT NULL,
+                `settlementDate` INTEGER NOT NULL,
+                `paymentMethod` TEXT NOT NULL,
+                `referenceNumber` TEXT,
+                `notes` TEXT,
+                `isReversed` INTEGER NOT NULL,
+                `createdAt` INTEGER NOT NULL,
+                FOREIGN KEY(`payerId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL,
+                FOREIGN KEY(`receiverId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+            )
+        """.trimIndent())
 
-                        db.execSQL("""
-                            CREATE TABLE IF NOT EXISTS `settlements` (
-                                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                                `payerId` INTEGER,
-                                `receiverId` INTEGER,
-                                `amountPaise` INTEGER NOT NULL,
-                                `settlementDate` INTEGER NOT NULL,
-                                `paymentMethod` TEXT NOT NULL,
-                                `referenceNumber` TEXT,
-                                `notes` TEXT,
-                                `isReversed` INTEGER NOT NULL,
-                                `createdAt` INTEGER NOT NULL,
-                                FOREIGN KEY(`payerId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL,
-                                FOREIGN KEY(`receiverId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
-                            )
-                        """.trimIndent())
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `pending_transactions` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `detectedAmountPaise` INTEGER NOT NULL,
+                `detectedType` TEXT NOT NULL,
+                `detectedBank` TEXT,
+                `detectedAccount` TEXT,
+                `detectedMerchant` TEXT,
+                `referenceNumber` TEXT,
+                `rawContent` TEXT NOT NULL,
+                `timestamp` INTEGER NOT NULL,
+                `status` TEXT NOT NULL,
+                `source` TEXT NOT NULL
+            )
+        """.trimIndent())
+    }
 
-                        db.execSQL("""
-                            CREATE TABLE IF NOT EXISTS `pending_transactions` (
-                                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                                `detectedAmountPaise` INTEGER NOT NULL,
-                                `detectedType` TEXT NOT NULL,
-                                `detectedBank` TEXT,
-                                `detectedAccount` TEXT,
-                                `detectedMerchant` TEXT,
-                                `referenceNumber` TEXT,
-                                `rawContent` TEXT NOT NULL,
-                                `timestamp` INTEGER NOT NULL,
-                                `status` TEXT NOT NULL,
-                                `source` TEXT NOT NULL
-                            )
-                        """.trimIndent())
-                    }
-
-                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
-                })
-                .build()
-        )
-
-        val db = helper.writableDatabase
-        // ✅ Enforce foreign keys to rigorously test that CASCADE drop bug does not occur
-        db.execSQL("PRAGMA foreign_keys = ON;")
-
-        // 1. Insert sample records into version 1 database
+    private fun insertTestData(db: SupportSQLiteDatabase) {
         db.execSQL("INSERT INTO categories (id, name, iconName, colorHex, isDefault) VALUES (1, 'Food', 'restaurant', '#FF0000', 1)")
         db.execSQL("INSERT INTO categories (id, name, iconName, colorHex, isDefault) VALUES (2, 'Travel', 'flight', '#0000FF', 0)")
 
@@ -175,11 +155,9 @@ class DatabaseMigrationTest {
             INSERT INTO pending_transactions (id, detectedAmountPaise, detectedType, detectedBank, detectedAccount, detectedMerchant, referenceNumber, rawContent, timestamp, status, source)
             VALUES (1, 50000, 'EXPENSE', 'HDFC Bank', '1234', 'Swiggy', 'UPI999', 'Debited 500', 3000, 'PENDING', 'SMS')
         """.trimIndent())
+    }
 
-        // 2. Execute migration from version 1 to version 2
-        RupeeFlowDatabase.MIGRATION_1_2.migrate(db)
-
-        // 3. Verify ALL records survived migration completely intact
+    private fun verifyMigratedData(db: SupportSQLiteDatabase) {
         val catCursor = db.query("SELECT * FROM categories ORDER BY id ASC")
         assertEquals(2, catCursor.count)
         assertTrue(catCursor.moveToFirst())
@@ -273,6 +251,103 @@ class DatabaseMigrationTest {
         val fkCursor = db.query("PRAGMA foreign_key_check")
         assertEquals(0, fkCursor.count)
         fkCursor.close()
+    }
+
+    @Test
+    fun testMigration1To2_PreservesAllExistingRecords() {
+        val context = RuntimeEnvironment.getApplication()
+        val tempDbFile = File.createTempFile("test_migration_1_2", ".db")
+        tempDbFile.deleteOnExit()
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(tempDbFile.absolutePath)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        createV1Schema(db)
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA foreign_keys = ON;")
+
+        insertTestData(db)
+
+        // 2. Execute migration from version 1 to version 2
+        RupeeFlowDatabase.MIGRATION_1_2.migrate(db)
+
+        // 3. Verify ALL records survived migration completely intact
+        verifyMigratedData(db)
+
+        db.close()
+    }
+
+    @Test
+    fun testMigration2To3_PreservesAllExistingRecords() {
+        val context = RuntimeEnvironment.getApplication()
+        val tempDbFile = File.createTempFile("test_migration_2_3", ".db")
+        tempDbFile.deleteOnExit()
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(tempDbFile.absolutePath)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        createV1Schema(db)
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA foreign_keys = ON;")
+
+        insertTestData(db)
+
+        // Migrate to version 2 first
+        RupeeFlowDatabase.MIGRATION_1_2.migrate(db)
+
+        // Now migrate from version 2 to version 3
+        RupeeFlowDatabase.MIGRATION_2_3.migrate(db)
+
+        // Verify ALL records survived migration
+        verifyMigratedData(db)
+
+        db.close()
+    }
+
+    @Test
+    fun testMigration1To3_PreservesAllExistingRecords() {
+        val context = RuntimeEnvironment.getApplication()
+        val tempDbFile = File.createTempFile("test_migration_1_3", ".db")
+        tempDbFile.deleteOnExit()
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(tempDbFile.absolutePath)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        createV1Schema(db)
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA foreign_keys = ON;")
+
+        insertTestData(db)
+
+        // Direct migration from version 1 to version 3
+        RupeeFlowDatabase.MIGRATION_1_3.migrate(db)
+
+        // Verify ALL records survived migration
+        verifyMigratedData(db)
 
         db.close()
     }

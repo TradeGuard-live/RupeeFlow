@@ -6,6 +6,7 @@ import com.naman.rupeeflow.data.repository.*
 import com.naman.rupeeflow.domain.ledger.LedgerCalculator
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.DateTimeUtils
+import com.naman.rupeeflow.domain.util.safeSumOf
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -151,7 +152,7 @@ class OverviewViewModel(
                             it.transactionType == TransactionType.EXPENSE &&
                             it.transactionDate in startOfDay..endOfDay
                 }
-                .sumOf { it.userExpensePaise }
+                .safeSumOf { it.userExpensePaise }
 
             days.add(DailySpending(startOfDay, dayNames[i], dayTotal))
         }

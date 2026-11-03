@@ -24,7 +24,7 @@ import java.io.File
         SettlementEntity::class,
         PendingTransactionEntity::class
     ],
-    version = 2, // ✅ Upgraded to version 2 with safe Room migration
+    version = 3, // ✅ Upgraded to version 3 with safe Room migration
     exportSchema = true // ✅ Schema export enabled
 )
 @TypeConverters(Converters::class)
@@ -40,125 +40,216 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: RupeeFlowDatabase? = null
 
+        // ✅ Safe staging-table recreation procedure avoiding SQLite foreign key CASCADE drops
+        // Temporary staging tables have NO foreign keys, and child tables are dropped before parent tables,
+        // eliminating any cascade deletion risk even when foreign keys are active.
+        private fun rebuildTablesSafely(db: SupportSQLiteDatabase) {
+            db.execSQL("PRAGMA foreign_keys = OFF;")
+
+            // 1. Create temporary staging tables WITHOUT foreign key constraints
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS `temp_participants` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `transactionId` INTEGER NOT NULL,
+                    `friendId` INTEGER,
+                    `shareAmountPaise` INTEGER NOT NULL,
+                    `percentage` REAL NOT NULL,
+                    `splitMethod` TEXT NOT NULL
+                )
+            """.trimIndent())
+            db.execSQL("""
+                INSERT INTO `temp_participants` (`id`, `transactionId`, `friendId`, `shareAmountPaise`, `percentage`, `splitMethod`)
+                SELECT `id`, `transactionId`, `friendId`, `shareAmountPaise`, `percentage`, `splitMethod`
+                FROM `transaction_participants`
+            """.trimIndent())
+
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS `temp_transactions` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `description` TEXT NOT NULL,
+                    `amountPaise` INTEGER NOT NULL,
+                    `categoryId` INTEGER NOT NULL,
+                    `transactionDate` INTEGER NOT NULL,
+                    `paymentMethod` TEXT NOT NULL,
+                    `accountSource` TEXT,
+                    `paidByFriendId` INTEGER,
+                    `splitMethod` TEXT NOT NULL,
+                    `transactionType` TEXT NOT NULL,
+                    `transactionStatus` TEXT NOT NULL,
+                    `source` TEXT NOT NULL,
+                    `merchantName` TEXT,
+                    `referenceNumber` TEXT,
+                    `createdAt` INTEGER NOT NULL,
+                    `updatedAt` INTEGER NOT NULL
+                )
+            """.trimIndent())
+            db.execSQL("""
+                INSERT INTO `temp_transactions` (
+                    `id`, `title`, `description`, `amountPaise`, `categoryId`, `transactionDate`,
+                    `paymentMethod`, `accountSource`, `paidByFriendId`, `splitMethod`, `transactionType`,
+                    `transactionStatus`, `source`, `merchantName`, `referenceNumber`, `createdAt`, `updatedAt`
+                )
+                SELECT `id`, `title`, `description`, `amountPaise`, `categoryId`, `transactionDate`,
+                    `paymentMethod`, `accountSource`, `paidByFriendId`, `splitMethod`, `transactionType`,
+                    `transactionStatus`, `source`, `merchantName`, `referenceNumber`, `createdAt`, `updatedAt`
+                FROM `transactions`
+            """.trimIndent())
+
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS `temp_settlements` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `payerId` INTEGER,
+                    `receiverId` INTEGER,
+                    `amountPaise` INTEGER NOT NULL,
+                    `settlementDate` INTEGER NOT NULL,
+                    `paymentMethod` TEXT NOT NULL,
+                    `referenceNumber` TEXT,
+                    `notes` TEXT,
+                    `isReversed` INTEGER NOT NULL,
+                    `createdAt` INTEGER NOT NULL
+                )
+            """.trimIndent())
+            db.execSQL("""
+                INSERT INTO `temp_settlements` (
+                    `id`, `payerId`, `receiverId`, `amountPaise`, `settlementDate`,
+                    `paymentMethod`, `referenceNumber`, `notes`, `isReversed`, `createdAt`
+                )
+                SELECT `id`, `payerId`, `receiverId`, `amountPaise`, `settlementDate`,
+                    `paymentMethod`, `referenceNumber`, `notes`, `isReversed`, `createdAt`
+                FROM `settlements`
+            """.trimIndent())
+
+            // 2. Drop child tables BEFORE parent tables.
+            // Since staging tables have no FKs and child is dropped first, dropping transactions triggers ZERO cascades!
+            db.execSQL("DROP TABLE `transaction_participants`")
+            db.execSQL("DROP TABLE `transactions`")
+            db.execSQL("DROP TABLE `settlements`")
+
+            // 3. Create final transactions table with RESTRICT foreign keys
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS `transactions` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `title` TEXT NOT NULL,
+                    `description` TEXT NOT NULL,
+                    `amountPaise` INTEGER NOT NULL,
+                    `categoryId` INTEGER NOT NULL,
+                    `transactionDate` INTEGER NOT NULL,
+                    `paymentMethod` TEXT NOT NULL,
+                    `accountSource` TEXT,
+                    `paidByFriendId` INTEGER,
+                    `splitMethod` TEXT NOT NULL,
+                    `transactionType` TEXT NOT NULL,
+                    `transactionStatus` TEXT NOT NULL,
+                    `source` TEXT NOT NULL,
+                    `merchantName` TEXT,
+                    `referenceNumber` TEXT,
+                    `createdAt` INTEGER NOT NULL,
+                    `updatedAt` INTEGER NOT NULL,
+                    FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT,
+                    FOREIGN KEY(`paidByFriendId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+                )
+            """.trimIndent())
+            db.execSQL("""
+                INSERT INTO `transactions` (
+                    `id`, `title`, `description`, `amountPaise`, `categoryId`, `transactionDate`,
+                    `paymentMethod`, `accountSource`, `paidByFriendId`, `splitMethod`, `transactionType`,
+                    `transactionStatus`, `source`, `merchantName`, `referenceNumber`, `createdAt`, `updatedAt`
+                )
+                SELECT `id`, `title`, `description`, `amountPaise`, `categoryId`, `transactionDate`,
+                    `paymentMethod`, `accountSource`, `paidByFriendId`, `splitMethod`, `transactionType`,
+                    `transactionStatus`, `source`, `merchantName`, `referenceNumber`, `createdAt`, `updatedAt`
+                FROM `temp_transactions`
+            """.trimIndent())
+
+            // 4. Create final transaction_participants table with CASCADE to transactions and RESTRICT to friends
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS `transaction_participants` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `transactionId` INTEGER NOT NULL,
+                    `friendId` INTEGER,
+                    `shareAmountPaise` INTEGER NOT NULL,
+                    `percentage` REAL NOT NULL,
+                    `splitMethod` TEXT NOT NULL,
+                    FOREIGN KEY(`transactionId`) REFERENCES `transactions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                    FOREIGN KEY(`friendId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+                )
+            """.trimIndent())
+            db.execSQL("""
+                INSERT INTO `transaction_participants` (
+                    `id`, `transactionId`, `friendId`, `shareAmountPaise`, `percentage`, `splitMethod`
+                )
+                SELECT `id`, `transactionId`, `friendId`, `shareAmountPaise`, `percentage`, `splitMethod`
+                FROM `temp_participants`
+            """.trimIndent())
+
+            // 5. Create final settlements table with RESTRICT foreign keys
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS `settlements` (
+                    `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    `payerId` INTEGER,
+                    `receiverId` INTEGER,
+                    `amountPaise` INTEGER NOT NULL,
+                    `settlementDate` INTEGER NOT NULL,
+                    `paymentMethod` TEXT NOT NULL,
+                    `referenceNumber` TEXT,
+                    `notes` TEXT,
+                    `isReversed` INTEGER NOT NULL,
+                    `createdAt` INTEGER NOT NULL,
+                    FOREIGN KEY(`payerId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT,
+                    FOREIGN KEY(`receiverId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
+                )
+            """.trimIndent())
+            db.execSQL("""
+                INSERT INTO `settlements` (
+                    `id`, `payerId`, `receiverId`, `amountPaise`, `settlementDate`,
+                    `paymentMethod`, `referenceNumber`, `notes`, `isReversed`, `createdAt`
+                )
+                SELECT `id`, `payerId`, `receiverId`, `amountPaise`, `settlementDate`,
+                    `paymentMethod`, `referenceNumber`, `notes`, `isReversed`, `createdAt`
+                FROM `temp_settlements`
+            """.trimIndent())
+
+            // 6. Clean up temporary staging tables
+            db.execSQL("DROP TABLE IF EXISTS `temp_participants`")
+            db.execSQL("DROP TABLE IF EXISTS `temp_transactions`")
+            db.execSQL("DROP TABLE IF EXISTS `temp_settlements`")
+
+            // 7. Recreate indexes
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_categoryId` ON `transactions` (`categoryId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_paidByFriendId` ON `transactions` (`paidByFriendId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_transactionDate` ON `transactions` (`transactionDate`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_transactionStatus` ON `transactions` (`transactionStatus`)")
+
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_transaction_participants_transactionId` ON `transaction_participants` (`transactionId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_transaction_participants_friendId` ON `transaction_participants` (`friendId`)")
+
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_settlements_payerId` ON `settlements` (`payerId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_settlements_receiverId` ON `settlements` (`receiverId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_settlements_settlementDate` ON `settlements` (`settlementDate`)")
+
+            // Re-enable foreign keys
+            db.execSQL("PRAGMA foreign_keys = ON;")
+        }
+
         // ✅ Migration from version 1 to 2
-        // Updates foreign key rules to RESTRICT to prevent friend identity collisions,
-        // safely copying all existing records across transactions, participants, and settlements.
-        // Explicitly turns foreign keys OFF during migration and copies participants prior to table drops
-        // to prevent cascade deletions.
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // Disable foreign key constraints during table recreate to prevent cascade drops
-                db.execSQL("PRAGMA foreign_keys = OFF;")
+                rebuildTablesSafely(db)
+            }
+        }
 
-                // 1. Transaction Participants table (create & copy first to safeguard children)
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS `transaction_participants_new` (
-                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        `transactionId` INTEGER NOT NULL,
-                        `friendId` INTEGER,
-                        `shareAmountPaise` INTEGER NOT NULL,
-                        `percentage` REAL NOT NULL,
-                        `splitMethod` TEXT NOT NULL,
-                        FOREIGN KEY(`transactionId`) REFERENCES `transactions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
-                        FOREIGN KEY(`friendId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
-                    )
-                """.trimIndent())
-                db.execSQL("""
-                    INSERT INTO `transaction_participants_new` (
-                        `id`, `transactionId`, `friendId`, `shareAmountPaise`, `percentage`, `splitMethod`
-                    )
-                    SELECT `id`, `transactionId`, `friendId`, `shareAmountPaise`, `percentage`, `splitMethod`
-                    FROM `transaction_participants`
-                """.trimIndent())
+        // ✅ Corrective migration from version 2 to 3
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                rebuildTablesSafely(db)
+            }
+        }
 
-                // 2. Transactions table
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS `transactions_new` (
-                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        `title` TEXT NOT NULL,
-                        `description` TEXT NOT NULL,
-                        `amountPaise` INTEGER NOT NULL,
-                        `categoryId` INTEGER NOT NULL,
-                        `transactionDate` INTEGER NOT NULL,
-                        `paymentMethod` TEXT NOT NULL,
-                        `accountSource` TEXT,
-                        `paidByFriendId` INTEGER,
-                        `splitMethod` TEXT NOT NULL,
-                        `transactionType` TEXT NOT NULL,
-                        `transactionStatus` TEXT NOT NULL,
-                        `source` TEXT NOT NULL,
-                        `merchantName` TEXT,
-                        `referenceNumber` TEXT,
-                        `createdAt` INTEGER NOT NULL,
-                        `updatedAt` INTEGER NOT NULL,
-                        FOREIGN KEY(`categoryId`) REFERENCES `categories`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT,
-                        FOREIGN KEY(`paidByFriendId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
-                    )
-                """.trimIndent())
-                db.execSQL("""
-                    INSERT INTO `transactions_new` (
-                        `id`, `title`, `description`, `amountPaise`, `categoryId`, `transactionDate`,
-                        `paymentMethod`, `accountSource`, `paidByFriendId`, `splitMethod`, `transactionType`,
-                        `transactionStatus`, `source`, `merchantName`, `referenceNumber`, `createdAt`, `updatedAt`
-                    )
-                    SELECT `id`, `title`, `description`, `amountPaise`, `categoryId`, `transactionDate`,
-                        `paymentMethod`, `accountSource`, `paidByFriendId`, `splitMethod`, `transactionType`,
-                        `transactionStatus`, `source`, `merchantName`, `referenceNumber`, `createdAt`, `updatedAt`
-                    FROM `transactions`
-                """.trimIndent())
-
-                // 3. Settlements table
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS `settlements_new` (
-                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        `payerId` INTEGER,
-                        `receiverId` INTEGER,
-                        `amountPaise` INTEGER NOT NULL,
-                        `settlementDate` INTEGER NOT NULL,
-                        `paymentMethod` TEXT NOT NULL,
-                        `referenceNumber` TEXT,
-                        `notes` TEXT,
-                        `isReversed` INTEGER NOT NULL,
-                        `createdAt` INTEGER NOT NULL,
-                        FOREIGN KEY(`payerId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT,
-                        FOREIGN KEY(`receiverId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT
-                    )
-                """.trimIndent())
-                db.execSQL("""
-                    INSERT INTO `settlements_new` (
-                        `id`, `payerId`, `receiverId`, `amountPaise`, `settlementDate`,
-                        `paymentMethod`, `referenceNumber`, `notes`, `isReversed`, `createdAt`
-                    )
-                    SELECT `id`, `payerId`, `receiverId`, `amountPaise`, `settlementDate`,
-                        `paymentMethod`, `referenceNumber`, `notes`, `isReversed`, `createdAt`
-                    FROM `settlements`
-                """.trimIndent())
-
-                // Drop old tables
-                db.execSQL("DROP TABLE `transaction_participants`")
-                db.execSQL("DROP TABLE `transactions`")
-                db.execSQL("DROP TABLE `settlements`")
-
-                // Rename new tables to standard names
-                db.execSQL("ALTER TABLE `transaction_participants_new` RENAME TO `transaction_participants`")
-                db.execSQL("ALTER TABLE `transactions_new` RENAME TO `transactions`")
-                db.execSQL("ALTER TABLE `settlements_new` RENAME TO `settlements`")
-
-                // Recreate indexes
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_categoryId` ON `transactions` (`categoryId`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_paidByFriendId` ON `transactions` (`paidByFriendId`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_transactionDate` ON `transactions` (`transactionDate`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_transactionStatus` ON `transactions` (`transactionStatus`)")
-
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transaction_participants_transactionId` ON `transaction_participants` (`transactionId`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transaction_participants_friendId` ON `transaction_participants` (`friendId`)")
-
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_settlements_payerId` ON `settlements` (`payerId`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_settlements_receiverId` ON `settlements` (`receiverId`)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_settlements_settlementDate` ON `settlements` (`settlementDate`)")
-
-                // Re-enable foreign key constraints
-                db.execSQL("PRAGMA foreign_keys = ON;")
+        // ✅ Direct migration from version 1 to 3
+        val MIGRATION_1_3 = object : Migration(1, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                rebuildTablesSafely(db)
             }
         }
 
@@ -167,7 +258,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             try {
                 val dbFile = context.getDatabasePath("rupeeflow_database.db")
                 if (dbFile.exists() && dbFile.length() > 0) {
-                    val backupFile = File(dbFile.parentFile, "rupeeflow_database_pre_v2_backup.db")
+                    val backupFile = File(dbFile.parentFile, "rupeeflow_database_backup.db")
                     if (!backupFile.exists()) {
                         dbFile.copyTo(backupFile, overwrite = false)
                     }
@@ -185,7 +276,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                     RupeeFlowDatabase::class.java,
                     "rupeeflow_database.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3)
                     .addCallback(DatabaseCallback(scope))
                     // ✅ Destructive migration removed! Data preservation guaranteed.
                     .build()

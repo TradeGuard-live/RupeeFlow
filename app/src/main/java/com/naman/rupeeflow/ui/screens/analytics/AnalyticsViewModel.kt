@@ -9,6 +9,8 @@ import com.naman.rupeeflow.data.repository.TransactionRepository
 import com.naman.rupeeflow.domain.ledger.LedgerCalculator
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.DateTimeUtils
+import com.naman.rupeeflow.domain.util.SafeMath
+import com.naman.rupeeflow.domain.util.safeSumOf
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -47,8 +49,9 @@ class AnalyticsViewModel(
                 _uiState.map { it.selectedPeriod }.distinctUntilChanged()
             ) { txns, categories, friends, settlements, period ->
                 val friendsWithLedger = LedgerCalculator.computeFriendLedgers(friends, txns, settlements)
-                val owedToMe = friendsWithLedger.filter { it.netBalancePaise > 0 }.sumOf { it.netBalancePaise }
-                val iOwe = friendsWithLedger.filter { it.netBalancePaise < 0 }.sumOf { kotlin.math.abs(it.netBalancePaise) }
+                // ✅ Overflow-protected aggregations
+                val owedToMe = friendsWithLedger.filter { it.netBalancePaise > 0L }.safeSumOf { it.netBalancePaise }
+                val iOwe = friendsWithLedger.filter { it.netBalancePaise < 0L }.safeSumOf { SafeMath.safeAbs(it.netBalancePaise) }
 
                 val (data, info) = computeAnalyticsForPeriod(txns, categories, period)
                 AnalyticsUiState(

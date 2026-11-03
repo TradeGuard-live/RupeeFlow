@@ -105,10 +105,14 @@ class PendingTransactionRepositoryImpl(
         )
 
         for (item in recentPending) {
-            // Immediate broadcast copy within 10 seconds
-            if (kotlin.math.abs(item.timestamp - timestamp) < 10_000L) return true
-            // Exact raw text match
-            if (rawContent != null && item.rawContent.trim() == rawContent.trim()) return true
+            // Exact raw text match (e.g. duplicate SMS or notification broadcast delivered twice)
+            if (rawContent != null && item.rawContent.trim().equals(rawContent.trim(), ignoreCase = true)) return true
+
+            // ✅ If both transactions have merchants and they differ, they are distinct legitimate purchases!
+            if (!merchant.isNullOrBlank() && !item.detectedMerchant.isNullOrBlank() &&
+                !merchant.equals(item.detectedMerchant, ignoreCase = true)) {
+                continue
+            }
 
             // Same merchant & amount within window
             val merchantsMatch = !merchant.isNullOrBlank() && merchant.equals(item.detectedMerchant, ignoreCase = true)
@@ -128,6 +132,11 @@ class PendingTransactionRepositoryImpl(
                 endMillis = timestamp + window
             )
             for (item in recentConfirmed) {
+                // ✅ If both have merchants and they differ, distinct legitimate purchase!
+                if (!merchant.isNullOrBlank() && !item.merchantName.isNullOrBlank() &&
+                    !merchant.equals(item.merchantName, ignoreCase = true)) {
+                    continue
+                }
                 if (!merchant.isNullOrBlank() && merchant.equals(item.merchantName, ignoreCase = true)) return true
                 if (!accountLast4.isNullOrBlank() && item.accountSource?.endsWith(accountLast4) == true) return true
             }

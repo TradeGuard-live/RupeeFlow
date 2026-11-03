@@ -9,6 +9,8 @@ import com.naman.rupeeflow.domain.ledger.LedgerCalculator
 import com.naman.rupeeflow.domain.model.Friend
 import com.naman.rupeeflow.domain.model.FriendBalanceStatus
 import com.naman.rupeeflow.domain.model.Settlement
+import com.naman.rupeeflow.domain.util.SafeMath
+import com.naman.rupeeflow.domain.util.safeSumOf
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -46,8 +48,9 @@ class FriendsViewModel(
                 val friendsWithLedger = LedgerCalculator.computeFriendLedgers(friends, transactions, settlements)
 
                 val activeFriends = friendsWithLedger.filter { !it.isArchived }
-                val theyOwe = activeFriends.filter { it.netBalancePaise > 0 }.sumOf { it.netBalancePaise }
-                val iOwe = activeFriends.filter { it.netBalancePaise < 0 }.sumOf { kotlin.math.abs(it.netBalancePaise) }
+                // ✅ Overflow-protected aggregations
+                val theyOwe = activeFriends.filter { it.netBalancePaise > 0L }.safeSumOf { it.netBalancePaise }
+                val iOwe = activeFriends.filter { it.netBalancePaise < 0L }.safeSumOf { SafeMath.safeAbs(it.netBalancePaise) }
 
                 Triple(friendsWithLedger, theyOwe, iOwe)
             }.collect { (friendsWithLedger, theyOwe, iOwe) ->
@@ -59,7 +62,7 @@ class FriendsViewModel(
                         filteredFriends = filtered,
                         totalTheyOweMePaise = theyOwe,
                         totalIOweThemPaise = iOwe,
-                        netBalancePaise = theyOwe - iOwe
+                        netBalancePaise = SafeMath.safeSubtract(theyOwe, iOwe)
                     )
                 }
             }

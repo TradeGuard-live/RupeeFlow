@@ -72,6 +72,7 @@ fun EditSettlementDialog(
 
     val amountPaise = remember(amountText) { CurrencyUtils.parseInputToPaise(amountText) }
 
+    var isSaving by remember { mutableStateOf(false) }
     var showDiscardConfirm by remember { mutableStateOf(false) }
 
     val hasUnsavedChanges = remember(
@@ -368,7 +369,8 @@ fun EditSettlementDialog(
                 Button(
                     onClick = {
                         val friend = selectedFriend ?: return@Button
-                        if (amountPaise <= 0L) return@Button
+                        if (isSaving || amountPaise <= 0L) return@Button
+                        isSaving = true
 
                         // ✅ Preserve settlement.id, settlement.createdAt, and settlement.isReversed
                         val updatedSettlement = settlement.copy(
@@ -392,7 +394,7 @@ fun EditSettlementDialog(
                         containerColor = if (isFriendPayingMe) EmeraldMint else ElectricBlue,
                         contentColor = MidnightDark
                     ),
-                    enabled = amountPaise > 0L && selectedFriend != null
+                    enabled = !isSaving && amountPaise > 0L && selectedFriend != null
                 ) {
                     Text(
                         text = "Save Settlement Changes",

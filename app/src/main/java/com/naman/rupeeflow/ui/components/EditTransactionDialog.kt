@@ -116,6 +116,7 @@ fun EditTransactionDialog(
     // 15. Reference number
     var referenceNumber by remember { mutableStateOf(transaction.referenceNumber ?: "") }
 
+    var isSaving by remember { mutableStateOf(false) }
     var showDiscardConfirm by remember { mutableStateOf(false) }
 
     val amountPaise = remember(amountText) { CurrencyUtils.parseInputToPaise(amountText) }
@@ -930,7 +931,8 @@ fun EditTransactionDialog(
             // Save Changes Button
             Button(
                 onClick = {
-                    if (amountPaise <= 0L || !isSplitValid) return@Button
+                    if (isSaving || amountPaise <= 0L || !isSplitValid) return@Button
+                    isSaving = true
                     val finalTitle = title.ifBlank { selectedCategory?.name ?: selectedType.displayName }
                     val categoryId = selectedCategory?.id ?: transaction.categoryId
 
@@ -1023,7 +1025,7 @@ fun EditTransactionDialog(
                     containerColor = ElectricBlue,
                     contentColor = MidnightDark
                 ),
-                enabled = amountPaise > 0L && isSplitValid
+                enabled = !isSaving && amountPaise > 0L && isSplitValid
             ) {
                 Text(
                     text = "Save Changes",

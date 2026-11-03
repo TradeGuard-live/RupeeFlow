@@ -204,5 +204,107 @@ class TransactionAndSettlementRepositoryTest {
             fail("Expected exception for payer == receiver")
         } catch (_: IllegalArgumentException) {}
     }
+
+    @Test
+    fun testDuplicateTransactionDetection_LegitimateSameAmountPurchasesAllowed() = runBlocking {
+        val now = System.currentTimeMillis()
+
+        // 1. First purchase: ₹50.00 at Chai Point
+        val firstTxn = Transaction(
+            title = "Morning Tea",
+            amountPaise = 5000L,
+            categoryId = 1L,
+            transactionDate = now,
+            merchantName = "Chai Point",
+            referenceNumber = "UPI_CHAI_123"
+        )
+        transactionRepository.saveTransaction(firstTxn)
+
+        // 2. Second purchase: ₹50.00 at Blue Tokai 30 seconds later (different merchant, no ref or different ref)
+        val isDuplicateDifferentMerchant = transactionRepository.isDuplicate(
+            amountPaise = 5000L,
+            timestamp = now + 30_000L,
+            refNumber = "UPI_COFFEE_456",
+            merchant = "Blue Tokai",
+            title = "Espresso"
+        )
+        // Must NOT be marked as duplicate!
+        assertFalse(isDuplicateDifferentMerchant)
+
+        // 3. Duplicate broadcast: Same merchant and same amount within 2 minutes
+        val isDuplicateSameMerchant = transactionRepository.isDuplicate(
+            amountPaise = 5000L,
+            timestamp = now + 15_000L,
+            refNumber = null,
+            merchant = "Chai Point",
+            title = "Morning Tea"
+        )
+        // MUST be detected as duplicate!
+        assertTrue(isDuplicateSameMerchant)
+
+        // 4. Exact reference number match (even with different title/merchant)
+        val isDuplicateExactRef = transactionRepository.isDuplicate(
+            amountPaise = 5000L,
+            timestamp = now + 600_000L, // 10 minutes later
+            refNumber = "UPI_CHAI_123",
+            merchant = "Unknown",
+            title = "Something Else"
+        )
+        // MUST be detected as duplicate!
+        assertTrue(isDuplicateExactRef)
+    }
+
+    @Test
+    fun testPendingTransactionRepository_DuplicateDetection() = runBlocking {
+        val pendingRepo = PendingTransactionRepositoryImpl(
+            pendingDao = database.pendingTransactionDao(),
+            transactionDao = database.transactionDao()
+        )
+        val now = System.currentTimeMillis()
+
+        // Add a pending transaction
+        val pending1 = PendingTransaction(
+            detectedAmountPaise = 15000L,
+            detectedType = TransactionType.EXPENSE,
+            detectedBank = "HDFC",
+            detectedAccount = "4321",
+            detectedMerchant = "Swiggy",
+            referenceNumber = "SWIGGY_REF_1",
+            rawContent = "Paid Rs 150 at Swiggy",
+            timestamp = now,
+            status = PendingStatus.PENDING
+        )
+        pendingRepo.addPendingTransaction(pending1)
+
+        // 1. Same amount at different merchant (Zomato) 20s later -> not duplicate
+        val notDuplicate = pendingRepo.isDuplicate(
+            amountPaise = 15000L,
+            timestamp = now + 20_000L,
+            refNumber = "ZOMATO_REF_2",
+            merchant = "Zomato",
+            bank = "HDFC",
+            accountLast4 = "4321"
+        )
+        assertFalse(notDuplicate)
+
+        // 2. Exact same reference number -> duplicate
+        val duplicateRef = pendingRepo.isDuplicate(
+            amountPaise = 15000L,
+            timestamp = now + 50_000L,
+            refNumber = "SWIGGY_REF_1",
+            merchant = "Swiggy"
+        )
+        assertTrue(duplicateRef)
+
+        // 3. Exact raw content (broadcast delivered twice by Android OS) -> duplicate
+        val duplicateRawContent = pendingRepo.isDuplicate(
+            amountPaise = 15000L,
+            timestamp = now + 2_000L,
+            refNumber = null,
+            merchant = "Swiggy",
+            rawContent = "Paid Rs 150 at Swiggy"
+        )
+        assertTrue(duplicateRawContent)
+    }
 }
 

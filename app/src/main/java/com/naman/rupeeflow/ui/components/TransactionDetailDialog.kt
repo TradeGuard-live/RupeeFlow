@@ -31,7 +31,7 @@ fun TransactionDetailDialog(
     onToggleIgnore: (Transaction) -> Unit,
     onDuplicate: (Transaction) -> Unit,
     onDelete: (Transaction) -> Unit,
-    onEdit: (Transaction) -> Unit = {}
+    onEdit: (Transaction) -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
@@ -194,89 +194,139 @@ fun TransactionDetailDialog(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Actions row
-                Row(
+                // ✅ Responsive 2-column, 2-row action button layout
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    // ✅ Edit Button
-                    Button(
-                        onClick = {
-                            onDismiss()
-                            onEdit(transaction)
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = VibrantCyan,
-                            contentColor = MidnightDark
-                        )
+                    // Row 1: Primary actions (Edit & Copy)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit",
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Edit",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold
-                        )
+                        // Edit Button (Filled primary cyan)
+                        Button(
+                            onClick = {
+                                onDismiss()
+                                onEdit(transaction)
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = VibrantCyan,
+                                contentColor = MidnightDark
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Edit",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+
+                        // Copy Button (Outlined blue)
+                        OutlinedButton(
+                            onClick = {
+                                onDuplicate(transaction)
+                                onDismiss()
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ElectricBlue),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, ElectricBlue)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentCopy,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Copy",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
 
-                    // Ignore / Restore Button
-                    OutlinedButton(
-                        onClick = {
-                            onToggleIgnore(transaction)
-                            onDismiss()
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = if (transaction.isIgnored) EmeraldMint else AmberGold
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (transaction.isIgnored) EmeraldMint else AmberGold
-                        )
+                    // Row 2: Secondary / State actions (Ignore/Restore & Delete)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(
-                            imageVector = if (transaction.isIgnored) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (transaction.isIgnored) "Restore" else "Ignore",
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
+                        // Ignore / Restore Button
+                        val ignoreColor = if (transaction.isIgnored) EmeraldMint else AmberGold
+                        OutlinedButton(
+                            onClick = {
+                                onToggleIgnore(transaction)
+                                onDismiss()
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ignoreColor),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, ignoreColor)
+                        ) {
+                            Icon(
+                                imageVector = if (transaction.isIgnored) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (transaction.isIgnored) "Restore" else "Ignore",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
 
-                    // Duplicate Button
-                    OutlinedButton(
-                        onClick = {
-                            onDuplicate(transaction)
-                            onDismiss()
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = ElectricBlue),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, ElectricBlue)
-                    ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Copy", style = MaterialTheme.typography.labelSmall)
-                    }
-
-                    // Delete Button
-                    IconButton(
-                        onClick = { showDeleteConfirm = true },
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(CoralRed.copy(alpha = 0.15f))
-                    ) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = CoralRed)
+                        // Delete Button (Red destructive outlined)
+                        OutlinedButton(
+                            onClick = { showDeleteConfirm = true },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralRed),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CoralRed)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DeleteOutline,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = CoralRed
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Delete",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = CoralRed,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 }
             }

@@ -20,7 +20,14 @@ interface TransactionRepository {
     suspend fun saveTransaction(transaction: Transaction): Long
     suspend fun updateTransactionStatus(id: Long, status: TransactionStatus)
     suspend fun deleteTransaction(id: Long)
-    suspend fun isDuplicate(amountPaise: Long, timestamp: Long, refNumber: String?): Boolean
+    // ✅ Contextual duplicate check: does NOT reject transactions based solely on matching amount
+    suspend fun isDuplicate(
+        amountPaise: Long,
+        timestamp: Long,
+        refNumber: String?,
+        merchant: String? = null,
+        title: String? = null
+    ): Boolean
 }
 
 class TransactionRepositoryImpl(
@@ -102,14 +109,47 @@ class TransactionRepositoryImpl(
         transactionDao.deleteTransactionById(id)
     }
 
-    override suspend fun isDuplicate(amountPaise: Long, timestamp: Long, refNumber: String?): Boolean {
+    // ✅ Context-aware duplicate check: prefers exact reference/UTR and matches merchant or title,
+    // never rejecting legitimate purchases with identical amounts
+    override suspend fun isDuplicate(
+        amountPaise: Long,
+        timestamp: Long,
+        refNumber: String?,
+        merchant: String?,
+        title: String?
+    ): Boolean {
         if (!refNumber.isNullOrBlank()) {
             val existing = transactionDao.findByReferenceNumber(refNumber)
             if (existing != null) return true
         }
+
         val window = 2 * 60 * 1000L
         val recent = transactionDao.findSimilarRecent(amountPaise, timestamp - window, timestamp + window)
-        return recent.isNotEmpty()
+
+        for (item in recent) {
+            // Immediate duplicate notification/broadcast within 5 seconds with identical merchant or title
+            if (kotlin.math.abs(item.transactionDate - timestamp) < 5_000L) {
+                if (!merchant.isNullOrBlank() && !item.merchantName.isNullOrBlank()) {
+                    if (merchant.equals(item.merchantName, ignoreCase = true)) return true
+                } else if (!title.isNullOrBlank() && !item.title.isNullOrBlank()) {
+                    if (title.equals(item.title, ignoreCase = true)) return true
+                } else if (merchant.isNullOrBlank() && item.merchantName.isNullOrBlank()) {
+                    return true
+                }
+            }
+
+            // Same merchant & amount within window
+            if (!merchant.isNullOrBlank() && merchant.equals(item.merchantName, ignoreCase = true)) {
+                return true
+            }
+
+            // Same title & amount within window
+            if (!title.isNullOrBlank() && title.equals(item.title, ignoreCase = true)) {
+                return true
+            }
+        }
+
+        return false
     }
 
     private fun TransactionWithParticipants.toDomain(

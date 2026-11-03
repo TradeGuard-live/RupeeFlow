@@ -31,7 +31,7 @@ fun SettlementDetailDialog(
     onReverse: (Settlement) -> Unit,
     onUnreverse: (Settlement) -> Unit,
     onDelete: (Settlement) -> Unit,
-    onEdit: (Settlement) -> Unit = {}
+    onEdit: (Settlement) -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showReverseConfirm by remember { mutableStateOf(false) }
@@ -169,58 +169,109 @@ fun SettlementDetailDialog(
                 HorizontalDivider(color = GlassBorder)
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Action Buttons
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    // ✅ Edit Settlement Button
-                    Button(
-                        onClick = {
-                            onDismiss()
-                            onEdit(settlement)
-                        },
+                // ✅ Responsive action button layout consistent with TransactionDetailDialog
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Row 1: Primary action (Edit) & State action (Reverse / Restore)
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = VibrantCyan, contentColor = MidnightDark),
-                        shape = RoundedCornerShape(14.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Edit Settlement", fontWeight = FontWeight.Bold)
-                    }
-
-                    if (!settlement.isReversed) {
-                        OutlinedButton(
-                            onClick = { showReverseConfirm = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberGold),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, AmberGold.copy(alpha = 0.7f)),
-                            shape = RoundedCornerShape(14.dp)
-                        ) {
-                            Icon(Icons.Default.Undo, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Reverse Settlement", fontWeight = FontWeight.SemiBold)
-                        }
-                    } else {
+                        // Edit Settlement Button
                         Button(
-                            onClick = { showUnreverseConfirm = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldMint, contentColor = MidnightDark),
-                            shape = RoundedCornerShape(14.dp)
+                            onClick = {
+                                onDismiss()
+                                onEdit(settlement)
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = VibrantCyan,
+                                contentColor = MidnightDark
+                            ),
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                         ) {
-                            Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Convert to Normal (Restore)", fontWeight = FontWeight.Bold)
+                            Text(
+                                text = "Edit",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+
+                        // Reverse / Restore Button
+                        if (!settlement.isReversed) {
+                            OutlinedButton(
+                                onClick = { showReverseConfirm = true },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 48.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberGold),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, AmberGold),
+                                shape = RoundedCornerShape(14.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                            ) {
+                                Icon(Icons.Default.Undo, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Reverse",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        } else {
+                            Button(
+                                onClick = { showUnreverseConfirm = true },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 48.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldMint, contentColor = MidnightDark),
+                                shape = RoundedCornerShape(14.dp),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                            ) {
+                                Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Restore",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
                         }
                     }
 
+                    // Row 2: Delete Settlement
                     OutlinedButton(
                         onClick = { showDeleteConfirm = true },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralRed),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CoralRed.copy(alpha = 0.5f)),
-                        shape = RoundedCornerShape(14.dp)
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CoralRed),
+                        shape = RoundedCornerShape(14.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                     ) {
                         Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Delete Settlement", fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = "Delete Settlement",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = CoralRed,
+                            maxLines = 1,
+                            softWrap = false
+                        )
                     }
                 }
             }

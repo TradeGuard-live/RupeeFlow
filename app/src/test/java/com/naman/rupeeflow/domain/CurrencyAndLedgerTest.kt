@@ -3,6 +3,8 @@ package com.naman.rupeeflow.domain
 import com.naman.rupeeflow.domain.ledger.LedgerCalculator
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.CurrencyUtils
+import com.naman.rupeeflow.domain.util.SafeMath
+import com.naman.rupeeflow.domain.util.safeSumOf
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -591,5 +593,38 @@ class CurrencyAndLedgerTest {
         } catch (_: IllegalArgumentException) {
             // Success
         }
+    }
+
+    @Test
+    fun testSafeMath_OverflowProtectionAndMinMaxHandling() {
+        // SafeMath.safeAbs handling Long.MIN_VALUE
+        // Math.abs(Long.MIN_VALUE) returns Long.MIN_VALUE (negative!), but SafeMath returns Long.MAX_VALUE
+        assertEquals(Long.MAX_VALUE, SafeMath.safeAbs(Long.MIN_VALUE))
+        assertEquals(500L, SafeMath.safeAbs(-500L))
+        assertEquals(500L, SafeMath.safeAbs(500L))
+
+        // SafeMath.safeNegate
+        assertEquals(Long.MAX_VALUE, SafeMath.safeNegate(Long.MIN_VALUE))
+        assertEquals(-100L, SafeMath.safeNegate(100L))
+        assertEquals(100L, SafeMath.safeNegate(-100L))
+
+        // SafeMath.safeAdd overflow clamping
+        assertEquals(Long.MAX_VALUE, SafeMath.safeAdd(Long.MAX_VALUE - 10L, 50L))
+        assertEquals(Long.MIN_VALUE, SafeMath.safeAdd(Long.MIN_VALUE + 10L, -50L))
+        assertEquals(300L, SafeMath.safeAdd(100L, 200L))
+
+        // SafeMath.safeSubtract overflow clamping
+        assertEquals(Long.MAX_VALUE, SafeMath.safeSubtract(Long.MAX_VALUE - 10L, -50L))
+        assertEquals(Long.MIN_VALUE, SafeMath.safeSubtract(Long.MIN_VALUE + 10L, 50L))
+        assertEquals(50L, SafeMath.safeSubtract(150L, 100L))
+
+        // safeSumOf extension
+        val largeList = listOf(Long.MAX_VALUE / 2 + 100L, Long.MAX_VALUE / 2 + 200L)
+        val clampedSum = largeList.safeSumOf { it }
+        assertEquals(Long.MAX_VALUE, clampedSum)
+
+        // Normal safe sum
+        val normalList = listOf(100L, 200L, 300L)
+        assertEquals(600L, normalList.safeSumOf { it })
     }
 }

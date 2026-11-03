@@ -221,3 +221,48 @@ object DateTimeUtils {
         }.timeInMillis
     }
 }
+
+/**
+ * ✅ Robust monetary and integer arithmetic preventing Long overflows.
+ * Handles boundary conditions like Long.MIN_VALUE and clamps safely
+ * instead of wrapping around into corrupt positive or negative values.
+ */
+object SafeMath {
+    fun safeAdd(a: Long, b: Long): Long {
+        return try {
+            Math.addExact(a, b)
+        } catch (_: ArithmeticException) {
+            if (a > 0L) Long.MAX_VALUE else Long.MIN_VALUE
+        }
+    }
+
+    fun safeSubtract(a: Long, b: Long): Long {
+        return try {
+            Math.subtractExact(a, b)
+        } catch (_: ArithmeticException) {
+            if (a > b) Long.MAX_VALUE else Long.MIN_VALUE
+        }
+    }
+
+    fun safeAbs(value: Long): Long {
+        if (value == Long.MIN_VALUE) return Long.MAX_VALUE
+        return kotlin.math.abs(value)
+    }
+
+    fun safeNegate(value: Long): Long {
+        if (value == Long.MIN_VALUE) return Long.MAX_VALUE
+        return try {
+            Math.negateExact(value)
+        } catch (_: ArithmeticException) {
+            Long.MAX_VALUE
+        }
+    }
+}
+
+fun <T> Iterable<T>.safeSumOf(selector: (T) -> Long): Long {
+    var sum = 0L
+    for (element in this) {
+        sum = SafeMath.safeAdd(sum, selector(element))
+    }
+    return sum
+}

@@ -1,6 +1,8 @@
 package com.naman.rupeeflow.domain.ledger
 
 import com.naman.rupeeflow.domain.model.*
+import com.naman.rupeeflow.domain.util.SafeMath
+import com.naman.rupeeflow.domain.util.safeSumOf
 import java.math.BigDecimal
 import java.math.RoundingMode
 import kotlin.math.abs
@@ -104,7 +106,7 @@ object LedgerCalculator {
                     for (participant in txn.participants) {
                         val fId = participant.friendId ?: continue
                         val current = theyOweMe.getOrDefault(fId, 0L)
-                        theyOweMe[fId] = Math.addExact(current, participant.shareAmountPaise)
+                        theyOweMe[fId] = SafeMath.safeAdd(current, participant.shareAmountPaise)
                         val prevDate = lastTxnDate.getOrDefault(fId, 0L)
                         if (txn.transactionDate > prevDate) lastTxnDate[fId] = txn.transactionDate
                     }
@@ -114,7 +116,7 @@ object LedgerCalculator {
                     val myParticipant = txn.participants.firstOrNull { it.friendId == null }
                     if (myParticipant != null) {
                         val current = iOweThem.getOrDefault(payerId, 0L)
-                        iOweThem[payerId] = Math.addExact(current, myParticipant.shareAmountPaise)
+                        iOweThem[payerId] = SafeMath.safeAdd(current, myParticipant.shareAmountPaise)
                     }
                     val prevDate = lastTxnDate.getOrDefault(payerId, 0L)
                     if (txn.transactionDate > prevDate) lastTxnDate[payerId] = txn.transactionDate
@@ -126,7 +128,7 @@ object LedgerCalculator {
                     for (participant in txn.participants) {
                         val fId = participant.friendId ?: continue
                         val current = theyOweMe.getOrDefault(fId, 0L)
-                        theyOweMe[fId] = Math.subtractExact(current, participant.shareAmountPaise)
+                        theyOweMe[fId] = SafeMath.safeSubtract(current, participant.shareAmountPaise)
                         val prevDate = lastTxnDate.getOrDefault(fId, 0L)
                         if (txn.transactionDate > prevDate) lastTxnDate[fId] = txn.transactionDate
                     }
@@ -135,7 +137,7 @@ object LedgerCalculator {
                     val myParticipant = txn.participants.firstOrNull { it.friendId == null }
                     if (myParticipant != null) {
                         val current = iOweThem.getOrDefault(payerId, 0L)
-                        iOweThem[payerId] = Math.subtractExact(current, myParticipant.shareAmountPaise)
+                        iOweThem[payerId] = SafeMath.safeSubtract(current, myParticipant.shareAmountPaise)
                     }
                     val prevDate = lastTxnDate.getOrDefault(payerId, 0L)
                     if (txn.transactionDate > prevDate) lastTxnDate[payerId] = txn.transactionDate
@@ -151,13 +153,13 @@ object LedgerCalculator {
             if (payerId != null && receiverId == null) {
                 // Friend paid ME -> reduces what they owe me
                 val current = theyOweMe.getOrDefault(payerId, 0L)
-                theyOweMe[payerId] = Math.subtractExact(current, settlement.amountPaise)
+                theyOweMe[payerId] = SafeMath.safeSubtract(current, settlement.amountPaise)
                 val prevDate = lastTxnDate.getOrDefault(payerId, 0L)
                 if (settlement.settlementDate > prevDate) lastTxnDate[payerId] = settlement.settlementDate
             } else if (payerId == null && receiverId != null) {
                 // ME paid Friend -> reduces what I owe them
                 val current = iOweThem.getOrDefault(receiverId, 0L)
-                iOweThem[receiverId] = Math.subtractExact(current, settlement.amountPaise)
+                iOweThem[receiverId] = SafeMath.safeSubtract(current, settlement.amountPaise)
                 val prevDate = lastTxnDate.getOrDefault(receiverId, 0L)
                 if (settlement.settlementDate > prevDate) lastTxnDate[receiverId] = settlement.settlementDate
             }
@@ -167,11 +169,13 @@ object LedgerCalculator {
         return friends.map { friend ->
             val grossTheyOweMe = theyOweMe.getOrDefault(friend.id, 0L)
             val grossIOweThem = iOweThem.getOrDefault(friend.id, 0L)
-            val net = grossTheyOweMe - grossIOweThem
+            // ✅ Overflow-protected net balance calculation
+            val net = SafeMath.safeSubtract(grossTheyOweMe, grossIOweThem)
+            val absNet = SafeMath.safeAbs(net)
 
             val (status, finalTheyOweMe, finalIOweThem) = when {
-                net > 0 -> Triple(FriendBalanceStatus.THEY_OWE_ME, net, 0L)
-                net < 0 -> Triple(FriendBalanceStatus.I_OWE_THEM, 0L, abs(net))
+                net > 0L -> Triple(FriendBalanceStatus.THEY_OWE_ME, net, 0L)
+                net < 0L -> Triple(FriendBalanceStatus.I_OWE_THEM, 0L, absNet)
                 else -> Triple(FriendBalanceStatus.SETTLED, 0L, 0L)
             }
 
@@ -235,12 +239,12 @@ object LedgerCalculator {
             }
         }
 
-        // Net spending accounts for refunds received
-        val netSpending = (totalExpensePaise - totalRefundPaise).coerceAtLeast(0L)
+        // ✅ Net spending accounts for refunds received with overflow protection
+        val netSpending = SafeMath.safeSubtract(totalExpensePaise, totalRefundPaise).coerceAtLeast(0L)
 
-        val totalOwedToMe = friends.filter { it.netBalancePaise > 0 }.sumOf { it.netBalancePaise }
-        val totalIOwe = friends.filter { it.netBalancePaise < 0 }.sumOf { abs(it.netBalancePaise) }
-        val netPosition = totalOwedToMe - totalIOwe
+        val totalOwedToMe = friends.filter { it.netBalancePaise > 0L }.safeSumOf { it.netBalancePaise }
+        val totalIOwe = friends.filter { it.netBalancePaise < 0L }.safeSumOf { SafeMath.safeAbs(it.netBalancePaise) }
+        val netPosition = SafeMath.safeSubtract(totalOwedToMe, totalIOwe)
 
         // Daily average based on elapsed days in current month
         val daysElapsed = kotlin.math.max(
