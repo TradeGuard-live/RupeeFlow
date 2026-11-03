@@ -35,4 +35,18 @@ interface FriendDao {
 
     @Query("UPDATE friends SET isArchived = 1 WHERE id = :id")
     suspend fun archiveFriend(id: Long)
+
+    // ✅ Unarchive friend
+    @Query("UPDATE friends SET isArchived = 0 WHERE id = :id")
+    suspend fun unarchiveFriend(id: Long)
+
+    // ✅ Reference checks to prevent accidental historical corruption
+    @Query("SELECT COUNT(*) FROM transactions WHERE paidByFriendId = :friendId")
+    suspend fun countTransactionsPaidByFriend(friendId: Long): Int
+
+    @Query("SELECT COUNT(*) FROM transaction_participants WHERE friendId = :friendId")
+    suspend fun countParticipantsForFriend(friendId: Long): Int
+
+    @Query("SELECT COUNT(*) FROM settlements WHERE payerId = :friendId OR receiverId = :friendId")
+    suspend fun countSettlementsForFriend(friendId: Long): Int
 }

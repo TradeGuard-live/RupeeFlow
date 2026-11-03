@@ -117,15 +117,23 @@ class AnalyticsViewModel(
         }
 
         // Previous period transactions
-        val prevTxns = allTxns.filter {
+        val prevExpTxns = allTxns.filter {
             it.transactionStatus == TransactionStatus.ACTIVE &&
                     it.transactionDate in previousStart..previousEnd &&
                     it.transactionType == TransactionType.EXPENSE
         }
-        val prevSpent = prevTxns.sumOf { it.userExpensePaise }
+        val prevRefundTxns = allTxns.filter {
+            it.transactionStatus == TransactionStatus.ACTIVE &&
+                    it.transactionDate in previousStart..previousEnd &&
+                    it.transactionType == TransactionType.REFUND
+        }
+        val prevGrossSpent = prevExpTxns.sumOf { it.userExpensePaise }
+        val prevRefunds = prevRefundTxns.sumOf { it.amountPaise }
+        val prevSpent = (prevGrossSpent - prevRefunds).coerceAtLeast(0L)
 
         var totalSpent = 0L
         var totalIncome = 0L
+        var totalRefund = 0L
         var cashSpending = 0L
         var onlineSpending = 0L
         val categoryMap = mutableMapOf<Long, Long>()
@@ -143,12 +151,22 @@ class AnalyticsViewModel(
                     val catTotal = categoryMap.getOrDefault(t.categoryId, 0L)
                     categoryMap[t.categoryId] = catTotal + userExpense
                 }
-                TransactionType.INCOME, TransactionType.REFUND -> {
+                TransactionType.INCOME -> {
                     totalIncome += t.amountPaise
+                }
+                TransactionType.REFUND -> {
+                    totalRefund += t.amountPaise
                 }
                 else -> {}
             }
         }
+
+        // ✅ Net spending accounting for refunds
+        val netSpending = (totalSpent - totalRefund).coerceAtLeast(0L)
+        val netSavings = totalIncome - netSpending
+        val savingsRate = if (totalIncome > 0L) {
+            ((netSavings.toFloat() / totalIncome.toFloat()) * 100f).coerceIn(-100f, 100f)
+        } else 0f
 
         // Category breakdown
         val catLookup = categories.associateBy { it.id }
@@ -303,16 +321,19 @@ class AnalyticsViewModel(
         }
 
         val daysCount = kotlin.math.max(1, ((now - currentStart) / (1000 * 60 * 60 * 24)).toInt() + 1)
-        val dailyAvg = totalSpent / daysCount
+        val dailyAvg = netSpending / daysCount
 
         val pctChange = if (prevSpent > 0L) {
-            ((totalSpent - prevSpent).toFloat() / prevSpent.toFloat()) * 100f
+            ((netSpending - prevSpent).toFloat() / prevSpent.toFloat()) * 100f
         } else 0f
 
         val analyticsData = AnalyticsData(
             totalSpentPaise = totalSpent,
             totalIncomePaise = totalIncome,
-            totalSavingsPaise = (totalIncome - totalSpent).coerceAtLeast(0L),
+            totalRefundPaise = totalRefund,
+            netSpendingPaise = netSpending,
+            totalSavingsPaise = netSavings.coerceAtLeast(0L),
+            savingsRate = savingsRate,
             cashSpendingPaise = cashSpending,
             onlineSpendingPaise = onlineSpending,
             dailyAveragePaise = dailyAvg,

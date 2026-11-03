@@ -7,6 +7,27 @@ import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
 import org.json.JSONArray
 import org.json.JSONObject
+import java.security.SecureRandom
+import java.util.Base64
+import javax.crypto.Cipher
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.PBEKeySpec
+import javax.crypto.spec.SecretKeySpec
+
+data class BackupPreview(
+    val isValid: Boolean,
+    val appName: String = "",
+    val version: Int = 1,
+    val exportTimestamp: Long = 0L,
+    val categoriesCount: Int = 0,
+    val friendsCount: Int = 0,
+    val transactionsCount: Int = 0,
+    val settlementsCount: Int = 0,
+    val totalVolumePaise: Long = 0L,
+    val isEncrypted: Boolean = false,
+    val errorMessage: String? = null
+)
 
 class BackupRestoreRepository(
     private val database: RupeeFlowDatabase,
@@ -18,7 +39,7 @@ class BackupRestoreRepository(
 
     suspend fun exportToJson(): String {
         val root = JSONObject()
-        root.put("version", 1)
+        root.put("version", 2)
         root.put("appName", "RupeeFlow")
         root.put("exportTimestamp", System.currentTimeMillis())
 
@@ -114,6 +135,121 @@ class BackupRestoreRepository(
         root.put("settlements", setArray)
 
         return root.toString(2)
+    }
+
+    /**
+     * ✅ Exports an AES-256-GCM encrypted backup protected by a user password.
+     */
+    suspend fun exportEncryptedBackup(password: String): String {
+        require(password.length >= 4) { "Password must be at least 4 characters" }
+        val plainJson = exportToJson()
+
+        val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }
+        val iv = ByteArray(12).also { SecureRandom().nextBytes(it) }
+
+        val keySpec = PBEKeySpec(password.toCharArray(), salt, 65536, 256)
+        val secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val keyBytes = secretKeyFactory.generateSecret(keySpec).encoded
+        val secretKey = SecretKeySpec(keyBytes, "AES")
+
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, GCMParameterSpec(128, iv))
+        val ciphertext = cipher.doFinal(plainJson.toByteArray(Charsets.UTF_8))
+
+        val envelope = JSONObject().apply {
+            put("appName", "RupeeFlow")
+            put("version", 2)
+            put("encrypted", true)
+            put("kdf", "PBKDF2WithHmacSHA256")
+            put("iterations", 65536)
+            put("salt", Base64.getEncoder().encodeToString(salt))
+            put("iv", Base64.getEncoder().encodeToString(iv))
+            put("ciphertext", Base64.getEncoder().encodeToString(ciphertext))
+            put("exportTimestamp", System.currentTimeMillis())
+        }
+
+        return envelope.toString(2)
+    }
+
+    /**
+     * ✅ Decrypts an encrypted backup envelope using password.
+     */
+    fun decryptBackup(envelopeJson: String, password: String): String {
+        val root = JSONObject(envelopeJson)
+        require(root.optBoolean("encrypted", false)) { "Not an encrypted backup file" }
+
+        val salt = Base64.getDecoder().decode(root.getString("salt"))
+        val iv = Base64.getDecoder().decode(root.getString("iv"))
+        val ciphertext = Base64.getDecoder().decode(root.getString("ciphertext"))
+        val iterations = root.optInt("iterations", 65536)
+
+        val keySpec = PBEKeySpec(password.toCharArray(), salt, iterations, 256)
+        val secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val keyBytes = secretKeyFactory.generateSecret(keySpec).encoded
+        val secretKey = SecretKeySpec(keyBytes, "AES")
+
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(128, iv))
+        val decryptedBytes = cipher.doFinal(ciphertext)
+
+        return String(decryptedBytes, Charsets.UTF_8)
+    }
+
+    /**
+     * ✅ Inspects and validates a backup before restoring, returning structured preview info.
+     */
+    fun inspectBackup(content: String, password: String? = null): BackupPreview {
+        return try {
+            val root = JSONObject(content)
+            val isEncrypted = root.optBoolean("encrypted", false)
+
+            if (isEncrypted) {
+                if (password.isNullOrBlank()) {
+                    return BackupPreview(
+                        isValid = true,
+                        appName = root.optString("appName", "RupeeFlow"),
+                        isEncrypted = true,
+                        exportTimestamp = root.optLong("exportTimestamp", 0L)
+                    )
+                }
+                val decrypted = decryptBackup(content, password)
+                return inspectBackup(decrypted, null)
+            }
+
+            if (!root.has("appName") || root.getString("appName") != "RupeeFlow") {
+                return BackupPreview(isValid = false, errorMessage = "Invalid backup format: Not a RupeeFlow backup")
+            }
+
+            val version = root.optInt("version", 1)
+            val timestamp = root.optLong("exportTimestamp", 0L)
+            val catCount = root.optJSONArray("categories")?.length() ?: 0
+            val friendCount = root.optJSONArray("friends")?.length() ?: 0
+            val txnsArray = root.optJSONArray("transactions")
+            val txnCount = txnsArray?.length() ?: 0
+            val setCount = root.optJSONArray("settlements")?.length() ?: 0
+
+            var totalVolume = 0L
+            if (txnsArray != null) {
+                for (i in 0 until txnsArray.length()) {
+                    totalVolume += txnsArray.getJSONObject(i).optLong("amountPaise", 0L)
+                }
+            }
+
+            BackupPreview(
+                isValid = true,
+                appName = "RupeeFlow",
+                version = version,
+                exportTimestamp = timestamp,
+                categoriesCount = catCount,
+                friendsCount = friendCount,
+                transactionsCount = txnCount,
+                settlementsCount = setCount,
+                totalVolumePaise = totalVolume,
+                isEncrypted = false
+            )
+        } catch (e: Exception) {
+            BackupPreview(isValid = false, errorMessage = e.localizedMessage ?: "Invalid or corrupted backup")
+        }
     }
 
     suspend fun restoreFromJson(jsonString: String): Boolean {

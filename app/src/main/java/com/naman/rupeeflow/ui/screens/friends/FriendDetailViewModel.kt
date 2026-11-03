@@ -117,4 +117,25 @@ class FriendDetailViewModel(
             settlementRepository.deleteSettlement(settlement)
         }
     }
+
+    // ✅ Safe friend archiving & deletion
+    fun archiveFriend() {
+        viewModelScope.launch {
+            friendRepository.archiveFriend(friendId)
+        }
+    }
+
+    fun unarchiveFriend() {
+        viewModelScope.launch {
+            friendRepository.unarchiveFriend(friendId)
+        }
+    }
+
+    fun deleteFriend(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            val f = _uiState.value.friend ?: return@launch
+            friendRepository.deleteFriend(f)
+            onComplete()
+        }
+    }
 }

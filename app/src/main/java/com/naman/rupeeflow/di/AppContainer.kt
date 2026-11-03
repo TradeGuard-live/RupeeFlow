@@ -42,7 +42,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     }
 
     override val pendingTransactionRepository: PendingTransactionRepository by lazy {
-        PendingTransactionRepositoryImpl(database.pendingTransactionDao())
+        PendingTransactionRepositoryImpl(
+            pendingDao = database.pendingTransactionDao(),
+            transactionDao = database.transactionDao()
+        )
     }
 
     override val userPreferencesRepository: UserPreferencesRepository by lazy {

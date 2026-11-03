@@ -49,4 +49,72 @@ class BackupSerializationTest {
         val cols = sampleRow.split(",")
         assertTrue(cols.size >= 10)
     }
+
+    @Test
+    fun testEncryptedBackupSecurityAndTamperResistance() {
+        val plainPayload = JSONObject().apply {
+            put("appName", "RupeeFlow")
+            put("version", 2)
+            put("exportTimestamp", System.currentTimeMillis())
+            val txns = JSONArray().apply {
+                put(JSONObject().apply {
+                    put("id", 100L)
+                    put("title", "Confidential Salary")
+                    put("amountPaise", 15000000L)
+                })
+            }
+            put("transactions", txns)
+        }.toString()
+
+        val password = "StrongUserPassword123!"
+        val salt = ByteArray(16).also { java.security.SecureRandom().nextBytes(it) }
+        val iv = ByteArray(12).also { java.security.SecureRandom().nextBytes(it) }
+
+        val keySpec = javax.crypto.spec.PBEKeySpec(password.toCharArray(), salt, 65536, 256)
+        val secretKeyFactory = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        val keyBytes = secretKeyFactory.generateSecret(keySpec).encoded
+        val secretKey = javax.crypto.spec.SecretKeySpec(keyBytes, "AES")
+
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, secretKey, javax.crypto.spec.GCMParameterSpec(128, iv))
+        val ciphertext = cipher.doFinal(plainPayload.toByteArray(Charsets.UTF_8))
+
+        val envelope = JSONObject().apply {
+            put("appName", "RupeeFlow")
+            put("version", 2)
+            put("encrypted", true)
+            put("kdf", "PBKDF2WithHmacSHA256")
+            put("iterations", 65536)
+            put("salt", java.util.Base64.getEncoder().encodeToString(salt))
+            put("iv", java.util.Base64.getEncoder().encodeToString(iv))
+            put("ciphertext", java.util.Base64.getEncoder().encodeToString(ciphertext))
+            put("exportTimestamp", System.currentTimeMillis())
+        }.toString()
+
+        // Decrypt with correct password
+        val decKeySpec = javax.crypto.spec.PBEKeySpec(password.toCharArray(), salt, 65536, 256)
+        val decKeyBytes = secretKeyFactory.generateSecret(decKeySpec).encoded
+        val decKey = javax.crypto.spec.SecretKeySpec(decKeyBytes, "AES")
+
+        val decCipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        decCipher.init(javax.crypto.Cipher.DECRYPT_MODE, decKey, javax.crypto.spec.GCMParameterSpec(128, iv))
+        val decrypted = String(decCipher.doFinal(ciphertext), Charsets.UTF_8)
+
+        assertTrue(decrypted.contains("Confidential Salary"))
+        assertTrue(decrypted.contains("15000000"))
+
+        // Decrypt with wrong password must throw AEADBadTagException / security exception
+        try {
+            val wrongKeySpec = javax.crypto.spec.PBEKeySpec("WrongPassword".toCharArray(), salt, 65536, 256)
+            val wrongKeyBytes = secretKeyFactory.generateSecret(wrongKeySpec).encoded
+            val wrongKey = javax.crypto.spec.SecretKeySpec(wrongKeyBytes, "AES")
+
+            val badCipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+            badCipher.init(javax.crypto.Cipher.DECRYPT_MODE, wrongKey, javax.crypto.spec.GCMParameterSpec(128, iv))
+            badCipher.doFinal(ciphertext)
+            fail("Expected AEADBadTagException on wrong password")
+        } catch (_: javax.crypto.AEADBadTagException) {
+            // Success
+        }
+    }
 }

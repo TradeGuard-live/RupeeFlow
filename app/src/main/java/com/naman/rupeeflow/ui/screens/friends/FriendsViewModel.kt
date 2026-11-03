@@ -39,14 +39,15 @@ class FriendsViewModel(
     private fun loadFriends() {
         viewModelScope.launch {
             combine(
-                friendRepository.getActiveFriends(),
+                friendRepository.getAllFriends(),
                 transactionRepository.getAllTransactions(),
                 settlementRepository.getAllSettlements()
             ) { friends, transactions, settlements ->
                 val friendsWithLedger = LedgerCalculator.computeFriendLedgers(friends, transactions, settlements)
 
-                val theyOwe = friendsWithLedger.filter { it.netBalancePaise > 0 }.sumOf { it.netBalancePaise }
-                val iOwe = friendsWithLedger.filter { it.netBalancePaise < 0 }.sumOf { kotlin.math.abs(it.netBalancePaise) }
+                val activeFriends = friendsWithLedger.filter { !it.isArchived }
+                val theyOwe = activeFriends.filter { it.netBalancePaise > 0 }.sumOf { it.netBalancePaise }
+                val iOwe = activeFriends.filter { it.netBalancePaise < 0 }.sumOf { kotlin.math.abs(it.netBalancePaise) }
 
                 Triple(friendsWithLedger, theyOwe, iOwe)
             }.collect { (friendsWithLedger, theyOwe, iOwe) ->
@@ -86,10 +87,11 @@ class FriendsViewModel(
                     (friend.phoneNumber?.contains(query, ignoreCase = true) == true)
 
             val matchesFilter = when (filter) {
-                "THEY_OWE" -> friend.status == FriendBalanceStatus.THEY_OWE_ME
-                "I_OWE" -> friend.status == FriendBalanceStatus.I_OWE_THEM
-                "SETTLED" -> friend.status == FriendBalanceStatus.SETTLED
-                else -> true
+                "THEY_OWE" -> !friend.isArchived && friend.status == FriendBalanceStatus.THEY_OWE_ME
+                "I_OWE" -> !friend.isArchived && friend.status == FriendBalanceStatus.I_OWE_THEM
+                "SETTLED" -> !friend.isArchived && friend.status == FriendBalanceStatus.SETTLED
+                "ARCHIVED" -> friend.isArchived
+                else -> !friend.isArchived // "ALL" shows all active friends
             }
             matchesQuery && matchesFilter
         }

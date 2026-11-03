@@ -106,6 +106,8 @@ data class PendingTransaction(
 data class FinancialSummary(
     val totalExpenseThisMonthPaise: Long = 0,
     val totalIncomeThisMonthPaise: Long = 0,
+    val totalRefundThisMonthPaise: Long = 0, // ✅ Clearly separated refunds
+    val netSpendingPaise: Long = 0,          // ✅ Net spending = (Gross Expenses - Refunds)
     val totalCashSpendingPaise: Long = 0,
     val totalOnlineSpendingPaise: Long = 0,
     val totalOwedToMePaise: Long = 0,
@@ -131,7 +133,10 @@ data class DailySpending(
 data class AnalyticsData(
     val totalSpentPaise: Long = 0,
     val totalIncomePaise: Long = 0,
+    val totalRefundPaise: Long = 0,  // ✅ Separated refund reporting
+    val netSpendingPaise: Long = 0,  // ✅ Net spending after refunds
     val totalSavingsPaise: Long = 0,
+    val savingsRate: Float = 0f,     // ✅ Savings rate percentage
     val cashSpendingPaise: Long = 0,
     val onlineSpendingPaise: Long = 0,
     val dailyAveragePaise: Long = 0,

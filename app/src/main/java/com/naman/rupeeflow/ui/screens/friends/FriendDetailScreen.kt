@@ -40,14 +40,68 @@ fun FriendDetailScreen(
     var reversingSettlementId by remember { mutableStateOf<Long?>(null) }
     var unreversingSettlementId by remember { mutableStateOf<Long?>(null) }
     var selectedSettlementForDetail by remember { mutableStateOf<Settlement?>(null) }
+    var showMenu by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(friend?.name ?: "Friend Ledger", color = TextPrimary) },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(friend?.name ?: "Friend Ledger", color = TextPrimary)
+                        if (friend?.isArchived == true) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = TextMuted.copy(alpha = 0.2f)
+                            ) {
+                                Text(
+                                    text = "Archived",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = TextPrimary)
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        if (friend?.isArchived == true) {
+                            DropdownMenuItem(
+                                text = { Text("Unarchive Friend") },
+                                onClick = {
+                                    showMenu = false
+                                    viewModel.unarchiveFriend()
+                                }
+                            )
+                        } else {
+                            DropdownMenuItem(
+                                text = { Text("Archive Friend") },
+                                onClick = {
+                                    showMenu = false
+                                    viewModel.archiveFriend()
+                                }
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Delete Friend", color = CoralRed) },
+                            onClick = {
+                                showMenu = false
+                                showDeleteConfirmDialog = true
+                            }
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MidnightDark)
@@ -381,6 +435,37 @@ fun FriendDetailScreen(
             onReverse = { viewModel.reverseSettlement(it.id) },
             onUnreverse = { viewModel.unreverseSettlement(it.id) },
             onDelete = { viewModel.deleteSettlement(it) }
+        )
+    }
+
+    // ✅ Safe Delete / Archive Confirmation Dialog
+    if (showDeleteConfirmDialog && friend != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = false },
+            title = { Text("Delete Friend?", color = TextPrimary) },
+            text = {
+                Text(
+                    "If this friend has associated transactions or settlements, they will be safely archived instead of deleted to protect historical financial records and ledger integrity.",
+                    color = TextSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmDialog = false
+                        viewModel.deleteFriend(onComplete = onNavigateBack)
+                    }
+                ) {
+                    Text("Confirm Delete", color = CoralRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            },
+            containerColor = CharcoalSurface,
+            shape = RoundedCornerShape(20.dp)
         )
     }
 }

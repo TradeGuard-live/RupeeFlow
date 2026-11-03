@@ -96,4 +96,82 @@ class AnalyticsTest {
         // Pending count
         assertEquals(2, summary.pendingTransactionsCount)
     }
+
+    @Test
+    fun testRefundAffectsNetSpendingProperly() {
+        val now = System.currentTimeMillis()
+        val startOfMonth = DateTimeUtils.getStartOfMonth(now)
+
+        val txns = listOf(
+            // Expense of ₹1000
+            Transaction(
+                id = 1L,
+                title = "Shopping",
+                amountPaise = 100000L,
+                categoryId = 1L,
+                transactionDate = now - 5000L,
+                transactionType = TransactionType.EXPENSE
+            ),
+            // Refund of ₹300 for returned item
+            Transaction(
+                id = 2L,
+                title = "Shopping Return Refund",
+                amountPaise = 30000L,
+                categoryId = 1L,
+                transactionDate = now - 1000L,
+                transactionType = TransactionType.REFUND
+            ),
+            // Future-dated expense of ₹500 (must be excluded from current metrics!)
+            Transaction(
+                id = 3L,
+                title = "Future Scheduled",
+                amountPaise = 50000L,
+                categoryId = 1L,
+                transactionDate = now + 1000000L,
+                transactionType = TransactionType.EXPENSE
+            )
+        )
+
+        val summary = LedgerCalculator.computeFinancialSummary(
+            transactions = txns,
+            friends = emptyList(),
+            pendingCount = 0,
+            startOfMonth = startOfMonth,
+            now = now
+        )
+
+        // Gross expense = ₹1000 (100000 paise)
+        assertEquals(100000L, summary.totalExpenseThisMonthPaise)
+        // Total refund = ₹300 (30000 paise)
+        assertEquals(30000L, summary.totalRefundThisMonthPaise)
+        // Net spending = 1000 - 300 = ₹700 (70000 paise)
+        assertEquals(70000L, summary.netSpendingPaise)
+    }
+
+    @Test
+    fun testDateTimeUtils_MondayStartAndCalendarBoundaries() {
+        // Test Monday-to-Sunday weekly boundaries
+        val testCal = java.util.Calendar.getInstance().apply {
+            set(2026, java.util.Calendar.NOVEMBER, 8, 15, 30) // Sunday Nov 8, 2026
+        }
+        val sundayTimestamp = testCal.timeInMillis
+        val startOfWeek = DateTimeUtils.getStartOfWeek(sundayTimestamp)
+        val endOfWeek = DateTimeUtils.getEndOfWeek(sundayTimestamp)
+
+        val mondayCal = java.util.Calendar.getInstance().apply { timeInMillis = startOfWeek }
+        assertEquals(java.util.Calendar.MONDAY, mondayCal.get(java.util.Calendar.DAY_OF_WEEK))
+        assertEquals(2, mondayCal.get(java.util.Calendar.DAY_OF_MONTH)) // Monday Nov 2, 2026
+
+        val sunEndCal = java.util.Calendar.getInstance().apply { timeInMillis = endOfWeek }
+        assertEquals(java.util.Calendar.SUNDAY, sunEndCal.get(java.util.Calendar.DAY_OF_WEEK))
+        assertEquals(8, sunEndCal.get(java.util.Calendar.DAY_OF_MONTH)) // Sunday Nov 8, 2026
+
+        // Test Leap Year February
+        val leapYearCal = java.util.Calendar.getInstance().apply {
+            set(2028, java.util.Calendar.FEBRUARY, 10, 10, 0)
+        }
+        val endOfFeb2028 = DateTimeUtils.getEndOfMonth(leapYearCal.timeInMillis)
+        val endCal = java.util.Calendar.getInstance().apply { timeInMillis = endOfFeb2028 }
+        assertEquals(29, endCal.get(java.util.Calendar.DAY_OF_MONTH)) // 2028 is leap year, 29 days!
+    }
 }

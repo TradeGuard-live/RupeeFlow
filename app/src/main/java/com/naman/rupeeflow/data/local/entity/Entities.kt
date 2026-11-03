@@ -44,7 +44,7 @@ data class FriendEntity(
             entity = FriendEntity::class,
             parentColumns = ["id"],
             childColumns = ["paidByFriendId"],
-            onDelete = ForeignKey.SET_NULL
+            onDelete = ForeignKey.RESTRICT // ✅ RESTRICT prevents friend deletion from setting paidByFriendId to NULL (ME)
         )
     ],
     indices = [
@@ -88,7 +88,7 @@ data class TransactionEntity(
             entity = FriendEntity::class,
             parentColumns = ["id"],
             childColumns = ["friendId"],
-            onDelete = ForeignKey.SET_NULL
+            onDelete = ForeignKey.RESTRICT // ✅ RESTRICT prevents friend deletion from setting friendId to NULL (ME)
         )
     ],
     indices = [
@@ -113,13 +113,13 @@ data class TransactionParticipantEntity(
             entity = FriendEntity::class,
             parentColumns = ["id"],
             childColumns = ["payerId"],
-            onDelete = ForeignKey.SET_NULL
+            onDelete = ForeignKey.RESTRICT // ✅ RESTRICT prevents friend deletion from setting payerId to NULL (ME)
         ),
         ForeignKey(
             entity = FriendEntity::class,
             parentColumns = ["id"],
             childColumns = ["receiverId"],
-            onDelete = ForeignKey.SET_NULL
+            onDelete = ForeignKey.RESTRICT // ✅ RESTRICT prevents friend deletion from setting receiverId to NULL (ME)
         )
     ],
     indices = [

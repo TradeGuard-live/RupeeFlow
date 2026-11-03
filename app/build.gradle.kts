@@ -13,12 +13,17 @@ android {
         applicationId = "com.naman.rupeeflow"
         minSdk = 29
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
+        }
+
+        // ✅ Configure Room schema export directory
+        ksp {
+            arg("room.schemaLocation", "$projectDir/schemas")
         }
     }
 
@@ -69,11 +74,16 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
     }
 
     lint {
         checkReleaseBuilds = false
         abortOnError = false
+    }
+
+    sourceSets {
+        getByName("test").assets.srcDir("$projectDir/schemas")
     }
 }
 
@@ -122,4 +132,8 @@ dependencies {
     testImplementation("org.json:json:20240303")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation("org.mockito:mockito-core:5.14.2")
+    testImplementation("androidx.room:room-testing:$roomVersion")
+    testImplementation("androidx.sqlite:sqlite-framework:2.4.0")
+    testImplementation("androidx.arch.core:core-testing:2.2.0")
+    testImplementation("org.robolectric:robolectric:4.14.1")
 }

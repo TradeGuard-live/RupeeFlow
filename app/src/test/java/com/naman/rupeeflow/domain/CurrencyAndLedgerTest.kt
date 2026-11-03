@@ -454,4 +454,142 @@ class CurrencyAndLedgerTest {
         assertEquals(0L, s4.netBalancePaise)
         assertEquals(FriendBalanceStatus.SETTLED, s4.status)
     }
+
+    @Test
+    fun testRefundOfSharedTransaction() {
+        val friendRonit = Friend(id = 1L, name = "Ronit")
+
+        // 1. Me paid ₹1000 for a concert ticket split 50-50 with Ronit (Ronit owes ₹500)
+        val initialTxn = Transaction(
+            id = 401L,
+            title = "Concert Ticket",
+            amountPaise = 100000L,
+            categoryId = 1L,
+            transactionDate = 1000L,
+            paidByFriendId = null,
+            participants = listOf(
+                TransactionParticipant(friendId = null, shareAmountPaise = 50000L),
+                TransactionParticipant(friendId = 1L, shareAmountPaise = 50000L)
+            ),
+            transactionType = TransactionType.EXPENSE,
+            transactionStatus = TransactionStatus.ACTIVE
+        )
+
+        var computed = LedgerCalculator.computeFriendLedgers(listOf(friendRonit), listOf(initialTxn), emptyList()).first()
+        assertEquals(50000L, computed.netBalancePaise)
+        assertEquals(FriendBalanceStatus.THEY_OWE_ME, computed.status)
+
+        // 2. Concert canceled! Merchant refunds the ₹1000 to Me.
+        val refundTxn = Transaction(
+            id = 402L,
+            title = "Concert Refund",
+            amountPaise = 100000L,
+            categoryId = 1L,
+            transactionDate = 2000L,
+            paidByFriendId = null,
+            participants = listOf(
+                TransactionParticipant(friendId = null, shareAmountPaise = 50000L),
+                TransactionParticipant(friendId = 1L, shareAmountPaise = 50000L)
+            ),
+            transactionType = TransactionType.REFUND,
+            transactionStatus = TransactionStatus.ACTIVE
+        )
+
+        computed = LedgerCalculator.computeFriendLedgers(listOf(friendRonit), listOf(initialTxn, refundTxn), emptyList()).first()
+        // Because Me received the refund, Ronit's debt is cancelled (balance 0)
+        assertEquals(0L, computed.netBalancePaise)
+        assertEquals(FriendBalanceStatus.SETTLED, computed.status)
+    }
+
+    @Test
+    fun testArchivedFriendWithHistoricalTransactions() {
+        // Friend is archived, but has historical transactions
+        val archivedFriend = Friend(id = 10L, name = "Former Roommate", isArchived = true)
+
+        val txn = Transaction(
+            id = 501L,
+            title = "Old Electricity Bill",
+            amountPaise = 200000L,
+            categoryId = 1L,
+            transactionDate = 500L,
+            paidByFriendId = null,
+            participants = listOf(
+                TransactionParticipant(friendId = null, shareAmountPaise = 100000L),
+                TransactionParticipant(friendId = 10L, shareAmountPaise = 100000L)
+            ),
+            transactionType = TransactionType.EXPENSE,
+            transactionStatus = TransactionStatus.ACTIVE
+        )
+
+        val computed = LedgerCalculator.computeFriendLedgers(listOf(archivedFriend), listOf(txn), emptyList()).first()
+        // Archived friend MUST retain correct balance and status!
+        assertTrue(computed.isArchived)
+        assertEquals(100000L, computed.netBalancePaise)
+        assertEquals(FriendBalanceStatus.THEY_OWE_ME, computed.status)
+    }
+
+    @Test
+    fun testOverSettlement_ProducesNegativeBalanceAccurately() {
+        val friendRonit = Friend(id = 1L, name = "Ronit")
+
+        // Ronit owes Me ₹500
+        val txn = Transaction(
+            id = 601L,
+            title = "Lunch",
+            amountPaise = 100000L,
+            categoryId = 1L,
+            transactionDate = 1000L,
+            paidByFriendId = null,
+            participants = listOf(
+                TransactionParticipant(friendId = null, shareAmountPaise = 50000L),
+                TransactionParticipant(friendId = 1L, shareAmountPaise = 50000L)
+            ),
+            transactionType = TransactionType.EXPENSE,
+            transactionStatus = TransactionStatus.ACTIVE
+        )
+
+        // Ronit settles ₹700 (overpaying by ₹200)
+        val overSettlement = Settlement(
+            id = 1L,
+            payerId = 1L,
+            receiverId = null,
+            amountPaise = 70000L,
+            settlementDate = 2000L
+        )
+
+        val computed = LedgerCalculator.computeFriendLedgers(listOf(friendRonit), listOf(txn), listOf(overSettlement)).first()
+        // Now I owe Ronit ₹200
+        assertEquals(FriendBalanceStatus.I_OWE_THEM, computed.status)
+        assertEquals(20000L, computed.totalIOweThemPaise)
+        assertEquals(0L, computed.totalTheyOweMePaise)
+        assertEquals(-20000L, computed.netBalancePaise)
+    }
+
+    @Test
+    fun testMonetaryPrecisionAndInputValidation() {
+        // Strict input validation
+        assertNull(CurrencyUtils.parseInputToPaiseOrNull("-50.00"))
+        assertNull(CurrencyUtils.parseInputToPaiseOrNull("12.345")) // 3 decimal places rejected
+        assertNull(CurrencyUtils.parseInputToPaiseOrNull("abc"))
+        assertEquals(123450L, CurrencyUtils.parseInputToPaiseOrNull("1234.50"))
+        assertEquals(123400L, CurrencyUtils.parseInputToPaiseOrNull("1234"))
+        assertEquals(5L, CurrencyUtils.parseInputToPaiseOrNull("0.05"))
+
+        // Exact decimal parsing without floating point errors
+        // 0.29 * 100 in double is 28.999999999999996 -> must be exactly 29 paise
+        assertEquals(29L, CurrencyUtils.parseInputToPaiseOrNull("0.29"))
+
+        // Percentages validation
+        assertTrue(LedgerCalculator.validatePercentages(listOf(50.0, 50.0)))
+        assertTrue(LedgerCalculator.validatePercentages(listOf(33.33, 33.33, 33.34)))
+        assertFalse(LedgerCalculator.validatePercentages(listOf(50.0, 49.0))) // Sum 99% -> reject!
+        assertFalse(LedgerCalculator.validatePercentages(listOf(50.0, -10.0, 60.0))) // Negative % -> reject!
+
+        try {
+            LedgerCalculator.calculatePercentageSplit(10000L, listOf(50.0, 40.0))
+            fail("Expected IllegalArgumentException for percentages not summing to 100%")
+        } catch (_: IllegalArgumentException) {
+            // Success
+        }
+    }
 }

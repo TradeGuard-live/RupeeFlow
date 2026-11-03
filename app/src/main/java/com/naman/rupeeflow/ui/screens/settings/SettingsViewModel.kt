@@ -110,6 +110,24 @@ class SettingsViewModel(
         }
     }
 
+    // ✅ Password-protected AES-256 encrypted export
+    fun exportEncryptedBackup(password: String, onExportReady: (String) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val encrypted = backupRestoreRepository.exportEncryptedBackup(password)
+                _uiState.update { it.copy(exportStatusMessage = "Encrypted backup exported securely!") }
+                onExportReady(encrypted)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(exportStatusMessage = "Export failed: ${e.message}") }
+            }
+        }
+    }
+
+    // ✅ Inspect backup before restoration
+    fun inspectBackup(content: String, password: String? = null): BackupPreview {
+        return backupRestoreRepository.inspectBackup(content, password)
+    }
+
     fun restoreBackup(jsonString: String, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             val success = backupRestoreRepository.restoreFromJson(jsonString)
@@ -119,6 +137,25 @@ class SettingsViewModel(
                 )
             }
             onComplete(success)
+        }
+    }
+
+    // ✅ Restore encrypted backup
+    fun restoreEncryptedBackup(content: String, password: String, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val decrypted = backupRestoreRepository.decryptBackup(content, password)
+                val success = backupRestoreRepository.restoreFromJson(decrypted)
+                _uiState.update {
+                    it.copy(
+                        exportStatusMessage = if (success) "Encrypted backup verified & restored!" else "Failed to restore backup."
+                    )
+                }
+                onComplete(success)
+            } catch (e: Exception) {
+                _uiState.update { it.copy(exportStatusMessage = "Decryption failed: Check password") }
+                onComplete(false)
+            }
         }
     }
 

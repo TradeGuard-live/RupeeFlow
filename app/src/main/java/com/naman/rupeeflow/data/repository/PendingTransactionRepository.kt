@@ -1,6 +1,7 @@
 package com.naman.rupeeflow.data.repository
 
 import com.naman.rupeeflow.data.local.dao.PendingTransactionDao
+import com.naman.rupeeflow.data.local.dao.TransactionDao
 import com.naman.rupeeflow.data.local.entity.PendingTransactionEntity
 import com.naman.rupeeflow.domain.model.PendingStatus
 import com.naman.rupeeflow.domain.model.PendingTransaction
@@ -17,11 +18,21 @@ interface PendingTransactionRepository {
     suspend fun resolvePendingTransaction(id: Long)
     suspend fun ignorePendingTransaction(id: Long)
     suspend fun deletePendingTransaction(id: Long)
-    suspend fun isDuplicate(amountPaise: Long, timestamp: Long, refNumber: String?): Boolean
+    // ✅ Contextual duplicate detection
+    suspend fun isDuplicate(
+        amountPaise: Long,
+        timestamp: Long,
+        refNumber: String?,
+        merchant: String? = null,
+        bank: String? = null,
+        accountLast4: String? = null,
+        rawContent: String? = null
+    ): Boolean
 }
 
 class PendingTransactionRepositoryImpl(
-    private val pendingDao: PendingTransactionDao
+    private val pendingDao: PendingTransactionDao,
+    private val transactionDao: TransactionDao? = null
 ) : PendingTransactionRepository {
 
     override fun getPendingTransactions(): Flow<List<PendingTransaction>> {
@@ -61,16 +72,68 @@ class PendingTransactionRepositoryImpl(
         if (item != null) pendingDao.delete(item)
     }
 
-    override suspend fun isDuplicate(amountPaise: Long, timestamp: Long, refNumber: String?): Boolean {
-        // If reference number matches an existing pending transaction
+    /**
+     * ✅ High-accuracy duplicate detection:
+     * 1. If referenceNumber/UTR matches an existing pending or settled transaction -> duplicate!
+     * 2. If no reference number is available, never discard a transaction solely because
+     *    another transaction has the same amount. Two legitimate transactions of the same amount
+     *    are permitted unless merchant/account and tight timestamp match.
+     */
+    override suspend fun isDuplicate(
+        amountPaise: Long,
+        timestamp: Long,
+        refNumber: String?,
+        merchant: String?,
+        bank: String?,
+        accountLast4: String?,
+        rawContent: String?
+    ): Boolean {
+        // 1. Strict unique bank reference number check
         if (!refNumber.isNullOrBlank()) {
-            val existing = pendingDao.findByReference(refNumber)
-            if (existing != null) return true
+            val existingPending = pendingDao.findByReference(refNumber)
+            if (existingPending != null) return true
+            val existingConfirmed = transactionDao?.findByReferenceNumber(refNumber)
+            if (existingConfirmed != null) return true
         }
-        // Within 10 minutes with same amount
-        val window = 10 * 60 * 1000L
-        val recent = pendingDao.findRecentSimilar(amountPaise, timestamp - window, timestamp + window)
-        return recent != null
+
+        // 2. High-precision contextual check within short 2-minute window
+        val window = 2 * 60 * 1000L
+        val recentPending = pendingDao.findSimilarRecent(
+            amountPaise = amountPaise,
+            startMillis = timestamp - window,
+            endMillis = timestamp + window
+        )
+
+        for (item in recentPending) {
+            // Immediate broadcast copy within 10 seconds
+            if (kotlin.math.abs(item.timestamp - timestamp) < 10_000L) return true
+            // Exact raw text match
+            if (rawContent != null && item.rawContent.trim() == rawContent.trim()) return true
+
+            // Same merchant & amount within window
+            val merchantsMatch = !merchant.isNullOrBlank() && merchant.equals(item.detectedMerchant, ignoreCase = true)
+            if (merchantsMatch) return true
+
+            // Same bank & account last 4 within window
+            val accountsMatch = !accountLast4.isNullOrBlank() && accountLast4 == item.detectedAccount
+            val banksMatch = !bank.isNullOrBlank() && bank.equals(item.detectedBank, ignoreCase = true)
+            if (accountsMatch && banksMatch) return true
+        }
+
+        // Check against confirmed transactions
+        if (transactionDao != null) {
+            val recentConfirmed = transactionDao.findSimilarRecent(
+                amountPaise = amountPaise,
+                startMillis = timestamp - window,
+                endMillis = timestamp + window
+            )
+            for (item in recentConfirmed) {
+                if (!merchant.isNullOrBlank() && merchant.equals(item.merchantName, ignoreCase = true)) return true
+                if (!accountLast4.isNullOrBlank() && item.accountSource?.endsWith(accountLast4) == true) return true
+            }
+        }
+
+        return false
     }
 
     private fun PendingTransactionEntity.toDomain() = PendingTransaction(

@@ -59,6 +59,9 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE referenceNumber = :refNumber LIMIT 1")
     suspend fun findByReferenceNumber(refNumber: String): TransactionEntity?
 
+    @Query("SELECT * FROM transactions WHERE amountPaise = :amountPaise AND transactionDate BETWEEN :startMillis AND :endMillis")
+    suspend fun findSimilarRecent(amountPaise: Long, startMillis: Long, endMillis: Long): List<TransactionEntity>
+
     @Query("SELECT * FROM transactions WHERE amountPaise = :amountPaise AND transactionDate BETWEEN :startMillis AND :endMillis LIMIT 1")
     suspend fun findDuplicate(amountPaise: Long, startMillis: Long, endMillis: Long): TransactionEntity?
 

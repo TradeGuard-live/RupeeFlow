@@ -39,45 +39,58 @@ class SmsReceiver : BroadcastReceiver() {
         val fullBody = fullBodyBuilder.toString()
         if (fullBody.isBlank()) return
 
+        // ✅ Use goAsync() to guarantee execution completion before BroadcastReceiver termination
+        val pendingResult = goAsync()
+
         CoroutineScope(Dispatchers.IO).launch {
-            val prefs = userPrefsRepo.userPreferencesFlow.first()
-            if (!prefs.smsDetectionEnabled) return@launch
+            try {
+                val prefs = userPrefsRepo.userPreferencesFlow.first()
+                if (!prefs.smsDetectionEnabled) return@launch
 
-            // Parse message
-            val parseResult = SmsParser.parse(fullBody, sender, timestamp)
-            if (!parseResult.isValidTransaction) return@launch
+                // Parse message
+                val parseResult = SmsParser.parse(fullBody, sender, timestamp)
+                if (!parseResult.isValidTransaction) return@launch
 
-            // Duplicate detection
-            val isDup = pendingRepo.isDuplicate(
-                amountPaise = parseResult.amountPaise,
-                timestamp = parseResult.timestamp,
-                refNumber = parseResult.referenceNumber
-            )
-            if (isDup) return@launch
+                // Context-aware duplicate detection
+                val isDup = pendingRepo.isDuplicate(
+                    amountPaise = parseResult.amountPaise,
+                    timestamp = parseResult.timestamp,
+                    refNumber = parseResult.referenceNumber,
+                    merchant = parseResult.merchant,
+                    bank = parseResult.bankName,
+                    accountLast4 = parseResult.accountLast4,
+                    rawContent = fullBody
+                )
+                if (isDup) return@launch
 
-            // Save as PendingTransaction
-            val entity = PendingTransactionEntity(
-                detectedAmountPaise = parseResult.amountPaise,
-                detectedType = parseResult.type,
-                detectedBank = parseResult.bankName,
-                detectedAccount = parseResult.accountLast4,
-                detectedMerchant = parseResult.merchant,
-                referenceNumber = parseResult.referenceNumber,
-                rawContent = fullBody,
-                timestamp = parseResult.timestamp,
-                status = PendingStatus.PENDING,
-                source = TransactionSource.SMS
-            )
+                // Save as PendingTransaction with sanitized content
+                val entity = PendingTransactionEntity(
+                    detectedAmountPaise = parseResult.amountPaise,
+                    detectedType = parseResult.type,
+                    detectedBank = parseResult.bankName,
+                    detectedAccount = parseResult.accountLast4,
+                    detectedMerchant = parseResult.merchant,
+                    referenceNumber = parseResult.referenceNumber,
+                    rawContent = parseResult.rawBody,
+                    timestamp = parseResult.timestamp,
+                    status = PendingStatus.PENDING,
+                    source = TransactionSource.SMS
+                )
 
-            val pendingId = app.appContainer.database.pendingTransactionDao().insert(entity)
+                val pendingId = app.appContainer.database.pendingTransactionDao().insert(entity)
 
-            // Trigger notification
-            TransactionNotificationHelper.showPendingTransactionNotification(
-                context = context,
-                pendingId = pendingId,
-                amountPaise = parseResult.amountPaise,
-                merchantOrBank = parseResult.merchant ?: parseResult.bankName
-            )
+                // Trigger notification
+                TransactionNotificationHelper.showPendingTransactionNotification(
+                    context = context,
+                    pendingId = pendingId,
+                    amountPaise = parseResult.amountPaise,
+                    merchantOrBank = parseResult.merchant ?: parseResult.bankName
+                )
+            } catch (_: Exception) {
+                // Safeguard against unhandled exceptions during background processing
+            } finally {
+                pendingResult.finish()
+            }
         }
     }
 }

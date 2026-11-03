@@ -101,9 +101,9 @@ class TransactionRepositoryImpl(
             val existing = transactionDao.findByReferenceNumber(refNumber)
             if (existing != null) return true
         }
-        val window = 10 * 60 * 1000L
-        val recent = transactionDao.findDuplicate(amountPaise, timestamp - window, timestamp + window)
-        return recent != null
+        val window = 2 * 60 * 1000L
+        val recent = transactionDao.findSimilarRecent(amountPaise, timestamp - window, timestamp + window)
+        return recent.isNotEmpty()
     }
 
     private fun TransactionWithParticipants.toDomain(

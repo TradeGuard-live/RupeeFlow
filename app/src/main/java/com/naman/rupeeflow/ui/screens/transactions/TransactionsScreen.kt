@@ -130,6 +130,7 @@ fun TransactionsScreen(
                 "ALL" to "All",
                 "EXPENSE" to "Expenses",
                 "INCOME" to "Income",
+                "REFUND" to "Refunds",
                 "TRANSFER" to "Transfers",
                 "IGNORED" to "Ignored"
             )

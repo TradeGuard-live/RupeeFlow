@@ -131,7 +131,8 @@ fun FriendsScreen(
                 "ALL" to "All",
                 "THEY_OWE" to "They Owe Me",
                 "I_OWE" to "I Owe Them",
-                "SETTLED" to "Settled"
+                "SETTLED" to "Settled",
+                "ARCHIVED" to "Archived"
             )
 
             Row(

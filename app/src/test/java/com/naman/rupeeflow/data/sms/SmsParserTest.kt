@@ -113,4 +113,38 @@ class SmsParserTest {
         assertEquals(TransactionType.EXPENSE, result.type)
         assertEquals(PaymentMethod.CASH, result.paymentMethod)
     }
+
+    @Test
+    fun testUpiNotificationsParsing() {
+        // PhonePe
+        val phonePeNotification = "Paid ₹350 to Starbucks Coffee. UPI Ref: 431092837102"
+        val phonePeResult = SmsParser.parse(phonePeNotification, "com.phonepe.app")
+        assertTrue(phonePeResult.isValidTransaction)
+        assertEquals(35000L, phonePeResult.amountPaise)
+        assertEquals(TransactionType.EXPENSE, phonePeResult.type)
+        assertEquals("431092837102", phonePeResult.referenceNumber)
+
+        // Google Pay
+        val gpayNotification = "You paid ₹150.00 to Chai Point using A/c ending 4321. UPI transaction ID 239102938102"
+        val gpayResult = SmsParser.parse(gpayNotification, "com.google.android.apps.nbu.paisa.user")
+        assertTrue(gpayResult.isValidTransaction)
+        assertEquals(15000L, gpayResult.amountPaise)
+        assertEquals("4321", gpayResult.accountLast4)
+        assertEquals("239102938102", gpayResult.referenceNumber)
+    }
+
+    @Test
+    fun testPromotionalExclusion_NeverTreatedAsTransaction() {
+        val promo = "Congratulations! You are pre-approved for a personal loan of Rs. 5,00,000. Apply now."
+        val result = SmsParser.parse(promo, "HDFCBK")
+        assertFalse(result.isValidTransaction)
+    }
+
+    @Test
+    fun testSanitizeRawContent() {
+        val raw = "Debited from card 4111 2222 3333 4444 for Rs 500"
+        val sanitized = SmsParser.sanitizeRawContent(raw)
+        assertFalse(sanitized.contains("4111 2222 3333"))
+        assertTrue(sanitized.contains("4444"))
+    }
 }

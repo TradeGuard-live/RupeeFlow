@@ -7,15 +7,18 @@ import com.naman.rupeeflow.data.repository.FriendRepository
 import com.naman.rupeeflow.data.repository.SettlementRepository
 import com.naman.rupeeflow.data.repository.TransactionRepository
 import com.naman.rupeeflow.domain.model.*
+import com.naman.rupeeflow.domain.util.DateTimeUtils
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.util.Calendar
 
 data class TransactionsUiState(
     val isLoading: Boolean = true,
     val allTransactions: List<Transaction> = emptyList(),
     val filteredTransactions: List<Transaction> = emptyList(),
     val searchQuery: String = "",
-    val selectedTypeFilter: String = "ALL", // "ALL", "EXPENSE", "INCOME", "TRANSFER", "IGNORED"
+    val selectedTypeFilter: String = "ALL", // "ALL", "EXPENSE", "INCOME", "REFUND", "TRANSFER", "IGNORED"
+    val selectedDateFilter: String = "ALL", // "ALL", "THIS_MONTH", "LAST_MONTH"
     val selectedPaymentMethodFilter: PaymentMethod? = null,
     val selectedCategoryFilter: Category? = null,
     val categories: List<Category> = emptyList(),
@@ -50,6 +53,7 @@ class TransactionsViewModel(
                         txns = txns,
                         query = current.searchQuery,
                         typeFilter = current.selectedTypeFilter,
+                        dateFilter = current.selectedDateFilter,
                         methodFilter = current.selectedPaymentMethodFilter,
                         categoryFilter = current.selectedCategoryFilter
                     )
@@ -71,6 +75,7 @@ class TransactionsViewModel(
                 txns = current.allTransactions,
                 query = query,
                 typeFilter = current.selectedTypeFilter,
+                dateFilter = current.selectedDateFilter,
                 methodFilter = current.selectedPaymentMethodFilter,
                 categoryFilter = current.selectedCategoryFilter
             )
@@ -84,6 +89,7 @@ class TransactionsViewModel(
                 txns = current.allTransactions,
                 query = current.searchQuery,
                 typeFilter = filter,
+                dateFilter = current.selectedDateFilter,
                 methodFilter = current.selectedPaymentMethodFilter,
                 categoryFilter = current.selectedCategoryFilter
             )
@@ -97,6 +103,7 @@ class TransactionsViewModel(
                 txns = current.allTransactions,
                 query = current.searchQuery,
                 typeFilter = current.selectedTypeFilter,
+                dateFilter = current.selectedDateFilter,
                 methodFilter = method,
                 categoryFilter = current.selectedCategoryFilter
             )
@@ -110,6 +117,7 @@ class TransactionsViewModel(
                 txns = current.allTransactions,
                 query = current.searchQuery,
                 typeFilter = current.selectedTypeFilter,
+                dateFilter = current.selectedDateFilter,
                 methodFilter = current.selectedPaymentMethodFilter,
                 categoryFilter = category
             )
@@ -117,10 +125,25 @@ class TransactionsViewModel(
         }
     }
 
+    fun onDateFilterSelected(filter: String) {
+        _uiState.update { current ->
+            val filtered = applyFilters(
+                txns = current.allTransactions,
+                query = current.searchQuery,
+                typeFilter = current.selectedTypeFilter,
+                dateFilter = filter,
+                methodFilter = current.selectedPaymentMethodFilter,
+                categoryFilter = current.selectedCategoryFilter
+            )
+            current.copy(selectedDateFilter = filter, filteredTransactions = filtered)
+        }
+    }
+
     private fun applyFilters(
         txns: List<Transaction>,
         query: String,
         typeFilter: String,
+        dateFilter: String = "ALL",
         methodFilter: PaymentMethod?,
         categoryFilter: Category?
     ): List<Transaction> {
@@ -137,8 +160,23 @@ class TransactionsViewModel(
                 "ALL" -> txn.transactionStatus == TransactionStatus.ACTIVE
                 "IGNORED" -> txn.transactionStatus == TransactionStatus.IGNORED
                 "EXPENSE" -> txn.transactionStatus == TransactionStatus.ACTIVE && txn.transactionType == TransactionType.EXPENSE
-                "INCOME" -> txn.transactionStatus == TransactionStatus.ACTIVE && (txn.transactionType == TransactionType.INCOME || txn.transactionType == TransactionType.REFUND)
+                "INCOME" -> txn.transactionStatus == TransactionStatus.ACTIVE && txn.transactionType == TransactionType.INCOME
+                "REFUND" -> txn.transactionStatus == TransactionStatus.ACTIVE && txn.transactionType == TransactionType.REFUND
                 "TRANSFER" -> txn.transactionStatus == TransactionStatus.ACTIVE && txn.transactionType == TransactionType.TRANSFER
+                else -> true
+            }
+
+            // Date period filter
+            val matchesDate = when (dateFilter) {
+                "THIS_MONTH" -> txn.transactionDate >= DateTimeUtils.getStartOfMonth()
+                "LAST_MONTH" -> {
+                    val startThisMonth = DateTimeUtils.getStartOfMonth()
+                    val cal = Calendar.getInstance().apply {
+                        timeInMillis = startThisMonth
+                        add(Calendar.MONTH, -1)
+                    }
+                    txn.transactionDate in cal.timeInMillis until startThisMonth
+                }
                 else -> true
             }
 
@@ -148,7 +186,7 @@ class TransactionsViewModel(
             // Category
             val matchesCategory = categoryFilter == null || txn.categoryId == categoryFilter.id
 
-            matchesQuery && matchesType && matchesMethod && matchesCategory
+            matchesQuery && matchesType && matchesDate && matchesMethod && matchesCategory
         }
     }
 

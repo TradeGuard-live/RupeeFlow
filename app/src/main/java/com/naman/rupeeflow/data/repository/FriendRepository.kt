@@ -16,6 +16,9 @@ interface FriendRepository {
     suspend fun updateFriend(friend: Friend)
     suspend fun deleteFriend(friend: Friend)
     suspend fun archiveFriend(id: Long)
+    // ✅ Safe friend lifecycle management
+    suspend fun unarchiveFriend(id: Long)
+    suspend fun isFriendReferenced(friendId: Long): Boolean
 }
 
 class FriendRepositoryImpl(
@@ -51,11 +54,29 @@ class FriendRepositoryImpl(
     }
 
     override suspend fun deleteFriend(friend: Friend) {
-        friendDao.deleteFriend(friend.toEntity())
+        // ✅ Protect against identity collision:
+        // If friend is referenced in transactions or settlements, archive instead of deleting
+        // to ensure foreign keys never convert friend to ME (null).
+        if (isFriendReferenced(friend.id)) {
+            friendDao.archiveFriend(friend.id)
+        } else {
+            friendDao.deleteFriend(friend.toEntity())
+        }
     }
 
     override suspend fun archiveFriend(id: Long) {
         friendDao.archiveFriend(id)
+    }
+
+    override suspend fun unarchiveFriend(id: Long) {
+        friendDao.unarchiveFriend(id)
+    }
+
+    override suspend fun isFriendReferenced(friendId: Long): Boolean {
+        val txnCount = friendDao.countTransactionsPaidByFriend(friendId)
+        val partCount = friendDao.countParticipantsForFriend(friendId)
+        val setCount = friendDao.countSettlementsForFriend(friendId)
+        return (txnCount + partCount + setCount) > 0
     }
 
     private fun FriendEntity.toDomain() = Friend(
