@@ -70,7 +70,7 @@ fun FriendDetailScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
                     }
                 },
                 actions = {
@@ -132,12 +132,12 @@ fun FriendDetailScreen(
                     FriendBalanceStatus.THEY_OWE_ME -> Triple(
                         "${friend.name} owes you",
                         EmeraldMint,
-                        Icons.Default.CallReceived
+                        Icons.AutoMirrored.Filled.CallReceived
                     )
                     FriendBalanceStatus.I_OWE_THEM -> Triple(
                         "You owe ${friend.name}",
                         CoralRed,
-                        Icons.Default.CallMade
+                        Icons.AutoMirrored.Filled.CallMade
                     )
                     FriendBalanceStatus.SETTLED -> Triple(
                         "All Settled Up",
@@ -244,7 +244,7 @@ fun FriendDetailScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    imageVector = if (isReceived) Icons.Default.CallReceived else Icons.Default.CallMade,
+                                    imageVector = if (isReceived) Icons.AutoMirrored.Filled.CallReceived else Icons.AutoMirrored.Filled.CallMade,
                                     contentDescription = null,
                                     tint = dirColor,
                                     modifier = Modifier.size(18.dp)
