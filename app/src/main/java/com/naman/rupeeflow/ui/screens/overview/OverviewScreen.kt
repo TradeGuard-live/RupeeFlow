@@ -195,7 +195,7 @@ fun OverviewScreen(
                     title = "This Month's Spending",
                     amountFormatted = CurrencyUtils.formatPaiseToRupees(state.summary.totalExpenseThisMonthPaise),
                     subtitle = "Daily average: ${CurrencyUtils.formatPaiseToRupees(state.summary.averageDailySpendingPaise)}",
-                    icon = Icons.AutoMirrored.Filled.TrendingUp,
+                    icon = Icons.Default.TrendingUp,
                     accentColor = ElectricBlue
                 )
             }

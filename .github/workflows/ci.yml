@@ -29,7 +29,7 @@ jobs:
       - name: Verify Kotlin & Room Schema Compilation
         run: ./gradlew compileDebugKotlin --no-daemon
 
-      - name: Execute Full Automated Test Suite (170 Tests)
+      - name: Execute Full Automated Test Suite (175 Tests)
         run: ./gradlew testDebugUnitTest --no-daemon
 
       - name: Run Android Lint

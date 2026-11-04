@@ -69,7 +69,7 @@ fun SettlementDetailDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = if (isFriendPayingMe) Icons.AutoMirrored.Filled.CallReceived else Icons.AutoMirrored.Filled.CallMade,
+                                imageVector = if (isFriendPayingMe) Icons.Default.CallReceived else Icons.Default.CallMade,
                                 contentDescription = null,
                                 tint = accentColor,
                                 modifier = Modifier.size(18.dp)
@@ -159,7 +159,7 @@ fun SettlementDetailDialog(
 
                 if (!settlement.notes.isNullOrBlank()) {
                     DetailRow(
-                        icon = Icons.AutoMirrored.Filled.Notes,
+                        icon = Icons.Default.Notes,
                         label = "Notes",
                         value = settlement.notes
                     )
@@ -218,7 +218,7 @@ fun SettlementDetailDialog(
                                 shape = RoundedCornerShape(14.dp),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                             ) {
-                                Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Undo, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
                                     text = "Reverse",

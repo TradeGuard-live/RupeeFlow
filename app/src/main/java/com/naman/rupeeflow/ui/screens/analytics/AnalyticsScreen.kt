@@ -239,7 +239,7 @@ fun AnalyticsScreen(
                                     .background(if (!isBarChart) ElectricBlue.copy(alpha = 0.25f) else Color.Transparent)
                             ) {
                                 Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ShowChart,
+                                    imageVector = Icons.Default.ShowChart,
                                     contentDescription = "Line Chart",
                                     tint = if (!isBarChart) ElectricBlue else TextSecondary,
                                     modifier = Modifier.size(18.dp)

@@ -257,9 +257,10 @@ fun FriendItemCard(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // ✅ Standard Icons.Default for balance indicators
                     val icon = when (friend.status) {
-                        FriendBalanceStatus.THEY_OWE_ME -> Icons.AutoMirrored.Filled.CallReceived
-                        FriendBalanceStatus.I_OWE_THEM -> Icons.AutoMirrored.Filled.CallMade
+                        FriendBalanceStatus.THEY_OWE_ME -> Icons.Default.CallReceived
+                        FriendBalanceStatus.I_OWE_THEM -> Icons.Default.CallMade
                         FriendBalanceStatus.SETTLED -> Icons.Default.Check
                     }
                     Icon(
