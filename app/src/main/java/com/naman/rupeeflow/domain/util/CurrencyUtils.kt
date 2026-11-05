@@ -74,7 +74,7 @@ object CurrencyUtils {
     }
 
     /**
-     * ✅ Uses BigDecimal for exact decimal parsing to prevent binary floating point errors.
+     * Uses BigDecimal for exact decimal parsing to prevent binary floating point errors.
      * Strictly validates format and ensures positive amounts with at most 2 decimal places.
      */
     fun parseInputToPaiseOrNull(input: String): Long? {
@@ -195,7 +195,7 @@ object DateTimeUtils {
     }
 
     /**
-     * ✅ Monday-to-Sunday weekly boundaries calculated deterministically.
+     * Monday-to-Sunday weekly boundaries calculated deterministically.
      */
     fun getStartOfWeek(timestamp: Long = System.currentTimeMillis()): Long {
         return Calendar.getInstance(TimeZone.getDefault(), Locale.getDefault()).apply {
@@ -223,7 +223,7 @@ object DateTimeUtils {
 }
 
 /**
- * ✅ Robust monetary and integer arithmetic preventing Long overflows.
+ * Robust monetary and integer arithmetic preventing Long overflows.
  * Handles boundary conditions like Long.MIN_VALUE and clamps safely
  * instead of wrapping around into corrupt positive or negative values.
  */

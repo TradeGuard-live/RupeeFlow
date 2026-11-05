@@ -15,11 +15,11 @@ import java.util.Collections
 
 class RupeeFlowNotificationListener : NotificationListenerService() {
 
-    // ✅ Managed coroutine lifecycle
+    // Managed coroutine lifecycle
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(serviceJob + Dispatchers.IO)
 
-    // ✅ Thread-safe deduplication lock and recent cache
+    // Thread-safe deduplication lock and recent cache
     private val processedKeys = Collections.synchronizedSet(LinkedHashSet<String>())
     private val mutex = Mutex()
 

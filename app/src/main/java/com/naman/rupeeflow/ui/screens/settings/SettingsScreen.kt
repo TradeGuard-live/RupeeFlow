@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -29,6 +30,7 @@ import androidx.compose.ui.window.Dialog
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.ui.components.CategoryIconHelper
 import com.naman.rupeeflow.ui.components.RupeeFlowCard
+import com.naman.rupeeflow.ui.components.rupeeFlowTextFieldColors
 import com.naman.rupeeflow.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -60,7 +62,7 @@ fun SettingsScreen(
                 Text(
                     text = "Settings",
                     style = MaterialTheme.typography.headlineLarge,
-                    color = TextPrimary
+                    color = AppTheme.colors.textPrimary
                 )
             }
 
@@ -68,14 +70,14 @@ fun SettingsScreen(
             item {
                 SettingsSectionHeader("Appearance")
                 RupeeFlowCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(text = "App Theme", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                    Text(text = "App Theme", style = MaterialTheme.typography.titleMedium, color = AppTheme.colors.textPrimary)
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(CharcoalCard)
+                            .background(AppTheme.colors.surfaceSecondary)
                             .padding(4.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
@@ -85,7 +87,7 @@ fun SettingsScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) ElectricBlue.copy(alpha = 0.25f) else Color.Transparent)
+                                    .background(if (isSelected) AppTheme.colors.accentContainer else Color.Transparent)
                                     .clickable { viewModel.setThemeMode(key) }
                                     .padding(vertical = 8.dp),
                                 contentAlignment = Alignment.Center
@@ -93,7 +95,7 @@ fun SettingsScreen(
                                 Text(
                                     text = label,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (isSelected) ElectricBlueLight else TextSecondary,
+                                    color = if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
                             }
@@ -112,7 +114,7 @@ fun SettingsScreen(
                         checked = state.biometricLockEnabled,
                         onCheckedChange = { viewModel.setBiometricLockEnabled(it) },
                         icon = Icons.Default.Fingerprint,
-                        iconTint = ElectricBlue
+                        iconTint = AppTheme.colors.primaryAccent
                     )
                 }
             }
@@ -127,10 +129,10 @@ fun SettingsScreen(
                         checked = state.smsDetectionEnabled,
                         onCheckedChange = { viewModel.setSmsDetectionEnabled(it) },
                         icon = Icons.Default.Sms,
-                        iconTint = VibrantCyan
+                        iconTint = AppTheme.colors.primaryAccent
                     )
 
-                    HorizontalDivider(color = GlassBorder, modifier = Modifier.padding(vertical = 12.dp))
+                    HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 12.dp))
 
                     SettingsSwitchRow(
                         title = "Notification Listener Service",
@@ -151,7 +153,7 @@ fun SettingsScreen(
                     )
 
                     if (onNavigateToPending != null) {
-                        HorizontalDivider(color = GlassBorder, modifier = Modifier.padding(vertical = 12.dp))
+                        HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 12.dp))
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -180,24 +182,24 @@ fun SettingsScreen(
                                     Text(
                                         text = "View Detected Transactions",
                                         style = MaterialTheme.typography.titleMedium,
-                                        color = TextPrimary
+                                        color = AppTheme.colors.textPrimary
                                     )
                                     Text(
                                         text = "Review all captured SMS & app notifications",
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = TextSecondary
+                                        color = AppTheme.colors.textSecondary
                                     )
                                 }
                             }
                             Icon(
                                 imageVector = Icons.Default.ChevronRight,
                                 contentDescription = null,
-                                tint = TextSecondary
+                                tint = AppTheme.colors.textSecondary
                             )
                         }
                     }
 
-                    HorizontalDivider(color = GlassBorder, modifier = Modifier.padding(vertical = 12.dp))
+                    HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 12.dp))
 
                     // SMS Simulator / Tester
                     Button(
@@ -205,8 +207,8 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = ElectricBlue.copy(alpha = 0.2f),
-                            contentColor = ElectricBlueLight
+                            containerColor = AppTheme.colors.accentContainer,
+                            contentColor = AppTheme.colors.primaryAccent
                         )
                     ) {
                         Icon(Icons.Default.BugReport, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -226,16 +228,16 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text(text = "Categories", style = MaterialTheme.typography.titleMedium, color = TextPrimary)
-                            Text(text = "${state.categories.size} categories active", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                            Text(text = "Categories", style = MaterialTheme.typography.titleMedium, color = AppTheme.colors.textPrimary)
+                            Text(text = "${state.categories.size} categories active", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
                         }
                         IconButton(
                             onClick = { showAddCategoryDialog = true },
                             modifier = Modifier
                                 .clip(CircleShape)
-                                .background(ElectricBlue.copy(alpha = 0.2f))
+                                .background(AppTheme.colors.accentContainer)
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "Add Category", tint = ElectricBlue)
+                            Icon(Icons.Default.Add, contentDescription = "Add Category", tint = AppTheme.colors.primaryAccent)
                         }
                     }
                 }
@@ -260,7 +262,7 @@ fun SettingsScreen(
                         }
                     )
 
-                    HorizontalDivider(color = GlassBorder, modifier = Modifier.padding(vertical = 10.dp))
+                    HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 10.dp))
 
                     // Restore JSON Backup
                     SettingsActionRow(
@@ -270,7 +272,7 @@ fun SettingsScreen(
                         onClick = { showRestoreDialog = true }
                     )
 
-                    HorizontalDivider(color = GlassBorder, modifier = Modifier.padding(vertical = 10.dp))
+                    HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 10.dp))
 
                     // Export Transactions CSV
                     SettingsActionRow(
@@ -287,7 +289,7 @@ fun SettingsScreen(
                         }
                     )
 
-                    HorizontalDivider(color = GlassBorder, modifier = Modifier.padding(vertical = 10.dp))
+                    HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 10.dp))
 
                     // Export Friends CSV
                     SettingsActionRow(
@@ -311,8 +313,8 @@ fun SettingsScreen(
                 SettingsSectionHeader("Danger Zone")
                 RupeeFlowCard(
                     modifier = Modifier.fillMaxWidth(),
-                    borderColor = RubyCrimson.copy(alpha = 0.5f),
-                    backgroundColor = CharcoalCard
+                    borderColor = CoralRed.copy(alpha = 0.5f),
+                    backgroundColor = AppTheme.colors.cardBackground
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -322,13 +324,13 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(RubyCrimson.copy(alpha = 0.15f)),
+                                .background(CoralRed.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DeleteForever,
                                 contentDescription = null,
-                                tint = RubyCrimson,
+                                tint = CoralRed,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -337,14 +339,14 @@ fun SettingsScreen(
                             Text(
                                 text = "Reset Application",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = RubyCrimson,
+                                color = CoralRed,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "Wipe all transactions, split ledgers, friends & restore fresh defaults",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary
+                                color = AppTheme.colors.textSecondary
                             )
                         }
                     }
@@ -355,11 +357,11 @@ fun SettingsScreen(
                         onClick = { showResetConfirmDialog = true },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = RubyCrimson.copy(alpha = 0.2f),
-                            contentColor = RubyCrimson
+                            containerColor = CoralRed.copy(alpha = 0.2f),
+                            contentColor = CoralRed
                         ),
                         shape = RoundedCornerShape(12.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, RubyCrimson)
+                        border = BorderStroke(1.dp, CoralRed)
                     ) {
                         Icon(Icons.Default.DeleteForever, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
@@ -375,14 +377,14 @@ fun SettingsScreen(
                     Text(
                         text = "100% Offline & Private",
                         style = MaterialTheme.typography.titleMedium,
-                        color = EmeraldMint,
+                        color = AppTheme.colors.incomeGreen,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Your financial data never leaves this device. No servers, no tracking, no paid APIs. All SMS parsing and ledger accounting happen locally.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
+                        color = AppTheme.colors.textSecondary
                     )
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -438,18 +440,18 @@ fun SettingsScreen(
     if (showResetConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showResetConfirmDialog = false },
-            containerColor = CharcoalSurface,
+            containerColor = AppTheme.colors.surfaceElevated,
             title = {
                 Text(
                     text = "Reset Entire Application?",
-                    color = TextPrimary,
+                    color = AppTheme.colors.textPrimary,
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
                     text = "This will permanently erase all transactions, friends, split debts, and custom categories. The app will be restored to its initial state.\n\nThis action cannot be undone.",
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
             },
             confirmButton = {
@@ -461,8 +463,8 @@ fun SettingsScreen(
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = RubyCrimson,
-                        contentColor = TextPrimary
+                        containerColor = CoralRed,
+                        contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(10.dp)
                 ) {
@@ -471,7 +473,7 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showResetConfirmDialog = false }) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
                 }
             }
         )
@@ -483,7 +485,7 @@ private fun SettingsSectionHeader(title: String) {
     Text(
         text = title.uppercase(),
         style = MaterialTheme.typography.labelSmall,
-        color = TextSecondary,
+        color = AppTheme.colors.textSecondary,
         letterSpacing = 1.2.sp,
         modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
     )
@@ -518,9 +520,9 @@ private fun SettingsSwitchRow(
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column {
-                Text(text = title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                Text(text = title, style = MaterialTheme.typography.titleMedium, color = AppTheme.colors.textPrimary)
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
             }
         }
         Spacer(modifier = Modifier.width(12.dp))
@@ -529,7 +531,7 @@ private fun SettingsSwitchRow(
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = iconTint,
-                checkedTrackColor = CharcoalCard
+                checkedTrackColor = AppTheme.colors.accentContainer
             )
         )
     }
@@ -558,19 +560,19 @@ private fun SettingsActionRow(
                 modifier = Modifier
                     .size(38.dp)
                     .clip(CircleShape)
-                    .background(ElectricBlue.copy(alpha = 0.2f)),
+                    .background(AppTheme.colors.accentContainer),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = ElectricBlueLight, modifier = Modifier.size(20.dp))
+                Icon(icon, contentDescription = null, tint = AppTheme.colors.primaryAccent, modifier = Modifier.size(20.dp))
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column {
-                Text(text = title, style = MaterialTheme.typography.titleMedium, color = TextPrimary)
+                Text(text = title, style = MaterialTheme.typography.titleMedium, color = AppTheme.colors.textPrimary)
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
             }
         }
-        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextMuted)
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = AppTheme.colors.textMuted)
     }
 }
 
@@ -588,8 +590,8 @@ fun SmsTesterDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = CharcoalSurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+            color = AppTheme.colors.surfaceElevated,
+            border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -602,9 +604,9 @@ fun SmsTesterDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("SMS Parser Diagnostic", style = MaterialTheme.typography.titleLarge, color = TextPrimary)
+                    Text("SMS Parser Diagnostic", style = MaterialTheme.typography.titleLarge, color = AppTheme.colors.textPrimary)
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary)
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTheme.colors.textSecondary)
                     }
                 }
 
@@ -613,16 +615,11 @@ fun SmsTesterDialog(
                 OutlinedTextField(
                     value = smsText,
                     onValueChange = { smsText = it },
-                    label = { Text("Enter or Paste Financial SMS", color = TextSecondary) },
+                    label = { Text("Enter or Paste Financial SMS", color = AppTheme.colors.textSecondary) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(110.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = ElectricBlue,
-                        unfocusedBorderColor = GlassBorder,
-                        focusedContainerColor = CharcoalCard,
-                        unfocusedContainerColor = CharcoalCard
-                    ),
+                    colors = rupeeFlowTextFieldColors(),
                     shape = RoundedCornerShape(12.dp)
                 )
 
@@ -632,7 +629,7 @@ fun SmsTesterDialog(
                     onClick = { viewModel.testParseSms(smsText, "HDFCBK") },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue, contentColor = MidnightDark)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent, contentColor = Color.White)
                 ) {
                     Text("Run Diagnostic Parse")
                 }
@@ -641,27 +638,27 @@ fun SmsTesterDialog(
                     Spacer(modifier = Modifier.height(14.dp))
                     RupeeFlowCard(
                         modifier = Modifier.fillMaxWidth(),
-                        borderColor = if (result.isValidTransaction) EmeraldMint else AmberGold
+                        borderColor = if (result.isValidTransaction) AppTheme.colors.incomeGreen else AmberGold
                     ) {
                         Text(
                             text = if (result.isValidTransaction) "VALID TRANSACTION DETECTED" else "NOT A FINANCIAL TRANSACTION",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (result.isValidTransaction) EmeraldMint else AmberGold,
+                            color = if (result.isValidTransaction) AppTheme.colors.incomeGreen else AmberGold,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(6.dp))
 
                         if (result.isValidTransaction) {
-                            Text("Amount: ${CurrencyUtils.formatPaiseToRupees(result.amountPaise)}", color = TextPrimary, style = MaterialTheme.typography.titleMedium)
-                            Text("Type: ${result.type.name}", color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
-                            Text("Bank: ${result.bankName}", color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
-                            Text("Account ending: ${result.accountLast4 ?: "N/A"}", color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
-                            Text("Merchant: ${result.merchant ?: "N/A"}", color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
-                            Text("Ref No: ${result.referenceNumber ?: "N/A"}", color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
+                            Text("Amount: ${CurrencyUtils.formatPaiseToRupees(result.amountPaise)}", color = AppTheme.colors.textPrimary, style = MaterialTheme.typography.titleMedium)
+                            Text("Type: ${result.type.name}", color = AppTheme.colors.textSecondary, style = MaterialTheme.typography.bodyMedium)
+                            Text("Bank: ${result.bankName}", color = AppTheme.colors.textSecondary, style = MaterialTheme.typography.bodyMedium)
+                            Text("Account ending: ${result.accountLast4 ?: "N/A"}", color = AppTheme.colors.textSecondary, style = MaterialTheme.typography.bodyMedium)
+                            Text("Merchant: ${result.merchant ?: "N/A"}", color = AppTheme.colors.textSecondary, style = MaterialTheme.typography.bodyMedium)
+                            Text("Ref No: ${result.referenceNumber ?: "N/A"}", color = AppTheme.colors.textSecondary, style = MaterialTheme.typography.bodyMedium)
                         } else {
-                            if (result.isOtp) Text("Classified as OTP verification message (excluded)", color = TextSecondary)
-                            if (result.isFailed) Text("Classified as failed/declined transaction (excluded)", color = TextSecondary)
-                            if (result.isBalanceInquiry) Text("Classified as balance-only inquiry (excluded)", color = TextSecondary)
+                            if (result.isOtp) Text("Classified as OTP verification message (excluded)", color = AppTheme.colors.textSecondary)
+                            if (result.isFailed) Text("Classified as failed/declined transaction (excluded)", color = AppTheme.colors.textSecondary)
+                            if (result.isBalanceInquiry) Text("Classified as balance-only inquiry (excluded)", color = AppTheme.colors.textSecondary)
                         }
                     }
                 }
@@ -683,25 +680,26 @@ fun AddCategoryDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(20.dp),
-            color = CharcoalSurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+            color = AppTheme.colors.surfaceElevated,
+            border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
-                Text("Add Custom Category", style = MaterialTheme.typography.titleLarge, color = TextPrimary)
+                Text("Add Custom Category", style = MaterialTheme.typography.titleLarge, color = AppTheme.colors.textPrimary)
                 Spacer(modifier = Modifier.height(14.dp))
 
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Category Name", color = TextSecondary) },
+                    label = { Text("Category Name", color = AppTheme.colors.textSecondary) },
                     modifier = Modifier.fillMaxWidth(),
+                    colors = rupeeFlowTextFieldColors(),
                     shape = RoundedCornerShape(12.dp)
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                Text("Pick Color", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                Text("Pick Color", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textSecondary)
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -716,7 +714,7 @@ fun AddCategoryDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             if (isSelected) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = MidnightDark, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
@@ -730,7 +728,7 @@ fun AddCategoryDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue, contentColor = MidnightDark),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent, contentColor = Color.White),
                     enabled = name.isNotBlank()
                 ) {
                     Text("Add Category")
@@ -750,21 +748,22 @@ fun RestoreBackupDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(20.dp),
-            color = CharcoalSurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+            color = AppTheme.colors.surfaceElevated,
+            border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
-                Text("Restore Backup", style = MaterialTheme.typography.titleLarge, color = TextPrimary)
+                Text("Restore Backup", style = MaterialTheme.typography.titleLarge, color = AppTheme.colors.textPrimary)
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
                     value = jsonText,
                     onValueChange = { jsonText = it },
-                    label = { Text("Paste JSON Backup", color = TextSecondary) },
+                    label = { Text("Paste JSON Backup", color = AppTheme.colors.textSecondary) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(140.dp),
+                    colors = rupeeFlowTextFieldColors(),
                     shape = RoundedCornerShape(12.dp)
                 )
 
@@ -776,7 +775,7 @@ fun RestoreBackupDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue, contentColor = MidnightDark),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent, contentColor = Color.White),
                     enabled = jsonText.isNotBlank()
                 ) {
                     Text("Restore Database")
@@ -794,7 +793,7 @@ private fun DetailRow(label: String, value: String) {
             .padding(vertical = 3.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-        Text(text = value, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+        Text(text = value, style = MaterialTheme.typography.titleSmall, color = AppTheme.colors.textPrimary)
     }
 }

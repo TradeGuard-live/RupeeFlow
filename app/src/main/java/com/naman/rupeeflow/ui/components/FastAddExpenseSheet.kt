@@ -1,5 +1,6 @@
 package com.naman.rupeeflow.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -106,8 +107,8 @@ fun FastAddExpenseSheet(
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = CharcoalSurface,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = GlassBorder) },
+        containerColor = AppTheme.colors.surfaceElevated,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = AppTheme.colors.cardBorder) },
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         Column(
@@ -130,10 +131,10 @@ fun FastAddExpenseSheet(
                         SheetEntryType.SETTLEMENT -> "Add Settlement"
                     },
                     style = MaterialTheme.typography.titleLarge,
-                    color = TextPrimary
+                    color = AppTheme.colors.textPrimary
                 )
                 IconButton(onClick = onDismiss) {
-                    Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = TextSecondary)
+                    Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = AppTheme.colors.textSecondary)
                 }
             }
 
@@ -144,7 +145,7 @@ fun FastAddExpenseSheet(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(CharcoalCard)
+                    .background(AppTheme.colors.surfaceSecondary)
                     .padding(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
@@ -156,8 +157,8 @@ fun FastAddExpenseSheet(
                     val isSelected = selectedEntryType == type
                     val activeColor = when (type) {
                         SheetEntryType.EXPENSE -> CoralRed
-                        SheetEntryType.INCOME -> EmeraldMint
-                        SheetEntryType.SETTLEMENT -> VibrantCyan
+                        SheetEntryType.INCOME -> AppTheme.colors.incomeGreen
+                        SheetEntryType.SETTLEMENT -> AppTheme.colors.primaryAccent
                     }
 
                     Box(
@@ -172,7 +173,7 @@ fun FastAddExpenseSheet(
                         Text(
                             text = label,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (isSelected) activeColor else TextSecondary,
+                            color = if (isSelected) activeColor else AppTheme.colors.textSecondary,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                         )
                     }
@@ -192,7 +193,7 @@ fun FastAddExpenseSheet(
                     ) {
                         Text(
                             text = "No friends added yet. Please add a friend from the Friends tab to record a settlement.",
-                            color = TextSecondary,
+                            color = AppTheme.colors.textSecondary,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -201,7 +202,7 @@ fun FastAddExpenseSheet(
                     Text(
                         text = "Select Friend",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary
+                        color = AppTheme.colors.textSecondary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
@@ -214,10 +215,10 @@ fun FastAddExpenseSheet(
                             val isSelected = selectedSettlementFriend?.id == friend.id
                             Surface(
                                 shape = RoundedCornerShape(20.dp),
-                                color = if (isSelected) VibrantCyan.copy(alpha = 0.2f) else CharcoalCard,
-                                border = androidx.compose.foundation.BorderStroke(
+                                color = if (isSelected) AppTheme.colors.accentContainer else AppTheme.colors.cardBackground,
+                                border = BorderStroke(
                                     1.dp,
-                                    if (isSelected) VibrantCyan else GlassBorder
+                                    if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.cardBorder
                                 ),
                                 modifier = Modifier.clickable {
                                     selectedSettlementFriend = friend
@@ -227,7 +228,7 @@ fun FastAddExpenseSheet(
                                 Text(
                                     text = friend.name,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (isSelected) VibrantCyan else TextSecondary,
+                                    color = if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary,
                                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                                 )
                             }
@@ -242,7 +243,7 @@ fun FastAddExpenseSheet(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(CharcoalCard)
+                                .background(AppTheme.colors.surfaceSecondary)
                                 .padding(4.dp),
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
@@ -253,7 +254,7 @@ fun FastAddExpenseSheet(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isFriendPayingMe) EmeraldMint.copy(alpha = 0.2f) else Color.Transparent)
+                                    .background(if (isFriendPayingMe) AppTheme.colors.incomeGreen.copy(alpha = 0.2f) else Color.Transparent)
                                     .clickable { isFriendPayingMe = true }
                                     .padding(vertical = 8.dp),
                                 contentAlignment = Alignment.Center
@@ -261,7 +262,7 @@ fun FastAddExpenseSheet(
                                 Text(
                                     text = opt1,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (isFriendPayingMe) EmeraldMint else TextSecondary,
+                                    color = if (isFriendPayingMe) AppTheme.colors.incomeGreen else AppTheme.colors.textSecondary,
                                     fontWeight = if (isFriendPayingMe) FontWeight.Bold else FontWeight.Normal
                                 )
                             }
@@ -278,7 +279,7 @@ fun FastAddExpenseSheet(
                                 Text(
                                     text = opt2,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (!isFriendPayingMe) CoralRed else TextSecondary,
+                                    color = if (!isFriendPayingMe) CoralRed else AppTheme.colors.textSecondary,
                                     fontWeight = if (!isFriendPayingMe) FontWeight.Bold else FontWeight.Normal
                                 )
                             }
@@ -297,13 +298,13 @@ fun FastAddExpenseSheet(
                                     text = if (friend.status == FriendBalanceStatus.THEY_OWE_ME) "${friend.name} owes you ${CurrencyUtils.formatPaiseToRupees(friendBal)}"
                                     else "You owe ${friend.name} ${CurrencyUtils.formatPaiseToRupees(friendBal)}",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (friend.status == FriendBalanceStatus.THEY_OWE_ME) EmeraldMint else CoralRed
+                                    color = if (friend.status == FriendBalanceStatus.THEY_OWE_ME) AppTheme.colors.incomeGreen else CoralRed
                                 )
                                 TextButton(
                                     onClick = { amountText = (friendBal / 100.0).toString() },
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
-                                    Text("Fill Total", style = MaterialTheme.typography.labelSmall, color = VibrantCyan)
+                                    Text("Fill Total", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.primaryAccent)
                                 }
                             }
                         }
@@ -324,7 +325,7 @@ fun FastAddExpenseSheet(
                     Text(
                         text = "Payment Method",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary
+                        color = AppTheme.colors.textSecondary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     PaymentMethodSelectorRow(
@@ -338,16 +339,11 @@ fun FastAddExpenseSheet(
                     OutlinedTextField(
                         value = description,
                         onValueChange = { description = it },
-                        label = { Text("Settlement Notes (Optional)", color = TextSecondary) },
-                        placeholder = { Text("e.g. Cleared dinner bill, Google Pay settlement", color = TextMuted) },
+                        label = { Text("Settlement Notes (Optional)", color = AppTheme.colors.textSecondary) },
+                        placeholder = { Text("e.g. Cleared dinner bill, Google Pay settlement", color = AppTheme.colors.textMuted) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = VibrantCyan,
-                            unfocusedBorderColor = GlassBorder,
-                            focusedContainerColor = CharcoalCard,
-                            unfocusedContainerColor = CharcoalCard
-                        ),
+                        colors = rupeeFlowTextFieldColors(),
                         shape = RoundedCornerShape(16.dp)
                     )
 
@@ -356,16 +352,11 @@ fun FastAddExpenseSheet(
                     OutlinedTextField(
                         value = settlementRefNumber,
                         onValueChange = { settlementRefNumber = it },
-                        label = { Text("Reference / UPI Transaction ID (Optional)", color = TextSecondary) },
-                        placeholder = { Text("e.g. 12-digit UTR ref no.", color = TextMuted) },
+                        label = { Text("Reference / UPI Transaction ID (Optional)", color = AppTheme.colors.textSecondary) },
+                        placeholder = { Text("e.g. 12-digit UTR ref no.", color = AppTheme.colors.textMuted) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = VibrantCyan,
-                            unfocusedBorderColor = GlassBorder,
-                            focusedContainerColor = CharcoalCard,
-                            unfocusedContainerColor = CharcoalCard
-                        ),
+                        colors = rupeeFlowTextFieldColors(),
                         shape = RoundedCornerShape(16.dp)
                     )
 
@@ -398,8 +389,8 @@ fun FastAddExpenseSheet(
                             .height(54.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = VibrantCyan,
-                            contentColor = MidnightDark
+                            containerColor = AppTheme.colors.primaryAccent,
+                            contentColor = Color.White
                         ),
                         enabled = amountPaise > 0L && selectedSettlementFriend != null
                     ) {
@@ -426,16 +417,11 @@ fun FastAddExpenseSheet(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Title / Merchant", color = TextSecondary) },
-                    placeholder = { Text("e.g. Swiggy, Groceries, Salary, Dinner", color = TextMuted) },
+                    label = { Text("Title / Merchant", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("e.g. Swiggy, Groceries, Salary, Dinner", color = AppTheme.colors.textMuted) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = ElectricBlue,
-                        unfocusedBorderColor = GlassBorder,
-                        focusedContainerColor = CharcoalCard,
-                        unfocusedContainerColor = CharcoalCard
-                    ),
+                    colors = rupeeFlowTextFieldColors(),
                     shape = RoundedCornerShape(16.dp)
                 )
 
@@ -445,17 +431,12 @@ fun FastAddExpenseSheet(
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Description / Notes (Optional)", color = TextSecondary) },
-                    placeholder = { Text("Add extra details, itemized breakdown, or notes...", color = TextMuted) },
+                    label = { Text("Description / Notes (Optional)", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("Add extra details, itemized breakdown, or notes...", color = AppTheme.colors.textMuted) },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     maxLines = 4,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = ElectricBlue,
-                        unfocusedBorderColor = GlassBorder,
-                        focusedContainerColor = CharcoalCard,
-                        unfocusedContainerColor = CharcoalCard
-                    ),
+                    colors = rupeeFlowTextFieldColors(),
                     shape = RoundedCornerShape(16.dp)
                 )
 
@@ -465,7 +446,7 @@ fun FastAddExpenseSheet(
                 Text(
                     text = "Category",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 CategorySelectorRow(
@@ -480,7 +461,7 @@ fun FastAddExpenseSheet(
                 Text(
                     text = "Payment Method",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 PaymentMethodSelectorRow(
@@ -503,7 +484,7 @@ fun FastAddExpenseSheet(
                     Text(
                         text = "Paid By",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary
+                        color = AppTheme.colors.textSecondary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     GroupFirstFriendSelector(
@@ -521,7 +502,7 @@ fun FastAddExpenseSheet(
                     // Split with Friends Section
                     RupeeFlowCard(
                         modifier = Modifier.fillMaxWidth(),
-                        borderColor = if (isSplitEnabled) VibrantCyan.copy(alpha = 0.5f) else GlassBorder
+                        borderColor = if (isSplitEnabled) AppTheme.colors.primaryAccent.copy(alpha = 0.5f) else AppTheme.colors.cardBorder
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -532,21 +513,21 @@ fun FastAddExpenseSheet(
                                 Text(
                                     text = "Split with Friends",
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = TextPrimary
+                                    color = AppTheme.colors.textPrimary
                                 )
                                 Text(
                                     text = if (isMeIncluded) "Your personal share will be counted in spendings"
                                     else "You are excluded; full amount owed by friends",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = TextSecondary
+                                    color = AppTheme.colors.textSecondary
                                 )
                             }
                             Switch(
                                 checked = isSplitEnabled,
                                 onCheckedChange = { isSplitEnabled = it },
                                 colors = SwitchDefaults.colors(
-                                    checkedThumbColor = VibrantCyan,
-                                    checkedTrackColor = CharcoalCard
+                                    checkedThumbColor = AppTheme.colors.primaryAccent,
+                                    checkedTrackColor = AppTheme.colors.accentContainer
                                 )
                             )
                         }
@@ -554,7 +535,7 @@ fun FastAddExpenseSheet(
                         if (isSplitEnabled) {
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // ✅ Group-First Split Participant Selector
+                            // Group-First Split Participant Selector
                             GroupFirstFriendSelector(
                                 groups = groups,
                                 allFriends = friends,
@@ -574,7 +555,7 @@ fun FastAddExpenseSheet(
                                 Text(
                                     text = "Split Method",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextSecondary
+                                    color = AppTheme.colors.textSecondary
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -582,7 +563,7 @@ fun FastAddExpenseSheet(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(MidnightDark)
+                                        .background(AppTheme.colors.surfaceSecondary)
                                         .padding(4.dp),
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
@@ -596,7 +577,7 @@ fun FastAddExpenseSheet(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(8.dp))
-                                                .background(if (isSelected) VibrantCyan.copy(alpha = 0.25f) else Color.Transparent)
+                                                .background(if (isSelected) AppTheme.colors.primaryAccent.copy(alpha = 0.2f) else Color.Transparent)
                                                 .clickable { splitMethod = method }
                                                 .padding(vertical = 8.dp),
                                             contentAlignment = Alignment.Center
@@ -604,7 +585,7 @@ fun FastAddExpenseSheet(
                                             Text(
                                                 text = label,
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = if (isSelected) VibrantCyan else TextSecondary,
+                                                color = if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary,
                                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                             )
                                         }
@@ -624,14 +605,14 @@ fun FastAddExpenseSheet(
 
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
-                                        color = MidnightDark,
+                                        color = AppTheme.colors.surfaceSecondary,
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Column(modifier = Modifier.padding(12.dp)) {
                                             Text(
                                                 text = "Equal Split (${totalParticipants} participants" + (if (!isMeIncluded) ", excluding you" else "") + ")",
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = EmeraldMint,
+                                                color = AppTheme.colors.incomeGreen,
                                                 fontWeight = FontWeight.Bold
                                             )
                                             Spacer(modifier = Modifier.height(6.dp))
@@ -644,11 +625,11 @@ fun FastAddExpenseSheet(
                                                         .padding(vertical = 3.dp),
                                                     horizontalArrangement = Arrangement.SpaceBetween
                                                 ) {
-                                                    Text(pName, style = MaterialTheme.typography.bodyMedium, color = if (pId == null) TextPrimary else TextSecondary)
+                                                    Text(pName, style = MaterialTheme.typography.bodyMedium, color = if (pId == null) AppTheme.colors.textPrimary else AppTheme.colors.textSecondary)
                                                     Text(
                                                         CurrencyUtils.formatPaiseToRupees(pShare),
                                                         style = MaterialTheme.typography.titleSmall,
-                                                        color = if (pId == null) EmeraldMint else VibrantCyan
+                                                        color = if (pId == null) AppTheme.colors.incomeGreen else AppTheme.colors.primaryAccent
                                                     )
                                                 }
                                             }
@@ -679,11 +660,11 @@ fun FastAddExpenseSheet(
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Column(modifier = Modifier.weight(1f)) {
-                                                    Text(pName, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                                                    Text(pName, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
                                                     Text(
                                                         CurrencyUtils.formatPaiseToRupees(calculatedPaise),
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = if (pId == null) EmeraldMint else VibrantCyan
+                                                        color = if (pId == null) AppTheme.colors.incomeGreen else AppTheme.colors.primaryAccent
                                                     )
                                                 }
 
@@ -693,17 +674,12 @@ fun FastAddExpenseSheet(
                                                         val filtered = input.filter { it.isDigit() || it == '.' }
                                                         percentageInputs = percentageInputs + (pId to filtered)
                                                     },
-                                                    trailingIcon = { Text("%", color = TextSecondary, fontSize = 12.sp) },
+                                                    trailingIcon = { Text("%", color = AppTheme.colors.textSecondary, fontSize = 12.sp) },
                                                     singleLine = true,
                                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                                     modifier = Modifier.width(110.dp),
                                                     shape = RoundedCornerShape(10.dp),
-                                                    colors = OutlinedTextFieldDefaults.colors(
-                                                        focusedBorderColor = VibrantCyan,
-                                                        unfocusedBorderColor = GlassBorder,
-                                                        focusedContainerColor = CharcoalCard,
-                                                        unfocusedContainerColor = CharcoalCard
-                                                    )
+                                                    colors = rupeeFlowTextFieldColors()
                                                 )
                                             }
                                         }
@@ -723,7 +699,7 @@ fun FastAddExpenseSheet(
                                                     "Total: ${String.format("%.1f", totalPct)}% (Exceeds by ${String.format("%.1f", -pctDiff)}%)"
                                                 },
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = if (isPctValid) EmeraldMint else if (pctDiff > 0) AmberGold else RubyCrimson,
+                                                color = if (isPctValid) AppTheme.colors.incomeGreen else if (pctDiff > 0) AmberGold else CoralRed,
                                                 fontWeight = FontWeight.Bold
                                             )
 
@@ -736,7 +712,7 @@ fun FastAddExpenseSheet(
                                                     },
                                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                                                 ) {
-                                                    Text("Remaining % to Me", style = MaterialTheme.typography.labelSmall, color = ElectricBlueLight)
+                                                    Text("Remaining % to Me", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.primaryAccent)
                                                 }
                                             }
                                         }
@@ -764,7 +740,7 @@ fun FastAddExpenseSheet(
                                                 Text(
                                                     text = pName,
                                                     style = MaterialTheme.typography.bodyMedium,
-                                                    color = TextPrimary,
+                                                    color = AppTheme.colors.textPrimary,
                                                     modifier = Modifier.weight(1f)
                                                 )
 
@@ -774,18 +750,13 @@ fun FastAddExpenseSheet(
                                                         val filtered = input.filter { it.isDigit() || it == '.' }
                                                         customRupeeInputs = customRupeeInputs + (pId to filtered)
                                                     },
-                                                    leadingIcon = { Text("₹", color = ElectricBlue, fontSize = 13.sp, fontWeight = FontWeight.Bold) },
-                                                    placeholder = { Text("0.00", color = TextMuted) },
+                                                    leadingIcon = { Text("₹", color = AppTheme.colors.primaryAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold) },
+                                                    placeholder = { Text("0.00", color = AppTheme.colors.textMuted) },
                                                     singleLine = true,
                                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                                     modifier = Modifier.width(135.dp),
                                                     shape = RoundedCornerShape(10.dp),
-                                                    colors = OutlinedTextFieldDefaults.colors(
-                                                        focusedBorderColor = VibrantCyan,
-                                                        unfocusedBorderColor = GlassBorder,
-                                                        focusedContainerColor = CharcoalCard,
-                                                        unfocusedContainerColor = CharcoalCard
-                                                    )
+                                                    colors = rupeeFlowTextFieldColors()
                                                 )
                                             }
                                         }
@@ -805,7 +776,7 @@ fun FastAddExpenseSheet(
                                                     "Exceeds total by ${CurrencyUtils.formatPaiseToRupees(-diffPaise)}"
                                                 },
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = if (isExactMatched) EmeraldMint else if (diffPaise > 0) AmberGold else RubyCrimson,
+                                                color = if (isExactMatched) AppTheme.colors.incomeGreen else if (diffPaise > 0) AmberGold else CoralRed,
                                                 fontWeight = FontWeight.Bold
                                             )
 
@@ -819,7 +790,7 @@ fun FastAddExpenseSheet(
                                                     },
                                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
                                                 ) {
-                                                    Text("Remaining ₹ to Me", style = MaterialTheme.typography.labelSmall, color = ElectricBlueLight)
+                                                    Text("Remaining ₹ to Me", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.primaryAccent)
                                                 }
                                             }
                                         }
@@ -955,8 +926,8 @@ fun FastAddExpenseSheet(
                         .height(54.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (selectedEntryType == SheetEntryType.INCOME) EmeraldMint else ElectricBlue,
-                        contentColor = MidnightDark
+                        containerColor = if (selectedEntryType == SheetEntryType.INCOME) AppTheme.colors.incomeGreen else AppTheme.colors.primaryAccent,
+                        contentColor = Color.White
                     ),
                     enabled = amountPaise > 0L && isSplitValid
                 ) {

@@ -57,18 +57,19 @@ fun RupeeFlowBottomBar(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = CharcoalSurface,
-        tonalElevation = 8.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder)
+        color = AppTheme.colors.surface,
+        tonalElevation = if (AppTheme.isDark) 8.dp else 2.dp,
+        border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.divider)
     ) {
         NavigationBar(
-            containerColor = CharcoalSurface,
+            containerColor = AppTheme.colors.surface,
             tonalElevation = 0.dp,
             modifier = Modifier.navigationBarsPadding()
         ) {
             BottomNavItems.forEach { screen ->
                 val selected = currentRoute == screen.route
-                val iconColor = if (selected) ElectricBlue else TextSecondary
+                val iconColor = if (selected) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary
+                val textColor = if (selected) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary
 
                 NavigationBarItem(
                     selected = selected,
@@ -98,11 +99,14 @@ fun RupeeFlowBottomBar(
                             text = screen.title,
                             style = MaterialTheme.typography.labelSmall,
                             fontSize = 11.sp,
-                            color = if (selected) ElectricBlue else TextSecondary
+                            color = textColor,
+                            fontWeight = if (selected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Medium
                         )
                     },
                     colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = CharcoalCard
+                        indicatorColor = if (AppTheme.isDark) CharcoalCard else AppTheme.colors.primaryAccentContainer,
+                        selectedIconColor = AppTheme.colors.primaryAccent,
+                        unselectedIconColor = AppTheme.colors.textSecondary
                     )
                 )
             }

@@ -58,8 +58,8 @@ fun FriendsScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddFriendDialog = true },
-                containerColor = ElectricBlue,
-                contentColor = MidnightDark,
+                containerColor = AppTheme.colors.primaryAccent,
+                contentColor = Color.White,
                 shape = CircleShape,
                 modifier = Modifier.padding(bottom = 60.dp)
             ) {
@@ -67,6 +67,7 @@ fun FriendsScreen(
             }
         }
     ) { paddingValues ->
+        val isDark = AppTheme.isDark
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -83,15 +84,15 @@ fun FriendsScreen(
                 Text(
                     text = "Friends & Ledger",
                     style = MaterialTheme.typography.headlineLarge,
-                    color = TextPrimary
+                    color = AppTheme.colors.textPrimary
                 )
                 // Visible Add Group Action
                 FilledTonalButton(
                     onClick = { showCreateGroupDialog = true },
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = VibrantCyan.copy(alpha = 0.2f),
-                        contentColor = VibrantCyan
+                        containerColor = if (isDark) VibrantCyan.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer,
+                        contentColor = if (isDark) VibrantCyan else Color(0xFF1D4ED8)
                     ),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
@@ -101,7 +102,7 @@ fun FriendsScreen(
                 }
             }
 
-            // Summary Stats Row (Strict Color: EmeraldMint for They Owe Me, CoralRed for I Owe Them)
+            // Summary Stats Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -111,20 +112,20 @@ fun FriendsScreen(
                 MiniStatCard(
                     title = "They Owe Me",
                     amountFormatted = CurrencyUtils.formatPaiseToRupees(state.totalTheyOweMePaise),
-                    accentColor = EmeraldMint,
+                    accentColor = if (isDark) EmeraldMint else Color(0xFF059669),
                     modifier = Modifier.weight(1f)
                 )
                 MiniStatCard(
                     title = "I Owe Them",
                     amountFormatted = CurrencyUtils.formatPaiseToRupees(state.totalIOweThemPaise),
-                    accentColor = CoralRed,
+                    accentColor = if (isDark) CoralRed else Color(0xFFDC2626),
                     modifier = Modifier.weight(1f)
                 )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ✅ Groups Section Header & Filters
+            // Groups Section Header & Filters
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -135,14 +136,14 @@ fun FriendsScreen(
                 Text(
                     text = "Custom Groups",
                     style = MaterialTheme.typography.labelMedium,
-                    color = TextSecondary,
+                    color = AppTheme.colors.textSecondary,
                     fontWeight = FontWeight.SemiBold
                 )
                 if (state.groups.isNotEmpty()) {
                     Text(
                         text = "${state.groups.size} groups",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextMuted,
+                        color = AppTheme.colors.textTertiary,
                         fontSize = 11.sp
                     )
                 }
@@ -165,14 +166,25 @@ fun FriendsScreen(
                 // "All Friends" filter chip
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = if (isAllSelected) ElectricBlue.copy(alpha = 0.25f) else CharcoalCard,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isAllSelected) ElectricBlue else GlassBorder),
+                    color = if (isAllSelected) {
+                        if (isDark) ElectricBlue.copy(alpha = 0.25f) else AppTheme.colors.primaryAccentContainer
+                    } else {
+                        if (isDark) CharcoalCard else AppTheme.colors.surface
+                    },
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isAllSelected) AppTheme.colors.primaryAccent else (if (isDark) GlassBorder else AppTheme.colors.cardBorder)
+                    ),
                     modifier = Modifier.clickable { viewModel.selectGroup(null) }
                 ) {
                     Text(
                         text = "All Friends ($activeCount)",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isAllSelected) ElectricBlueLight else TextSecondary,
+                        color = if (isAllSelected) {
+                            if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)
+                        } else {
+                            AppTheme.colors.textSecondary
+                        },
                         fontWeight = if (isAllSelected) FontWeight.Bold else FontWeight.Normal,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
                     )
@@ -185,14 +197,21 @@ fun FriendsScreen(
                         try {
                             Color(android.graphics.Color.parseColor(grp.colorHex))
                         } catch (_: Exception) {
-                            VibrantCyan
+                            if (isDark) VibrantCyan else Color(0xFF0891B2)
                         }
-                    } else VibrantCyan
+                    } else (if (isDark) VibrantCyan else Color(0xFF0891B2))
 
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = if (isGrpSelected) grpColor.copy(alpha = 0.25f) else CharcoalCard,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isGrpSelected) grpColor else GlassBorder),
+                        color = if (isGrpSelected) {
+                            if (isDark) grpColor.copy(alpha = 0.25f) else grpColor.copy(alpha = 0.15f)
+                        } else {
+                            if (isDark) CharcoalCard else AppTheme.colors.surface
+                        },
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isGrpSelected) grpColor else (if (isDark) GlassBorder else AppTheme.colors.cardBorder)
+                        ),
                         modifier = Modifier.clickable { viewModel.selectGroup(grp.id) }
                     ) {
                         Row(
@@ -208,7 +227,7 @@ fun FriendsScreen(
                             Text(
                                 text = "${grp.name} (${grp.memberCount})",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isGrpSelected) grpColor else TextSecondary,
+                                color = if (isGrpSelected) grpColor else AppTheme.colors.textSecondary,
                                 fontWeight = if (isGrpSelected) FontWeight.Bold else FontWeight.Normal
                             )
                             IconButton(
@@ -218,7 +237,7 @@ fun FriendsScreen(
                                 Icon(
                                     imageVector = Icons.Default.Edit,
                                     contentDescription = "Edit ${grp.name}",
-                                    tint = if (isGrpSelected) grpColor else TextMuted,
+                                    tint = if (isGrpSelected) grpColor else AppTheme.colors.textTertiary,
                                     modifier = Modifier.size(13.dp)
                                 )
                             }
@@ -233,14 +252,14 @@ fun FriendsScreen(
             OutlinedTextField(
                 value = state.searchQuery,
                 onValueChange = { viewModel.onSearchQueryChanged(it) },
-                placeholder = { Text("Search friends by name or phone...", color = TextMuted) },
+                placeholder = { Text("Search friends by name or phone...", color = AppTheme.colors.textTertiary) },
                 leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = "Search", tint = TextSecondary)
+                    Icon(Icons.Default.Search, contentDescription = "Search", tint = AppTheme.colors.textSecondary)
                 },
                 trailingIcon = {
                     if (state.searchQuery.isNotEmpty()) {
                         IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextSecondary)
+                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = AppTheme.colors.textSecondary)
                         }
                     }
                 },
@@ -249,12 +268,8 @@ fun FriendsScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = ElectricBlue,
-                    unfocusedBorderColor = GlassBorder,
-                    focusedContainerColor = CharcoalCard,
-                    unfocusedContainerColor = CharcoalCard
-                )
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppTheme.colors.textPrimary),
+                colors = rupeeFlowTextFieldColors()
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -279,17 +294,26 @@ fun FriendsScreen(
                     val isSelected = state.filterStatus == key
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = if (isSelected) ElectricBlue.copy(alpha = 0.2f) else CharcoalCard,
+                        color = if (isSelected) {
+                            if (isDark) ElectricBlue.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer
+                        } else {
+                            if (isDark) CharcoalCard else AppTheme.colors.surface
+                        },
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
-                            if (isSelected) ElectricBlue else GlassBorder
+                            if (isSelected) AppTheme.colors.primaryAccent else (if (isDark) GlassBorder else AppTheme.colors.cardBorder)
                         ),
                         modifier = Modifier.clickable { viewModel.onFilterStatusSelected(key) }
                     ) {
                         Text(
                             text = label,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (isSelected) ElectricBlueLight else TextSecondary,
+                            color = if (isSelected) {
+                                if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)
+                            } else {
+                                AppTheme.colors.textSecondary
+                            },
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                         )
                     }
@@ -311,14 +335,14 @@ fun FriendsScreen(
                     Text(
                         text = "Filtered by Group: ${activeGroup.name}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = VibrantCyan,
+                        color = if (isDark) VibrantCyan else Color(0xFF0891B2),
                         fontWeight = FontWeight.SemiBold
                     )
                     TextButton(
                         onClick = { editingGroup = activeGroup },
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                     ) {
-                        Text("Manage Group", style = MaterialTheme.typography.labelSmall, color = ElectricBlueLight)
+                        Text("Manage Group", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.primaryAccent)
                     }
                 }
             }
@@ -342,13 +366,13 @@ fun FriendsScreen(
                                     Text(
                                         text = "No members in this group yet",
                                         style = MaterialTheme.typography.titleMedium,
-                                        color = TextPrimary
+                                        color = AppTheme.colors.textPrimary
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
                                         text = "Tap 'Manage Group' to add friends to this group.",
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = TextSecondary,
+                                        color = AppTheme.colors.textSecondary,
                                         textAlign = TextAlign.Center
                                     )
                                 }
@@ -356,7 +380,7 @@ fun FriendsScreen(
                                 Text(
                                     text = "No friends found. Tap + to add a friend!",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = TextSecondary
+                                    color = AppTheme.colors.textSecondary
                                 )
                             }
                         }
@@ -418,11 +442,11 @@ fun FriendsScreen(
     deletingGroup?.let { group ->
         AlertDialog(
             onDismissRequest = { deletingGroup = null },
-            title = { Text("Delete Group?", color = TextPrimary) },
+            title = { Text("Delete Group?", color = AppTheme.colors.textPrimary) },
             text = {
                 Text(
                     "Delete \"${group.name}\"? Your friends and existing transactions will not be deleted.",
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
             },
             confirmButton = {
@@ -432,15 +456,15 @@ fun FriendsScreen(
                         deletingGroup = null
                     }
                 ) {
-                    Text("Delete Group", color = CoralRed, fontWeight = FontWeight.Bold)
+                    Text("Delete Group", color = AppTheme.colors.error, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { deletingGroup = null }) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
                 }
             },
-            containerColor = CharcoalSurface,
+            containerColor = AppTheme.colors.surfaceElevated,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -449,11 +473,11 @@ fun FriendsScreen(
     deletingFriend?.let { friend ->
         AlertDialog(
             onDismissRequest = { deletingFriend = null },
-            title = { Text("Delete Friend?", color = TextPrimary) },
+            title = { Text("Delete Friend?", color = AppTheme.colors.textPrimary) },
             text = {
                 Text(
                     "Are you sure you want to delete ${friend.name}?\n\nIf this friend has existing transactions or settlements, their historical records will be preserved and they will be safely archived.",
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
             },
             confirmButton = {
@@ -463,15 +487,15 @@ fun FriendsScreen(
                         deletingFriend = null
                     }
                 ) {
-                    Text("Delete / Archive", color = CoralRed, fontWeight = FontWeight.Bold)
+                    Text("Delete / Archive", color = AppTheme.colors.error, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { deletingFriend = null }) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
                 }
             },
-            containerColor = CharcoalSurface,
+            containerColor = AppTheme.colors.surfaceElevated,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -512,11 +536,12 @@ fun AddFriendDialog(
         }
     }
 
+    val isDark = AppTheme.isDark
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = CharcoalSurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+            color = AppTheme.colors.surfaceElevated,
+            border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.cardBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -532,10 +557,10 @@ fun AddFriendDialog(
                     Text(
                         text = "Add Friend",
                         style = MaterialTheme.typography.titleLarge,
-                        color = TextPrimary
+                        color = AppTheme.colors.textPrimary
                     )
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary)
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTheme.colors.textSecondary)
                     }
                 }
 
@@ -564,14 +589,14 @@ fun AddFriendDialog(
                             modifier = Modifier
                                 .size(72.dp)
                                 .clip(CircleShape)
-                                .background(ElectricBlue.copy(alpha = 0.2f))
+                                .background(if (isDark) ElectricBlue.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer)
                                 .clickable { galleryLauncher.launch("image/*") },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Person,
                                 contentDescription = null,
-                                tint = ElectricBlueLight,
+                                tint = if (isDark) ElectricBlueLight else AppTheme.colors.primaryAccent,
                                 modifier = Modifier.size(36.dp)
                             )
                         }
@@ -580,14 +605,14 @@ fun AddFriendDialog(
                         modifier = Modifier
                             .size(24.dp)
                             .clip(CircleShape)
-                            .background(VibrantCyan)
+                            .background(AppTheme.colors.primaryAccent)
                             .clickable { galleryLauncher.launch("image/*") },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.CameraAlt,
                             contentDescription = "Upload Photo",
-                            tint = MidnightDark,
+                            tint = Color.White,
                             modifier = Modifier.size(14.dp)
                         )
                     }
@@ -598,16 +623,12 @@ fun AddFriendDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Friend Name *", color = TextSecondary) },
-                    placeholder = { Text("e.g. Ronit, Manali", color = TextMuted) },
+                    label = { Text("Friend Name *", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("e.g. Ronit, Manali", color = AppTheme.colors.textTertiary) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = ElectricBlue,
-                        unfocusedBorderColor = GlassBorder,
-                        focusedContainerColor = CharcoalCard,
-                        unfocusedContainerColor = CharcoalCard
-                    ),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppTheme.colors.textPrimary),
+                    colors = rupeeFlowTextFieldColors(),
                     shape = RoundedCornerShape(14.dp)
                 )
 
@@ -616,16 +637,12 @@ fun AddFriendDialog(
                 OutlinedTextField(
                     value = phone,
                     onValueChange = { phone = it },
-                    label = { Text("Phone Number (Optional)", color = TextSecondary) },
-                    placeholder = { Text("e.g. +91 98765 43210", color = TextMuted) },
+                    label = { Text("Phone Number (Optional)", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("e.g. +91 98765 43210", color = AppTheme.colors.textTertiary) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = ElectricBlue,
-                        unfocusedBorderColor = GlassBorder,
-                        focusedContainerColor = CharcoalCard,
-                        unfocusedContainerColor = CharcoalCard
-                    ),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppTheme.colors.textPrimary),
+                    colors = rupeeFlowTextFieldColors(),
                     shape = RoundedCornerShape(14.dp)
                 )
 
@@ -634,15 +651,11 @@ fun AddFriendDialog(
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
-                    label = { Text("Email (Optional)", color = TextSecondary) },
+                    label = { Text("Email (Optional)", color = AppTheme.colors.textSecondary) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = ElectricBlue,
-                        unfocusedBorderColor = GlassBorder,
-                        focusedContainerColor = CharcoalCard,
-                        unfocusedContainerColor = CharcoalCard
-                    ),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppTheme.colors.textPrimary),
+                    colors = rupeeFlowTextFieldColors(),
                     shape = RoundedCornerShape(14.dp)
                 )
 
@@ -659,8 +672,8 @@ fun AddFriendDialog(
                         .height(50.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = ElectricBlue,
-                        contentColor = MidnightDark
+                        containerColor = AppTheme.colors.primaryAccent,
+                        contentColor = Color.White
                     ),
                     enabled = name.isNotBlank()
                 ) {
@@ -675,7 +688,7 @@ fun AddFriendDialog(
     }
 }
 
-// ✅ Dialog to create a new Friend Group
+// Dialog to create a new Friend Group
 @Composable
 fun CreateGroupDialog(
     allFriends: List<Friend>,
@@ -701,11 +714,12 @@ fun CreateGroupDialog(
         }
     }
 
+    val isDark = AppTheme.isDark
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = CharcoalSurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+            color = AppTheme.colors.surfaceElevated,
+            border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.cardBorder),
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f)
@@ -723,10 +737,10 @@ fun CreateGroupDialog(
                     Text(
                         text = "Create Group",
                         style = MaterialTheme.typography.titleLarge,
-                        color = TextPrimary
+                        color = AppTheme.colors.textPrimary
                     )
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary)
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTheme.colors.textSecondary)
                     }
                 }
 
@@ -755,14 +769,14 @@ fun CreateGroupDialog(
                             modifier = Modifier
                                 .size(72.dp)
                                 .clip(CircleShape)
-                                .background(VibrantCyan.copy(alpha = 0.2f))
+                                .background(if (isDark) VibrantCyan.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer)
                                 .clickable { galleryLauncher.launch("image/*") },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Groups,
                                 contentDescription = null,
-                                tint = VibrantCyan,
+                                tint = if (isDark) VibrantCyan else AppTheme.colors.primaryAccent,
                                 modifier = Modifier.size(36.dp)
                             )
                         }
@@ -771,14 +785,14 @@ fun CreateGroupDialog(
                         modifier = Modifier
                             .size(24.dp)
                             .clip(CircleShape)
-                            .background(VibrantCyan)
+                            .background(AppTheme.colors.primaryAccent)
                             .clickable { galleryLauncher.launch("image/*") },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.CameraAlt,
                             contentDescription = "Upload Photo",
-                            tint = MidnightDark,
+                            tint = Color.White,
                             modifier = Modifier.size(14.dp)
                         )
                     }
@@ -789,23 +803,19 @@ fun CreateGroupDialog(
                 OutlinedTextField(
                     value = groupName,
                     onValueChange = { groupName = it },
-                    label = { Text("Group Name *", color = TextSecondary) },
-                    placeholder = { Text("e.g. Hostel Friends, Roommates, Travel", color = TextMuted) },
+                    label = { Text("Group Name *", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("e.g. Hostel Friends, Roommates, Travel", color = AppTheme.colors.textTertiary) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = VibrantCyan,
-                        unfocusedBorderColor = GlassBorder,
-                        focusedContainerColor = CharcoalCard,
-                        unfocusedContainerColor = CharcoalCard
-                    ),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppTheme.colors.textPrimary),
+                    colors = rupeeFlowTextFieldColors(),
                     shape = RoundedCornerShape(14.dp)
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))
 
                 // Color selector
-                Text("Group Color", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                Text("Group Color", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textSecondary)
                 Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -823,7 +833,7 @@ fun CreateGroupDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             if (isSelected) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = MidnightDark, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                             }
                         }
                     }
@@ -840,7 +850,7 @@ fun CreateGroupDialog(
                     Text(
                         text = "Add Friends (${selectedFriendIds.size} selected)",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary,
+                        color = AppTheme.colors.textSecondary,
                         fontWeight = FontWeight.Bold
                     )
                     if (allFriends.isNotEmpty()) {
@@ -857,7 +867,7 @@ fun CreateGroupDialog(
                             Text(
                                 text = if (selectedFriendIds.size == allFriends.size) "Deselect All" else "Select All",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = VibrantCyan
+                                color = AppTheme.colors.primaryAccent
                             )
                         }
                     }
@@ -879,7 +889,7 @@ fun CreateGroupDialog(
                                 .padding(vertical = 20.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("No friends available to add.", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                            Text("No friends available to add.", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
                         }
                     } else {
                         allFriends.forEach { friend ->
@@ -907,10 +917,13 @@ fun CreateGroupDialog(
                                             selectedFriendIds - friend.id
                                         }
                                     },
-                                    colors = CheckboxDefaults.colors(checkedColor = VibrantCyan, uncheckedColor = TextSecondary)
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = AppTheme.colors.primaryAccent,
+                                        uncheckedColor = AppTheme.colors.textSecondary
+                                    )
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(friend.name, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                                Text(friend.name, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
                             }
                         }
                     }
@@ -928,7 +941,10 @@ fun CreateGroupDialog(
                         .fillMaxWidth()
                         .height(50.dp),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = VibrantCyan, contentColor = MidnightDark),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppTheme.colors.primaryAccent,
+                        contentColor = Color.White
+                    ),
                     enabled = groupName.isNotBlank()
                 ) {
                     Text("Create Group", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -938,7 +954,7 @@ fun CreateGroupDialog(
     }
 }
 
-// ✅ Dialog to edit an existing Friend Group or delete it
+// Dialog to edit an existing Friend Group or delete it
 @Composable
 fun EditGroupDialog(
     group: FriendGroup,
@@ -964,11 +980,12 @@ fun EditGroupDialog(
         }
     }
 
+    val isDark = AppTheme.isDark
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = CharcoalSurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+            color = AppTheme.colors.surfaceElevated,
+            border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.cardBorder),
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.85f)
@@ -986,10 +1003,10 @@ fun EditGroupDialog(
                     Text(
                         text = "Edit Group",
                         style = MaterialTheme.typography.titleLarge,
-                        color = TextPrimary
+                        color = AppTheme.colors.textPrimary
                     )
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary)
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTheme.colors.textSecondary)
                     }
                 }
 
@@ -1018,14 +1035,14 @@ fun EditGroupDialog(
                             modifier = Modifier
                                 .size(72.dp)
                                 .clip(CircleShape)
-                                .background(VibrantCyan.copy(alpha = 0.2f))
+                                .background(if (isDark) VibrantCyan.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer)
                                 .clickable { galleryLauncher.launch("image/*") },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Groups,
                                 contentDescription = null,
-                                tint = VibrantCyan,
+                                tint = if (isDark) VibrantCyan else AppTheme.colors.primaryAccent,
                                 modifier = Modifier.size(36.dp)
                             )
                         }
@@ -1034,14 +1051,14 @@ fun EditGroupDialog(
                         modifier = Modifier
                             .size(24.dp)
                             .clip(CircleShape)
-                            .background(VibrantCyan)
+                            .background(AppTheme.colors.primaryAccent)
                             .clickable { galleryLauncher.launch("image/*") },
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.CameraAlt,
                             contentDescription = "Upload Photo",
-                            tint = MidnightDark,
+                            tint = Color.White,
                             modifier = Modifier.size(14.dp)
                         )
                     }
@@ -1052,15 +1069,11 @@ fun EditGroupDialog(
                 OutlinedTextField(
                     value = groupName,
                     onValueChange = { groupName = it },
-                    label = { Text("Group Name *", color = TextSecondary) },
+                    label = { Text("Group Name *", color = AppTheme.colors.textSecondary) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = VibrantCyan,
-                        unfocusedBorderColor = GlassBorder,
-                        focusedContainerColor = CharcoalCard,
-                        unfocusedContainerColor = CharcoalCard
-                    ),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppTheme.colors.textPrimary),
+                    colors = rupeeFlowTextFieldColors(),
                     shape = RoundedCornerShape(14.dp)
                 )
 
@@ -1075,7 +1088,7 @@ fun EditGroupDialog(
                     Text(
                         text = "Group Members (${selectedFriendIds.size})",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary,
+                        color = AppTheme.colors.textSecondary,
                         fontWeight = FontWeight.Bold
                     )
                     if (allFriends.isNotEmpty()) {
@@ -1092,7 +1105,7 @@ fun EditGroupDialog(
                             Text(
                                 text = if (selectedFriendIds.size == allFriends.size) "Deselect All" else "Select All",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = VibrantCyan
+                                color = AppTheme.colors.primaryAccent
                             )
                         }
                     }
@@ -1132,10 +1145,13 @@ fun EditGroupDialog(
                                         selectedFriendIds - friend.id
                                     }
                                 },
-                                colors = CheckboxDefaults.colors(checkedColor = VibrantCyan, uncheckedColor = TextSecondary)
+                                colors = CheckboxDefaults.colors(
+                                    checkedColor = AppTheme.colors.primaryAccent,
+                                    uncheckedColor = AppTheme.colors.textSecondary
+                                )
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text(friend.name, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+                            Text(friend.name, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
                         }
                     }
                 }
@@ -1153,8 +1169,13 @@ fun EditGroupDialog(
                             .weight(1f)
                             .height(50.dp),
                         shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralRed),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CoralRed)
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (isDark) CoralRed else Color(0xFFDC2626)
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isDark) CoralRed else Color(0xFFFCA5A5)
+                        )
                     ) {
                         Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
@@ -1171,7 +1192,10 @@ fun EditGroupDialog(
                             .weight(1.5f)
                             .height(50.dp),
                         shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = VibrantCyan, contentColor = MidnightDark),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppTheme.colors.primaryAccent,
+                            contentColor = Color.White
+                        ),
                         enabled = groupName.isNotBlank()
                     ) {
                         Text("Save Changes", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

@@ -28,7 +28,7 @@ class TransactionUiCardFormattingQATest {
         return if (isSplit && myParticipant != null && transaction.transactionType == TransactionType.EXPENSE) {
             val amountPrefix = if (transaction.transactionStatus == TransactionStatus.IGNORED) "" else "-"
             FormattedCardAmounts(
-                upperText = "Your share: $amountPrefix${CurrencyUtils.formatPaiseToRupees(myParticipant.shareAmountPaise)}",
+                upperText = "$amountPrefix${CurrencyUtils.formatPaiseToRupees(myParticipant.shareAmountPaise)}",
                 isUpperProminent = true,
                 lowerText = "Total amount: ${CurrencyUtils.formatPaiseToRupees(transaction.amountPaise)}",
                 isLowerSecondary = true
@@ -64,8 +64,8 @@ class TransactionUiCardFormattingQATest {
         )
         val display = extractCardDisplay(splitTxn)
 
-        // Upper side must be "Your share: -₹20.00"
-        assertEquals("Your share: -₹20.00", display.upperText)
+        // Upper side must be "-₹20.00" directly
+        assertEquals("-₹20.00", display.upperText)
         assertTrue(display.isUpperProminent)
 
         // Lower side must be "Total amount: ₹40.00"
@@ -145,7 +145,7 @@ class TransactionUiCardFormattingQATest {
             )
         )
         val display = extractCardDisplay(largeTxn)
-        assertEquals("Your share: -₹3,00,000.00", display.upperText)
+        assertEquals("-₹3,00,000.00", display.upperText)
         assertEquals("Total amount: ₹12,00,000.00", display.lowerText)
     }
 
@@ -162,7 +162,7 @@ class TransactionUiCardFormattingQATest {
             )
         )
         val display = extractCardDisplay(tinyTxn)
-        assertEquals("Your share: -₹0.01", display.upperText)
+        assertEquals("-₹0.01", display.upperText)
         assertEquals("Total amount: ₹0.02", display.lowerText)
     }
 
@@ -180,7 +180,7 @@ class TransactionUiCardFormattingQATest {
             )
         )
         val display = extractCardDisplay(ignoredTxn)
-        assertEquals("Your share: ₹300.00", display.upperText)
+        assertEquals("₹300.00", display.upperText)
         assertEquals("Total amount: ₹600.00", display.lowerText)
     }
 }

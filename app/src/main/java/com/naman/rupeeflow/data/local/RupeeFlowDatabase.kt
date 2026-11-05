@@ -27,8 +27,8 @@ import java.io.File
         FriendGroupMemberEntity::class,
         InputUsageEntity::class
     ],
-    version = 5, // ✅ Upgraded to version 5 with smart inputs, photos & group transactions
-    exportSchema = true // ✅ Schema export enabled
+    version = 5, // Upgraded to version 5 with smart inputs, photos & group transactions
+    exportSchema = true // Schema export enabled
 )
 @TypeConverters(Converters::class)
 abstract class RupeeFlowDatabase : RoomDatabase() {
@@ -45,7 +45,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: RupeeFlowDatabase? = null
 
-        // ✅ Safe staging-table recreation procedure avoiding SQLite foreign key CASCADE drops
+        // Safe staging-table recreation procedure avoiding SQLite foreign key CASCADE drops
         // Temporary staging tables have NO foreign keys, and child tables are dropped before parent tables,
         // eliminating any cascade deletion risk even when foreign keys are active.
         private fun rebuildTablesSafely(db: SupportSQLiteDatabase) {
@@ -237,28 +237,28 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             db.execSQL("PRAGMA foreign_keys = ON;")
         }
 
-        // ✅ Migration from version 1 to 2
+        // Migration from version 1 to 2
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 rebuildTablesSafely(db)
             }
         }
 
-        // ✅ Corrective migration from version 2 to 3
+        // Corrective migration from version 2 to 3
         val MIGRATION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 rebuildTablesSafely(db)
             }
         }
 
-        // ✅ Direct migration from version 1 to 3
+        // Direct migration from version 1 to 3
         val MIGRATION_1_3 = object : Migration(1, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 rebuildTablesSafely(db)
             }
         }
 
-        // ✅ Migration from version 3 to 4: Add friend_groups and friend_group_members tables
+        // Migration from version 3 to 4: Add friend_groups and friend_group_members tables
         val MIGRATION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
@@ -288,7 +288,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
-        // ✅ Direct migration from version 1 to 4
+        // Direct migration from version 1 to 4
         val MIGRATION_1_4 = object : Migration(1, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_1_3.migrate(db)
@@ -296,7 +296,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
-        // ✅ Direct migration from version 2 to 4
+        // Direct migration from version 2 to 4
         val MIGRATION_2_4 = object : Migration(2, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_2_3.migrate(db)
@@ -304,7 +304,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
-        // ✅ Migration from version 4 to 5: Add profile/group images, transaction groupId/billImagePath, input_usage table
+        // Migration from version 4 to 5: Add profile/group images, transaction groupId/billImagePath, input_usage table
         val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // 1. Add profileImagePath to friends
@@ -333,7 +333,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
-        // ✅ Direct migration from version 1 to 5
+        // Direct migration from version 1 to 5
         val MIGRATION_1_5 = object : Migration(1, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_1_4.migrate(db)
@@ -341,7 +341,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
-        // ✅ Direct migration from version 2 to 5
+        // Direct migration from version 2 to 5
         val MIGRATION_2_5 = object : Migration(2, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_2_4.migrate(db)
@@ -349,7 +349,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
-        // ✅ Direct migration from version 3 to 5
+        // Direct migration from version 3 to 5
         val MIGRATION_3_5 = object : Migration(3, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_3_4.migrate(db)
@@ -357,7 +357,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
-        // ✅ Automatic safe pre-migration backup procedure
+        // Automatic safe pre-migration backup procedure
         fun createPreMigrationBackup(context: Context) {
             try {
                 val dbFile = context.getDatabasePath("rupeeflow_database.db")
@@ -386,7 +386,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                         MIGRATION_4_5, MIGRATION_1_5, MIGRATION_2_5, MIGRATION_3_5
                     )
                     .addCallback(DatabaseCallback(scope))
-                    // ✅ Destructive migration removed! Data preservation guaranteed.
+                    // Destructive migration removed! Data preservation guaranteed.
                     .build()
                 INSTANCE = instance
                 instance

@@ -136,7 +136,7 @@ class FriendDetailViewModel(
         }
     }
 
-    // ✅ Update existing settlement with ledger recalculation
+    // Update existing settlement with ledger recalculation
     fun updateSettlement(settlement: Settlement) {
         viewModelScope.launch {
             settlementRepository.updateSettlement(settlement)
@@ -161,7 +161,7 @@ class FriendDetailViewModel(
         }
     }
 
-    // ✅ Transaction operations
+    // Transaction operations
     fun saveTransaction(transaction: Transaction) {
         viewModelScope.launch {
             transactionRepository.saveTransaction(transaction)
@@ -192,7 +192,7 @@ class FriendDetailViewModel(
         }
     }
 
-    // ✅ Safe friend archiving & deletion
+    // Safe friend archiving & deletion
     fun archiveFriend() {
         viewModelScope.launch {
             friendRepository.archiveFriend(friendId)

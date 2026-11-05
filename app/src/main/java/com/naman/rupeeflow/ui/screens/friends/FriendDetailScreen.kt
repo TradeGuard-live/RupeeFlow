@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -59,17 +60,17 @@ fun FriendDetailScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(friend?.name ?: "Friend Ledger", color = TextPrimary)
+                        Text(friend?.name ?: "Friend Ledger", color = AppTheme.colors.textPrimary)
                         if (friend?.isArchived == true) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = TextMuted.copy(alpha = 0.2f)
+                                color = AppTheme.colors.textMuted.copy(alpha = 0.2f)
                             ) {
                                 Text(
                                     text = "Archived",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextSecondary,
+                                    color = AppTheme.colors.textSecondary,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
@@ -78,12 +79,12 @@ fun FriendDetailScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTheme.colors.textPrimary)
                     }
                 },
                 actions = {
                     IconButton(onClick = { showMenu = true }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = TextPrimary)
+                        Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = AppTheme.colors.textPrimary)
                     }
                     DropdownMenu(
                         expanded = showMenu,
@@ -122,7 +123,7 @@ fun FriendDetailScreen(
     ) { paddingValues ->
         if (friend == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = ElectricBlue)
+                CircularProgressIndicator(color = AppTheme.colors.primaryAccent)
             }
             return@Scaffold
         }
@@ -151,8 +152,8 @@ fun FriendDetailScreen(
 
                 Surface(
                     shape = RoundedCornerShape(20.dp),
-                    color = CharcoalCard,
-                    border = BorderStroke(1.dp, GlassBorder),
+                    color = AppTheme.colors.cardBackground,
+                    border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -163,20 +164,20 @@ fun FriendDetailScreen(
                             FriendAvatar(
                                 friend = friend,
                                 modifier = Modifier.size(60.dp),
-                                fallbackColor = ElectricBlue
+                                fallbackColor = AppTheme.colors.primaryAccent
                             )
                             Box(
                                 modifier = Modifier
                                     .size(22.dp)
                                     .clip(CircleShape)
-                                    .background(VibrantCyan)
+                                    .background(AppTheme.colors.primaryAccent)
                                     .clickable { galleryLauncher.launch("image/*") },
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.CameraAlt,
                                     contentDescription = "Change profile picture",
-                                    tint = MidnightDark,
+                                    tint = Color.White,
                                     modifier = Modifier.size(13.dp)
                                 )
                             }
@@ -188,7 +189,7 @@ fun FriendDetailScreen(
                             Text(
                                 text = friend.name,
                                 style = MaterialTheme.typography.titleLarge,
-                                color = TextPrimary,
+                                color = AppTheme.colors.textPrimary,
                                 fontWeight = FontWeight.Bold
                             )
                             if (!friend.phoneNumber.isNullOrBlank()) {
@@ -196,7 +197,7 @@ fun FriendDetailScreen(
                                 Text(
                                     text = friend.phoneNumber,
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = TextSecondary
+                                    color = AppTheme.colors.textSecondary
                                 )
                             }
                             if (!friend.email.isNullOrBlank()) {
@@ -204,7 +205,7 @@ fun FriendDetailScreen(
                                 Text(
                                     text = friend.email,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextMuted
+                                    color = AppTheme.colors.textMuted
                                 )
                             }
                         }
@@ -217,7 +218,7 @@ fun FriendDetailScreen(
                 val (bannerText, bannerColor, bannerIcon) = when (friend.status) {
                     FriendBalanceStatus.THEY_OWE_ME -> Triple(
                         "${friend.name} owes you",
-                        EmeraldMint,
+                        AppTheme.colors.incomeGreen,
                         Icons.Default.CallReceived
                     )
                     FriendBalanceStatus.I_OWE_THEM -> Triple(
@@ -227,7 +228,7 @@ fun FriendDetailScreen(
                     )
                     FriendBalanceStatus.SETTLED -> Triple(
                         "All Settled Up",
-                        TextSecondary,
+                        AppTheme.colors.textSecondary,
                         Icons.Default.CheckCircle
                     )
                 }
@@ -251,11 +252,11 @@ fun FriendDetailScreen(
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = when (friend.status) {
-                            FriendBalanceStatus.THEY_OWE_ME -> EmeraldMint
+                            FriendBalanceStatus.THEY_OWE_ME -> AppTheme.colors.incomeGreen
                             FriendBalanceStatus.I_OWE_THEM -> CoralRed
-                            FriendBalanceStatus.SETTLED -> ElectricBlue
+                            FriendBalanceStatus.SETTLED -> AppTheme.colors.primaryAccent
                         },
-                        contentColor = MidnightDark
+                        contentColor = Color.White
                     )
                 ) {
                     Icon(Icons.Default.Payment, contentDescription = null, modifier = Modifier.size(20.dp))
@@ -278,17 +279,17 @@ fun FriendDetailScreen(
                         val isSelected = state.filterType == key
                         Surface(
                             shape = RoundedCornerShape(16.dp),
-                            color = if (isSelected) ElectricBlue.copy(alpha = 0.2f) else CharcoalCard,
-                            border = androidx.compose.foundation.BorderStroke(
+                            color = if (isSelected) AppTheme.colors.accentContainer else AppTheme.colors.cardBackground,
+                            border = BorderStroke(
                                 1.dp,
-                                if (isSelected) ElectricBlue else GlassBorder
+                                if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.cardBorder
                             ),
                             modifier = Modifier.clickable { viewModel.setFilterType(key) }
                         ) {
                             Text(
                                 text = label,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isSelected) ElectricBlueLight else TextSecondary,
+                                color = if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                             )
                         }
@@ -306,7 +307,7 @@ fun FriendDetailScreen(
                     Text(
                         text = "Settlement Records",
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary,
+                        color = AppTheme.colors.textPrimary,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
@@ -314,7 +315,7 @@ fun FriendDetailScreen(
                 items(state.settlements, key = { "settle_${it.id}" }) { s ->
                     val isReceived = s.receiverId == null // Friend paid ME
                     val dirText = if (isReceived) "${friend.name} paid You" else "You paid ${friend.name}"
-                    val dirColor = if (isReceived) EmeraldMint else CoralRed
+                    val dirColor = if (isReceived) AppTheme.colors.incomeGreen else CoralRed
 
                     RupeeFlowCard(
                         modifier = Modifier
@@ -346,14 +347,14 @@ fun FriendDetailScreen(
                                 Text(
                                     text = dirText,
                                     style = MaterialTheme.typography.titleSmall,
-                                    color = if (s.isReversed) TextMuted else TextPrimary,
+                                    color = if (s.isReversed) AppTheme.colors.textMuted else AppTheme.colors.textPrimary,
                                     textDecoration = if (s.isReversed) TextDecoration.LineThrough else null
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "${DateTimeUtils.formatDate(s.settlementDate)} • ${s.paymentMethod.displayName}",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextSecondary
+                                    color = AppTheme.colors.textSecondary
                                 )
                             }
 
@@ -361,7 +362,7 @@ fun FriendDetailScreen(
                                 Text(
                                     text = CurrencyUtils.formatPaiseToRupees(s.amountPaise),
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = if (s.isReversed) TextMuted else dirColor,
+                                    color = if (s.isReversed) AppTheme.colors.textMuted else dirColor,
                                     textDecoration = if (s.isReversed) TextDecoration.LineThrough else null
                                 )
                                 if (!s.isReversed) {
@@ -375,7 +376,7 @@ fun FriendDetailScreen(
                                     Text(
                                         text = "Convert to Normal",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = EmeraldMint,
+                                        color = AppTheme.colors.incomeGreen,
                                         modifier = Modifier.clickable { unreversingSettlementId = s.id }
                                     )
                                 }
@@ -391,7 +392,7 @@ fun FriendDetailScreen(
                     Text(
                         text = "Shared Expenses",
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary,
+                        color = AppTheme.colors.textPrimary,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
@@ -415,13 +416,13 @@ fun FriendDetailScreen(
                                 Text(
                                     text = txn.title,
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = if (txn.isIgnored) TextMuted else TextPrimary,
+                                    color = if (txn.isIgnored) AppTheme.colors.textMuted else AppTheme.colors.textPrimary,
                                     textDecoration = if (txn.isIgnored) TextDecoration.LineThrough else null
                                 )
                                 Text(
                                     text = CurrencyUtils.formatPaiseToRupees(txn.amountPaise),
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = TextPrimary
+                                    color = AppTheme.colors.textPrimary
                                 )
                             }
 
@@ -434,13 +435,13 @@ fun FriendDetailScreen(
                                 Text(
                                     text = "Paid by ${txn.paidByName} • ${DateTimeUtils.formatDate(txn.transactionDate)}",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = TextSecondary
+                                    color = AppTheme.colors.textSecondary
                                 )
                                 if (friendParticipant != null) {
                                     Text(
                                         text = "${friend.name}'s share: ${CurrencyUtils.formatPaiseToRupees(friendParticipant.shareAmountPaise)}",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = VibrantCyan
+                                        color = AppTheme.colors.primaryAccent
                                     )
                                 }
                             }
@@ -466,11 +467,11 @@ fun FriendDetailScreen(
     reversingSettlementId?.let { sId ->
         AlertDialog(
             onDismissRequest = { reversingSettlementId = null },
-            title = { Text("Reverse Settlement?", color = TextPrimary) },
+            title = { Text("Reverse Settlement?", color = AppTheme.colors.textPrimary) },
             text = {
                 Text(
                     "Are you sure you want to reverse this settlement payment? The ledger balance will be recalculated accordingly.",
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
             },
             confirmButton = {
@@ -485,10 +486,10 @@ fun FriendDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { reversingSettlementId = null }) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
                 }
             },
-            containerColor = CharcoalSurface,
+            containerColor = AppTheme.colors.surfaceElevated,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -497,11 +498,11 @@ fun FriendDetailScreen(
     unreversingSettlementId?.let { sId ->
         AlertDialog(
             onDismissRequest = { unreversingSettlementId = null },
-            title = { Text("Convert to Normal?", color = TextPrimary) },
+            title = { Text("Convert to Normal?", color = AppTheme.colors.textPrimary) },
             text = {
                 Text(
                     "Are you sure you want to restore this settlement back to active normal state? The ledger balance will be updated accordingly.",
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
             },
             confirmButton = {
@@ -511,15 +512,15 @@ fun FriendDetailScreen(
                         unreversingSettlementId = null
                     }
                 ) {
-                    Text("Restore Settlement", color = EmeraldMint, fontWeight = FontWeight.Bold)
+                    Text("Restore Settlement", color = AppTheme.colors.incomeGreen, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { unreversingSettlementId = null }) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
                 }
             },
-            containerColor = CharcoalSurface,
+            containerColor = AppTheme.colors.surfaceElevated,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -537,7 +538,7 @@ fun FriendDetailScreen(
         )
     }
 
-    // ✅ Edit Settlement Dialog
+    // Edit Settlement Dialog
     editingSettlement?.let { settlement ->
         EditSettlementDialog(
             settlement = settlement,
@@ -559,7 +560,7 @@ fun FriendDetailScreen(
         )
     }
 
-    // ✅ Edit Transaction Dialog
+    // Edit Transaction Dialog
     editingTransaction?.let { txn ->
         EditTransactionDialog(
             transaction = txn,
@@ -571,15 +572,15 @@ fun FriendDetailScreen(
         )
     }
 
-    // ✅ Safe Delete / Archive Confirmation Dialog
+    // Safe Delete / Archive Confirmation Dialog
     if (showDeleteConfirmDialog && friend != null) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text("Delete Friend?", color = TextPrimary) },
+            title = { Text("Delete Friend?", color = AppTheme.colors.textPrimary) },
             text = {
                 Text(
                     "If this friend has associated transactions or settlements, they will be safely archived instead of deleted to protect historical financial records and ledger integrity.",
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
             },
             confirmButton = {
@@ -594,10 +595,10 @@ fun FriendDetailScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirmDialog = false }) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
                 }
             },
-            containerColor = CharcoalSurface,
+            containerColor = AppTheme.colors.surfaceElevated,
             shape = RoundedCornerShape(20.dp)
         )
     }

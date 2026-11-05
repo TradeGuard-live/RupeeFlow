@@ -1,9 +1,7 @@
 package com.naman.rupeeflow.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -50,6 +48,7 @@ fun GroupFirstFriendSelector(
     selectedPayerId: Long? = null,
     onPayerSelect: ((Long?) -> Unit)? = null
 ) {
+    val isDark = AppTheme.isDark
     var isViewingAllFriends by remember { mutableStateOf(selectedGroupId == null) }
 
     // Sync viewing state when selectedGroupId changes
@@ -84,7 +83,7 @@ fun GroupFirstFriendSelector(
                 Text(
                     text = if (isMultiSelect) "1. Select Group or Split Members" else "Select Group or Payer",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary,
+                    color = AppTheme.colors.textSecondary,
                     fontWeight = FontWeight.SemiBold
                 )
 
@@ -104,13 +103,13 @@ fun GroupFirstFriendSelector(
                         imageVector = if (isViewingAllFriends && activeGroup != null) Icons.Default.Groups else Icons.Default.Person,
                         contentDescription = null,
                         modifier = Modifier.size(14.dp),
-                        tint = VibrantCyan
+                        tint = AppTheme.colors.primaryAccent
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = if (isViewingAllFriends && activeGroup != null) "Back to ${activeGroup.name}" else "View All Friends",
                         style = MaterialTheme.typography.labelSmall,
-                        color = VibrantCyan,
+                        color = AppTheme.colors.primaryAccent,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -129,8 +128,15 @@ fun GroupFirstFriendSelector(
                 val isAllActive = isViewingAllFriends && selectedGroupId == null
                 Surface(
                     shape = RoundedCornerShape(14.dp),
-                    color = if (isAllActive) ElectricBlue.copy(alpha = 0.2f) else CharcoalCard,
-                    border = BorderStroke(1.dp, if (isAllActive) ElectricBlue else GlassBorder),
+                    color = if (isAllActive) {
+                        if (isDark) ElectricBlue.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer
+                    } else {
+                        if (isDark) CharcoalCard else AppTheme.colors.surface
+                    },
+                    border = BorderStroke(
+                        1.dp,
+                        if (isAllActive) AppTheme.colors.primaryAccent else (if (isDark) GlassBorder else AppTheme.colors.cardBorder)
+                    ),
                     modifier = Modifier.clickable {
                         isViewingAllFriends = true
                         onGroupSelect(null)
@@ -144,13 +150,13 @@ fun GroupFirstFriendSelector(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(ElectricBlue.copy(alpha = 0.25f)),
+                                .background(if (isDark) ElectricBlue.copy(alpha = 0.25f) else Color(0xFFDBEAFE)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.People,
                                 contentDescription = null,
-                                tint = ElectricBlueLight,
+                                tint = if (isDark) ElectricBlueLight else AppTheme.colors.primaryAccent,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -160,12 +166,12 @@ fun GroupFirstFriendSelector(
                                 text = "All Friends",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = if (isAllActive) FontWeight.Bold else FontWeight.SemiBold,
-                                color = if (isAllActive) ElectricBlueLight else TextPrimary
+                                color = if (isAllActive) (if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)) else AppTheme.colors.textPrimary
                             )
                             Text(
                                 text = "${allFriends.size} friends",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = TextMuted,
+                                color = AppTheme.colors.textTertiary,
                                 fontSize = 11.sp
                             )
                         }
@@ -175,8 +181,12 @@ fun GroupFirstFriendSelector(
                 // Custom Group Cards with Picture, Name, Count & Member Avatars
                 groups.forEach { group ->
                     val isSelected = !isViewingAllFriends && selectedGroupId == group.id
-                    val cardBorderColor = if (isSelected) VibrantCyan else GlassBorder
-                    val cardBgColor = if (isSelected) VibrantCyan.copy(alpha = 0.15f) else CharcoalCard
+                    val cardBorderColor = if (isSelected) AppTheme.colors.primaryAccent else (if (isDark) GlassBorder else AppTheme.colors.cardBorder)
+                    val cardBgColor = if (isSelected) {
+                        if (isDark) VibrantCyan.copy(alpha = 0.15f) else Color(0xFFEFF6FF)
+                    } else {
+                        if (isDark) CharcoalCard else AppTheme.colors.surface
+                    }
 
                     Surface(
                         shape = RoundedCornerShape(14.dp),
@@ -186,7 +196,6 @@ fun GroupFirstFriendSelector(
                             isViewingAllFriends = false
                             onGroupSelect(group.id)
                             if (isMultiSelect) {
-                                // Auto-select this group's members in multi-select mode
                                 val memberIds = group.memberFriendIds.filter { mId ->
                                     allFriends.any { it.id == mId }
                                 }.toSet()
@@ -198,11 +207,10 @@ fun GroupFirstFriendSelector(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Group profile picture or fallback avatar
                             GroupAvatar(
                                 group = group,
                                 modifier = Modifier.size(34.dp),
-                                fallbackColor = VibrantCyan
+                                fallbackColor = AppTheme.colors.primaryAccent
                             )
 
                             Spacer(modifier = Modifier.width(10.dp))
@@ -212,18 +220,17 @@ fun GroupFirstFriendSelector(
                                     text = group.name,
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                    color = if (isSelected) VibrantCyan else TextPrimary
+                                    color = if (isSelected) (if (isDark) VibrantCyan else Color(0xFF1D4ED8)) else AppTheme.colors.textPrimary
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = "${group.memberCount} members",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = TextMuted,
+                                        color = AppTheme.colors.textTertiary,
                                         fontSize = 11.sp
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    // Mini member avatars
                                     GroupMemberAvatarRow(
                                         memberIds = group.memberFriendIds,
                                         allFriends = allFriends,
@@ -255,12 +262,11 @@ fun GroupFirstFriendSelector(
             Text(
                 text = scopeTitle,
                 style = MaterialTheme.typography.labelSmall,
-                color = TextSecondary,
+                color = AppTheme.colors.textSecondary,
                 fontWeight = FontWeight.SemiBold
             )
 
             if (isMultiSelect) {
-                // Quick Select / Deselect All within current view
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(
                         onClick = {
@@ -269,7 +275,7 @@ fun GroupFirstFriendSelector(
                         },
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                     ) {
-                        Text("Select All", style = MaterialTheme.typography.labelSmall, color = VibrantCyan)
+                        Text("Select All", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.primaryAccent)
                     }
                     TextButton(
                         onClick = {
@@ -278,7 +284,7 @@ fun GroupFirstFriendSelector(
                         },
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                     ) {
-                        Text("Clear", style = MaterialTheme.typography.labelSmall, color = CoralRed)
+                        Text("Clear", style = MaterialTheme.typography.labelSmall, color = if (isDark) CoralRed else Color(0xFFDC2626))
                     }
                 }
             }
@@ -290,8 +296,15 @@ fun GroupFirstFriendSelector(
         if (isMultiSelect && onIncludeMeChange != null) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = if (includeMe) ElectricBlue.copy(alpha = 0.15f) else CharcoalCard,
-                border = BorderStroke(1.dp, if (includeMe) ElectricBlue else GlassBorder),
+                color = if (includeMe) {
+                    if (isDark) ElectricBlue.copy(alpha = 0.15f) else Color(0xFFEFF6FF)
+                } else {
+                    if (isDark) CharcoalCard else AppTheme.colors.surface
+                },
+                border = BorderStroke(
+                    1.dp,
+                    if (includeMe) AppTheme.colors.primaryAccent else (if (isDark) GlassBorder else AppTheme.colors.cardBorder)
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onIncludeMeChange(!includeMe) }
@@ -304,10 +317,15 @@ fun GroupFirstFriendSelector(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(ElectricBlue.copy(alpha = 0.25f)),
+                            .background(if (isDark) ElectricBlue.copy(alpha = 0.25f) else Color(0xFFDBEAFE)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("ME", style = MaterialTheme.typography.labelSmall, color = ElectricBlueLight, fontWeight = FontWeight.Bold)
+                        Text(
+                            "ME",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isDark) ElectricBlueLight else Color(0xFF1D4ED8),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -315,20 +333,20 @@ fun GroupFirstFriendSelector(
                             text = "Me (You)",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
+                            color = AppTheme.colors.textPrimary
                         )
                         Text(
                             text = if (includeMe) "Your share counts in your spending" else "Excluded (others owe full amount)",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (includeMe) ElectricBlueLight else TextMuted
+                            color = if (includeMe) (if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)) else AppTheme.colors.textTertiary
                         )
                     }
                     Checkbox(
                         checked = includeMe,
                         onCheckedChange = { onIncludeMeChange(it) },
                         colors = CheckboxDefaults.colors(
-                            checkedColor = ElectricBlue,
-                            uncheckedColor = TextSecondary
+                            checkedColor = AppTheme.colors.primaryAccent,
+                            uncheckedColor = AppTheme.colors.textSecondary
                         )
                     )
                 }
@@ -341,8 +359,15 @@ fun GroupFirstFriendSelector(
             val isMePayer = selectedPayerId == null
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = if (isMePayer) ElectricBlue.copy(alpha = 0.15f) else CharcoalCard,
-                border = BorderStroke(1.dp, if (isMePayer) ElectricBlue else GlassBorder),
+                color = if (isMePayer) {
+                    if (isDark) ElectricBlue.copy(alpha = 0.15f) else Color(0xFFEFF6FF)
+                } else {
+                    if (isDark) CharcoalCard else AppTheme.colors.surface
+                },
+                border = BorderStroke(
+                    1.dp,
+                    if (isMePayer) AppTheme.colors.primaryAccent else (if (isDark) GlassBorder else AppTheme.colors.cardBorder)
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { onPayerSelect(null) }
@@ -355,10 +380,15 @@ fun GroupFirstFriendSelector(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(ElectricBlue.copy(alpha = 0.25f)),
+                            .background(if (isDark) ElectricBlue.copy(alpha = 0.25f) else Color(0xFFDBEAFE)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("ME", style = MaterialTheme.typography.labelSmall, color = ElectricBlueLight, fontWeight = FontWeight.Bold)
+                        Text(
+                            "ME",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isDark) ElectricBlueLight else Color(0xFF1D4ED8),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -366,18 +396,18 @@ fun GroupFirstFriendSelector(
                             text = "Me (Default Payer)",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
+                            color = AppTheme.colors.textPrimary
                         )
                         Text(
                             text = "You paid for this expense",
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted
+                            color = AppTheme.colors.textTertiary
                         )
                     }
                     RadioButton(
                         selected = isMePayer,
                         onClick = { onPayerSelect(null) },
-                        colors = RadioButtonDefaults.colors(selectedColor = ElectricBlue)
+                        colors = RadioButtonDefaults.colors(selectedColor = AppTheme.colors.primaryAccent)
                     )
                 }
             }
@@ -399,7 +429,7 @@ fun GroupFirstFriendSelector(
                         "No friends added yet. Add friends from the Friends tab."
                     },
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextMuted
+                    color = AppTheme.colors.textTertiary
                 )
             }
         } else {
@@ -412,12 +442,14 @@ fun GroupFirstFriendSelector(
                     }
 
                     val rowBgColor = if (isSelected) {
-                        if (isMultiSelect) VibrantCyan.copy(alpha = 0.12f) else ElectricBlue.copy(alpha = 0.15f)
-                    } else CharcoalCard
+                        if (isDark) VibrantCyan.copy(alpha = 0.12f) else Color(0xFFEFF6FF)
+                    } else {
+                        if (isDark) CharcoalCard else AppTheme.colors.surface
+                    }
 
                     val rowBorderColor = if (isSelected) {
-                        if (isMultiSelect) VibrantCyan.copy(alpha = 0.6f) else ElectricBlue
-                    } else GlassBorder
+                        if (isDark) VibrantCyan.copy(alpha = 0.6f) else Color(0xFF93C5FD)
+                    } else (if (isDark) GlassBorder else AppTheme.colors.cardBorder)
 
                     Surface(
                         shape = RoundedCornerShape(12.dp),
@@ -442,11 +474,10 @@ fun GroupFirstFriendSelector(
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Friend profile picture or initials
                             FriendAvatar(
                                 friend = friend,
                                 modifier = Modifier.size(36.dp),
-                                fallbackColor = if (isSelected) VibrantCyan else ElectricBlue
+                                fallbackColor = if (isSelected) AppTheme.colors.primaryAccent else (if (isDark) ElectricBlue else Color(0xFF64748B))
                             )
 
                             Spacer(modifier = Modifier.width(12.dp))
@@ -456,13 +487,13 @@ fun GroupFirstFriendSelector(
                                     text = friend.name,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = TextPrimary
+                                    color = AppTheme.colors.textPrimary
                                 )
                                 if (!friend.phoneNumber.isNullOrBlank()) {
                                     Text(
                                         text = friend.phoneNumber,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = TextMuted,
+                                        color = AppTheme.colors.textSecondary,
                                         fontSize = 11.sp
                                     )
                                 }
@@ -480,15 +511,15 @@ fun GroupFirstFriendSelector(
                                         onSelectionChange?.invoke(newSet)
                                     },
                                     colors = CheckboxDefaults.colors(
-                                        checkedColor = VibrantCyan,
-                                        uncheckedColor = TextSecondary
+                                        checkedColor = AppTheme.colors.primaryAccent,
+                                        uncheckedColor = AppTheme.colors.textSecondary
                                     )
                                 )
                             } else {
                                 RadioButton(
                                     selected = isSelected,
                                     onClick = { onPayerSelect?.invoke(friend.id) },
-                                    colors = RadioButtonDefaults.colors(selectedColor = ElectricBlue)
+                                    colors = RadioButtonDefaults.colors(selectedColor = AppTheme.colors.primaryAccent)
                                 )
                             }
                         }
@@ -505,8 +536,8 @@ fun GroupFirstFriendSelector(
 
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = CharcoalCardHover,
-                border = BorderStroke(1.dp, GlassBorder),
+                color = if (isDark) CharcoalCardHover else Color(0xFFF1F5F9),
+                border = BorderStroke(1.dp, if (isDark) GlassBorder else AppTheme.colors.divider),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -518,19 +549,19 @@ fun GroupFirstFriendSelector(
                         Text(
                             text = "Selected Participants",
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary
+                            color = AppTheme.colors.textSecondary
                         )
                         Text(
                             text = if (totalParticipants == 0) {
                                 "None selected"
                             } else if (includeMe) {
-                                "$totalParticipants ($totalParticipants - Me + ${selectedFriendIds.size} friends)"
+                                "$totalParticipants (Me + ${selectedFriendIds.size} friends)"
                             } else {
                                 "$totalParticipants friends"
                             },
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
-                            color = VibrantCyan
+                            color = if (isDark) VibrantCyan else Color(0xFF1D4ED8)
                         )
                     }
 
@@ -544,13 +575,13 @@ fun GroupFirstFriendSelector(
                             Text(
                                 text = "Share per person",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = TextSecondary
+                                color = AppTheme.colors.textSecondary
                             )
                             Text(
                                 text = CurrencyUtils.formatPaiseToRupees(perPersonPaise),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = EmeraldMint
+                                color = if (isDark) EmeraldMint else Color(0xFF059669)
                             )
                         }
                     }
@@ -559,4 +590,3 @@ fun GroupFirstFriendSelector(
         }
     }
 }
-

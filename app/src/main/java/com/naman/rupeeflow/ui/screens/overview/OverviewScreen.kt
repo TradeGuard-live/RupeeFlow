@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,8 +54,8 @@ fun OverviewScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showFastAddSheet = true },
-                containerColor = ElectricBlue,
-                contentColor = MidnightDark,
+                containerColor = AppTheme.colors.primaryAccent,
+                contentColor = Color.White,
                 shape = CircleShape,
                 modifier = Modifier.padding(bottom = 60.dp)
             ) {
@@ -66,6 +67,7 @@ fun OverviewScreen(
             }
         }
     ) { paddingValues ->
+        val isDark = AppTheme.isDark
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -84,22 +86,30 @@ fun OverviewScreen(
                         Text(
                             text = todayDateStr,
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary
+                            color = AppTheme.colors.textSecondary
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "Financial Overview",
                             style = MaterialTheme.typography.headlineLarge,
-                            color = TextPrimary
+                            color = AppTheme.colors.textPrimary
                         )
                     }
 
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = if (state.pendingTransactions.isNotEmpty()) AmberGold.copy(alpha = 0.2f) else CharcoalCard,
+                        color = if (state.pendingTransactions.isNotEmpty()) {
+                            if (isDark) AmberGold.copy(alpha = 0.2f) else Color(0xFFFEF3C7)
+                        } else {
+                            if (isDark) CharcoalCard else AppTheme.colors.surface
+                        },
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
-                            if (state.pendingTransactions.isNotEmpty()) AmberGold.copy(alpha = 0.6f) else GlassBorder
+                            if (state.pendingTransactions.isNotEmpty()) {
+                                if (isDark) AmberGold.copy(alpha = 0.6f) else Color(0xFFF59E0B)
+                            } else {
+                                if (isDark) GlassBorder else AppTheme.colors.cardBorder
+                            }
                         ),
                         modifier = Modifier.clickable { onNavigateToPending() }
                     ) {
@@ -112,27 +122,27 @@ fun OverviewScreen(
                                     modifier = Modifier
                                         .size(8.dp)
                                         .clip(CircleShape)
-                                        .background(AmberGold)
+                                        .background(if (isDark) AmberGold else Color(0xFFD97706))
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "${state.pendingTransactions.size} SMS",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = AmberGold,
+                                    color = if (isDark) AmberGold else Color(0xFFD97706),
                                     fontWeight = FontWeight.Bold
                                 )
                             } else {
                                 Icon(
                                     imageVector = Icons.Default.Sms,
                                     contentDescription = "Detected",
-                                    tint = TextSecondary,
+                                    tint = AppTheme.colors.textSecondary,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "Detected",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextSecondary
+                                    color = AppTheme.colors.textSecondary
                                 )
                             }
                         }
@@ -146,8 +156,8 @@ fun OverviewScreen(
                     val pending = state.pendingTransactions.first()
                     RupeeFlowCard(
                         modifier = Modifier.fillMaxWidth(),
-                        borderColor = AmberGold.copy(alpha = 0.6f),
-                        backgroundColor = CharcoalCard
+                        borderColor = if (isDark) AmberGold.copy(alpha = 0.6f) else Color(0xFFF59E0B),
+                        backgroundColor = if (isDark) CharcoalCard else Color(0xFFFFFBEB)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -158,26 +168,29 @@ fun OverviewScreen(
                                 Text(
                                     text = "SMS Transaction Detected",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = AmberGold,
+                                    color = if (isDark) AmberGold else Color(0xFFD97706),
                                     fontWeight = FontWeight.Bold
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "${CurrencyUtils.formatPaiseToRupees(pending.detectedAmountPaise)} at ${pending.detectedMerchant ?: pending.detectedBank ?: "Bank"}",
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = TextPrimary
+                                    color = AppTheme.colors.textPrimary
                                 )
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 TextButton(
                                     onClick = { viewModel.ignorePending(pending.id) },
-                                    colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary)
+                                    colors = ButtonDefaults.textButtonColors(contentColor = AppTheme.colors.textSecondary)
                                 ) {
                                     Text("Ignore", style = MaterialTheme.typography.labelSmall)
                                 }
                                 Button(
                                     onClick = { onNavigateToPending() },
-                                    colors = ButtonDefaults.buttonColors(containerColor = AmberGold, contentColor = MidnightDark),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isDark) AmberGold else Color(0xFFD97706),
+                                        contentColor = Color.White
+                                    ),
                                     shape = RoundedCornerShape(10.dp),
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                 ) {
@@ -196,7 +209,7 @@ fun OverviewScreen(
                     amountFormatted = CurrencyUtils.formatPaiseToRupees(state.summary.totalExpenseThisMonthPaise),
                     subtitle = "Daily average: ${CurrencyUtils.formatPaiseToRupees(state.summary.averageDailySpendingPaise)}",
                     icon = Icons.Default.TrendingUp,
-                    accentColor = ElectricBlue
+                    accentColor = AppTheme.colors.primaryAccent
                 )
             }
 
@@ -209,14 +222,14 @@ fun OverviewScreen(
                     MiniStatCard(
                         title = "Owed to Me",
                         amountFormatted = CurrencyUtils.formatPaiseToRupees(state.summary.totalOwedToMePaise),
-                        accentColor = EmeraldMint,
+                        accentColor = if (isDark) EmeraldMint else Color(0xFF059669),
                         modifier = Modifier.weight(1f),
                         onClick = onNavigateToFriends
                     )
                     MiniStatCard(
                         title = "I Owe Friends",
                         amountFormatted = CurrencyUtils.formatPaiseToRupees(state.summary.totalIOwePaise),
-                        accentColor = CoralRed,
+                        accentColor = if (isDark) CoralRed else Color(0xFFDC2626),
                         modifier = Modifier.weight(1f),
                         onClick = onNavigateToFriends
                     )
@@ -232,19 +245,19 @@ fun OverviewScreen(
                     MiniStatCard(
                         title = "Online Spending",
                         amountFormatted = CurrencyUtils.formatPaiseToRupees(state.summary.totalOnlineSpendingPaise),
-                        accentColor = VibrantCyan,
+                        accentColor = if (isDark) VibrantCyan else Color(0xFF0891B2),
                         modifier = Modifier.weight(1f)
                     )
                     MiniStatCard(
                         title = "Cash Spending",
                         amountFormatted = CurrencyUtils.formatPaiseToRupees(state.summary.totalCashSpendingPaise),
-                        accentColor = AmberGold,
+                        accentColor = if (isDark) AmberGold else Color(0xFFD97706),
                         modifier = Modifier.weight(1f)
                     )
                 }
             }
 
-            // Weekly Spending Bar Chart Card (Starts strictly from Monday, Prev/Next navigation)
+            // Weekly Spending Bar Chart Card
             item {
                 RupeeFlowCard(modifier = Modifier.fillMaxWidth()) {
                     Row(
@@ -256,13 +269,13 @@ fun OverviewScreen(
                             Text(
                                 text = "Weekly Activity",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = TextPrimary
+                                color = AppTheme.colors.textPrimary
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = state.weekRangeLabel,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = TextSecondary
+                                color = AppTheme.colors.textSecondary
                             )
                         }
 
@@ -278,22 +291,23 @@ fun OverviewScreen(
                                 Icon(
                                     imageVector = Icons.Default.ChevronLeft,
                                     contentDescription = "Previous Week",
-                                    tint = ElectricBlue
+                                    tint = AppTheme.colors.primaryAccent
                                 )
                             }
 
                             if (state.weekOffset != 0) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = ElectricBlue.copy(alpha = 0.2f),
+                                    color = if (isDark) ElectricBlue.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer,
                                     modifier = Modifier.clickable { viewModel.currentWeek() }
                                 ) {
                                     Text(
                                         text = "Today",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = ElectricBlueLight,
+                                        color = if (isDark) ElectricBlueLight else Color(0xFF1D4ED8),
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                        fontSize = 10.sp
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
@@ -305,7 +319,7 @@ fun OverviewScreen(
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = "Next Week",
-                                    tint = ElectricBlue
+                                    tint = AppTheme.colors.primaryAccent
                                 )
                             }
                         }
@@ -331,12 +345,13 @@ fun OverviewScreen(
                         Text(
                             text = "Outstanding Balances",
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextPrimary
+                            color = AppTheme.colors.textPrimary
                         )
                         Text(
                             text = "See All",
                             style = MaterialTheme.typography.labelSmall,
-                            color = ElectricBlue,
+                            color = AppTheme.colors.primaryAccent,
+                            fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.clickable { onNavigateToFriends() }
                         )
                     }
@@ -370,12 +385,13 @@ fun OverviewScreen(
                     Text(
                         text = "Recent Transactions",
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
+                        color = AppTheme.colors.textPrimary
                     )
                     Text(
                         text = "See All",
                         style = MaterialTheme.typography.labelSmall,
-                        color = ElectricBlue,
+                        color = AppTheme.colors.primaryAccent,
+                        fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.clickable { onNavigateToTransactions() }
                     )
                 }
@@ -393,7 +409,7 @@ fun OverviewScreen(
                         Text(
                             text = "No transactions yet. Tap + to add one!",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
+                            color = AppTheme.colors.textSecondary
                         )
                     }
                 }
@@ -432,7 +448,7 @@ fun OverviewScreen(
         )
     }
 
-    // ✅ Edit Transaction Dialog
+    // Edit Transaction Dialog
     editingTransaction?.let { txn ->
         EditTransactionDialog(
             transaction = txn,

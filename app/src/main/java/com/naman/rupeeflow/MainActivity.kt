@@ -7,6 +7,7 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -16,6 +17,7 @@ import androidx.navigation.compose.rememberNavController
 import com.naman.rupeeflow.ui.navigation.RupeeFlowApp
 import com.naman.rupeeflow.ui.navigation.Screen
 import com.naman.rupeeflow.ui.screens.lock.AppLockScreen
+import com.naman.rupeeflow.ui.theme.AppTheme
 import com.naman.rupeeflow.ui.theme.MidnightDark
 import com.naman.rupeeflow.ui.theme.RupeeFlowTheme
 
@@ -53,7 +55,7 @@ class MainActivity : FragmentActivity() {
             RupeeFlowTheme(themeMode = userPrefs.themeMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MidnightDark
+                    color = AppTheme.colors.background
                 ) {
                     if (userPrefs.biometricLockEnabled && !isAppUnlocked) {
                         AppLockScreen(

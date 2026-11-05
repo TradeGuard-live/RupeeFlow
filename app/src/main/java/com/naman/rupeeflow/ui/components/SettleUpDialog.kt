@@ -1,5 +1,6 @@
 package com.naman.rupeeflow.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -47,8 +48,8 @@ fun SettleUpDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = CharcoalSurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+            color = AppTheme.colors.surfaceElevated,
+            border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -65,10 +66,10 @@ fun SettleUpDialog(
                     Text(
                         text = "Settle with ${friend.name}",
                         style = MaterialTheme.typography.titleLarge,
-                        color = TextPrimary
+                        color = AppTheme.colors.textPrimary
                     )
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary)
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTheme.colors.textSecondary)
                     }
                 }
 
@@ -79,7 +80,7 @@ fun SettleUpDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(CharcoalCard)
+                        .background(AppTheme.colors.surfaceSecondary)
                         .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -90,7 +91,7 @@ fun SettleUpDialog(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isFriendPayingMe) EmeraldMint.copy(alpha = 0.2f) else Color.Transparent)
+                            .background(if (isFriendPayingMe) AppTheme.colors.incomeGreen.copy(alpha = 0.2f) else Color.Transparent)
                             .clickable { isFriendPayingMe = true }
                             .padding(vertical = 8.dp),
                         contentAlignment = Alignment.Center
@@ -98,7 +99,7 @@ fun SettleUpDialog(
                         Text(
                             text = opt1,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (isFriendPayingMe) EmeraldMint else TextSecondary,
+                            color = if (isFriendPayingMe) AppTheme.colors.incomeGreen else AppTheme.colors.textSecondary,
                             fontWeight = if (isFriendPayingMe) FontWeight.Bold else FontWeight.Normal
                         )
                     }
@@ -115,7 +116,7 @@ fun SettleUpDialog(
                         Text(
                             text = opt2,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (!isFriendPayingMe) CoralRed else TextSecondary,
+                            color = if (!isFriendPayingMe) CoralRed else AppTheme.colors.textSecondary,
                             fontWeight = if (!isFriendPayingMe) FontWeight.Bold else FontWeight.Normal
                         )
                     }
@@ -136,7 +137,7 @@ fun SettleUpDialog(
                 Text(
                     text = "Payment Method",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 PaymentMethodSelectorRow(
@@ -150,15 +151,10 @@ fun SettleUpDialog(
                 OutlinedTextField(
                     value = referenceNumber,
                     onValueChange = { referenceNumber = it },
-                    label = { Text("Reference / UPI UTR (Optional)", color = TextSecondary) },
+                    label = { Text("Reference / UPI UTR (Optional)", color = AppTheme.colors.textSecondary) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = ElectricBlue,
-                        unfocusedBorderColor = GlassBorder,
-                        focusedContainerColor = CharcoalCard,
-                        unfocusedContainerColor = CharcoalCard
-                    ),
+                    colors = rupeeFlowTextFieldColors(),
                     shape = RoundedCornerShape(12.dp)
                 )
 
@@ -185,8 +181,8 @@ fun SettleUpDialog(
                         .height(50.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isFriendPayingMe) EmeraldMint else ElectricBlue,
-                        contentColor = MidnightDark
+                        containerColor = if (isFriendPayingMe) AppTheme.colors.incomeGreen else AppTheme.colors.primaryAccent,
+                        contentColor = Color.White
                     ),
                     enabled = amountPaise > 0L
                 ) {

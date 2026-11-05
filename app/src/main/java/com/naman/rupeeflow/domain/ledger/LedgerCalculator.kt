@@ -30,7 +30,7 @@ object LedgerCalculator {
     }
 
     /**
-     * ✅ Strictly validates that percentages sum to exactly 100% (within 0.01 tolerance)
+     * Strictly validates that percentages sum to exactly 100% (within 0.01 tolerance)
      * and no individual percentage is negative.
      */
     fun validatePercentages(percentages: List<Double>): Boolean {
@@ -41,7 +41,7 @@ object LedgerCalculator {
     }
 
     /**
-     * ✅ Calculates shares based on percentages using exact BigDecimal arithmetic.
+     * Calculates shares based on percentages using exact BigDecimal arithmetic.
      * Rejects invalid inputs instead of silently adjusting incorrect percentages.
      * Distributes any rounding remainder deterministically to the largest share.
      */
@@ -68,7 +68,7 @@ object LedgerCalculator {
     }
 
     /**
-     * ✅ Validates that participant shares strictly total the transaction amount.
+     * Validates that participant shares strictly total the transaction amount.
      */
     fun validateParticipantShares(totalAmountPaise: Long, participants: List<TransactionParticipant>): Boolean {
         if (participants.isEmpty()) return true
@@ -77,7 +77,7 @@ object LedgerCalculator {
     }
 
     /**
-     * ✅ Source of truth ledger calculation for all friends.
+     * Source of truth ledger calculation for all friends.
      * Computes net balance, amount they owe me, amount I owe them, and settlement status.
      * - Only processes shared expenses and shared refunds.
      * - Transfers and ordinary income are excluded from shared ledgers.
@@ -176,7 +176,7 @@ object LedgerCalculator {
         return friends.map { friend ->
             val grossTheyOweMe = theyOweMe.getOrDefault(friend.id, 0L)
             val grossIOweThem = iOweThem.getOrDefault(friend.id, 0L)
-            // ✅ Overflow-protected net balance calculation
+            // Overflow-protected net balance calculation
             val net = SafeMath.safeSubtract(grossTheyOweMe, grossIOweThem)
             val absNet = SafeMath.safeAbs(net)
 
@@ -197,7 +197,7 @@ object LedgerCalculator {
     }
 
     /**
-     * ✅ Computes ledger summary and individual friend balances scoped to a specific group or consolidated.
+     * Computes ledger summary and individual friend balances scoped to a specific group or consolidated.
      * When [groupId] is null, calculates consolidated balances across all friends.
      * When [groupId] is non-null, calculates strictly for members of that group and transactions/settlements in that scope.
      */
@@ -261,7 +261,7 @@ object LedgerCalculator {
     }
 
     /**
-     * ✅ Compute comprehensive financial dashboard summary.
+     * Compute comprehensive financial dashboard summary.
      * Separates gross spending, ordinary income, refunds, and net spending.
      * Excludes future-dated transactions from current-period metrics.
      */
@@ -310,7 +310,7 @@ object LedgerCalculator {
             }
         }
 
-        // ✅ Net spending accounts for refunds received with overflow protection
+        // Net spending accounts for refunds received with overflow protection
         val netSpending = SafeMath.safeSubtract(totalExpensePaise, totalRefundPaise).coerceAtLeast(0L)
 
         val totalOwedToMe = friends.filter { it.netBalancePaise > 0L }.safeSumOf { it.netBalancePaise }

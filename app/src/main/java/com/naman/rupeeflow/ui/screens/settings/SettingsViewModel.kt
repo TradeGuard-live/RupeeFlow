@@ -110,7 +110,7 @@ class SettingsViewModel(
         }
     }
 
-    // ✅ Password-protected AES-256 encrypted export
+    // Password-protected AES-256 encrypted export
     fun exportEncryptedBackup(password: String, onExportReady: (String) -> Unit) {
         viewModelScope.launch {
             try {
@@ -123,7 +123,7 @@ class SettingsViewModel(
         }
     }
 
-    // ✅ Inspect backup before restoration
+    // Inspect backup before restoration
     fun inspectBackup(content: String, password: String? = null): BackupPreview {
         return backupRestoreRepository.inspectBackup(content, password)
     }
@@ -140,7 +140,7 @@ class SettingsViewModel(
         }
     }
 
-    // ✅ Restore encrypted backup
+    // Restore encrypted backup
     fun restoreEncryptedBackup(content: String, password: String, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             try {

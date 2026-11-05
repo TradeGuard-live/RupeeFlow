@@ -516,12 +516,12 @@ class FriendGroupAndSplitUpgradeTest {
         val myShare = myParticipant!!.shareAmountPaise
 
         // Display logic asserts:
-        // Primary text (Upper side): "Your share: ₹20.00"
-        val upperDisplay = "Your share: ${CurrencyUtils.formatPaiseToRupees(myShare)}"
+        // Primary text (Upper side): "₹20.00" directly with semantic coloring
+        val upperDisplay = CurrencyUtils.formatPaiseToRupees(myShare)
         // Secondary text (Lower side): "Total amount: ₹40.00"
         val lowerDisplay = "Total amount: ${CurrencyUtils.formatPaiseToRupees(txn.amountPaise)}"
 
-        assertEquals("Your share: ₹20.00", upperDisplay)
+        assertEquals("₹20.00", upperDisplay)
         assertEquals("Total amount: ₹40.00", lowerDisplay)
     }
 

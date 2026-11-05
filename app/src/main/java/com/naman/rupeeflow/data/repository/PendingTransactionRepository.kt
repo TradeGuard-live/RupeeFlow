@@ -18,7 +18,7 @@ interface PendingTransactionRepository {
     suspend fun resolvePendingTransaction(id: Long)
     suspend fun ignorePendingTransaction(id: Long)
     suspend fun deletePendingTransaction(id: Long)
-    // ✅ Contextual duplicate detection
+    // Contextual duplicate detection
     suspend fun isDuplicate(
         amountPaise: Long,
         timestamp: Long,
@@ -73,7 +73,7 @@ class PendingTransactionRepositoryImpl(
     }
 
     /**
-     * ✅ High-accuracy duplicate detection:
+     * High-accuracy duplicate detection:
      * 1. If referenceNumber/UTR matches an existing pending or settled transaction -> duplicate!
      * 2. If no reference number is available, never discard a transaction solely because
      *    another transaction has the same amount. Two legitimate transactions of the same amount
@@ -108,7 +108,7 @@ class PendingTransactionRepositoryImpl(
             // Exact raw text match (e.g. duplicate SMS or notification broadcast delivered twice)
             if (rawContent != null && item.rawContent.trim().equals(rawContent.trim(), ignoreCase = true)) return true
 
-            // ✅ If both transactions have merchants and they differ, they are distinct legitimate purchases!
+            // If both transactions have merchants and they differ, they are distinct legitimate purchases!
             if (!merchant.isNullOrBlank() && !item.detectedMerchant.isNullOrBlank() &&
                 !merchant.equals(item.detectedMerchant, ignoreCase = true)) {
                 continue
@@ -132,7 +132,7 @@ class PendingTransactionRepositoryImpl(
                 endMillis = timestamp + window
             )
             for (item in recentConfirmed) {
-                // ✅ If both have merchants and they differ, distinct legitimate purchase!
+                // If both have merchants and they differ, distinct legitimate purchase!
                 if (!merchant.isNullOrBlank() && !item.merchantName.isNullOrBlank() &&
                     !merchant.equals(item.merchantName, ignoreCase = true)) {
                     continue

@@ -14,7 +14,7 @@ interface SettlementRepository {
     suspend fun getSettlementsForFriendList(friendId: Long): List<Settlement>
     suspend fun getSettlementById(id: Long): Settlement?
     suspend fun recordSettlement(settlement: Settlement): Long
-    // ✅ Edit existing settlement with ledger recalculation
+    // Edit existing settlement with ledger recalculation
     suspend fun updateSettlement(settlement: Settlement)
     suspend fun reverseSettlement(id: Long)
     suspend fun unreverseSettlement(id: Long)
@@ -61,7 +61,7 @@ class SettlementRepositoryImpl(
         return settlementDao.insertSettlement(settlement.toEntity())
     }
 
-    // ✅ Update settlement preserving ID, createdAt, and reversal status with strict validations
+    // Update settlement preserving ID, createdAt, and reversal status with strict validations
     override suspend fun updateSettlement(settlement: Settlement) {
         require(settlement.id > 0L) { "Settlement ID must be valid for update" }
         require(settlement.amountPaise > 0L) { "Settlement amount must be greater than zero" }

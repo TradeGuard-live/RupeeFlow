@@ -20,7 +20,7 @@ interface TransactionRepository {
     suspend fun saveTransaction(transaction: Transaction): Long
     suspend fun updateTransactionStatus(id: Long, status: TransactionStatus)
     suspend fun deleteTransaction(id: Long)
-    // ✅ Contextual duplicate check: does NOT reject transactions based solely on matching amount
+    // Contextual duplicate check: does NOT reject transactions based solely on matching amount
     suspend fun isDuplicate(
         amountPaise: Long,
         timestamp: Long,
@@ -89,7 +89,7 @@ class TransactionRepositoryImpl(
         }
     }
 
-    // ✅ Atomic save/edit preserving id and createdAt, updating updatedAt
+    // Atomic save/edit preserving id and createdAt, updating updatedAt
     override suspend fun saveTransaction(transaction: Transaction): Long {
         val existing = if (transaction.id > 0L) transactionDao.getTransactionById(transaction.id)?.transaction else null
         val createdAt = existing?.createdAt ?: if (transaction.createdAt > 0L) transaction.createdAt else System.currentTimeMillis()
@@ -109,7 +109,7 @@ class TransactionRepositoryImpl(
         transactionDao.deleteTransactionById(id)
     }
 
-    // ✅ Context-aware duplicate check: prefers exact reference/UTR and matches merchant or title,
+    // Context-aware duplicate check: prefers exact reference/UTR and matches merchant or title,
     // never rejecting legitimate purchases with identical amounts
     override suspend fun isDuplicate(
         amountPaise: Long,

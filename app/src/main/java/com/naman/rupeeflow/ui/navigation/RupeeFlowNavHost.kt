@@ -25,6 +25,7 @@ import com.naman.rupeeflow.ui.screens.settings.SettingsScreen
 import com.naman.rupeeflow.ui.screens.settings.SettingsViewModel
 import com.naman.rupeeflow.ui.screens.transactions.TransactionsScreen
 import com.naman.rupeeflow.ui.screens.transactions.TransactionsViewModel
+import com.naman.rupeeflow.ui.theme.AppTheme
 import com.naman.rupeeflow.ui.theme.MidnightDark
 
 @Composable
@@ -41,7 +42,7 @@ fun RupeeFlowApp(
     val showBottomBar = currentRoute in BottomNavItems.map { it.route }
 
     Scaffold(
-        containerColor = MidnightDark,
+        containerColor = AppTheme.colors.background,
         bottomBar = {
             if (showBottomBar) {
                 RupeeFlowBottomBar(

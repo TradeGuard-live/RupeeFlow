@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.naman.rupeeflow.domain.model.PaymentMethod
@@ -36,19 +37,24 @@ fun TransactionsScreen(
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = AppTheme.colors.background,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showFastAddSheet = true },
-                containerColor = ElectricBlue,
-                contentColor = MidnightDark,
+                containerColor = AppTheme.colors.primaryAccent,
+                contentColor = Color.White,
                 shape = CircleShape,
                 modifier = Modifier.padding(bottom = 60.dp)
             ) {
-                Icon(Icons.Default.Add, contentDescription = "Add Expense", modifier = Modifier.size(28.dp))
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Add Transaction",
+                    modifier = Modifier.size(28.dp)
+                )
             }
         }
     ) { paddingValues ->
+        val isDark = AppTheme.isDark
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -65,13 +71,16 @@ fun TransactionsScreen(
                 Text(
                     text = "Transactions",
                     style = MaterialTheme.typography.headlineLarge,
-                    color = TextPrimary
+                    color = AppTheme.colors.textPrimary
                 )
                 if (onNavigateToPending != null) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = CharcoalCard,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+                        color = if (isDark) CharcoalCard else AppTheme.colors.surface,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isDark) GlassBorder else AppTheme.colors.cardBorder
+                        ),
                         modifier = Modifier.clickable { onNavigateToPending() }
                     ) {
                         Row(
@@ -100,14 +109,14 @@ fun TransactionsScreen(
             OutlinedTextField(
                 value = state.searchQuery,
                 onValueChange = { viewModel.onSearchQueryChanged(it) },
-                placeholder = { Text("Search title, merchant, ref no...", color = TextMuted) },
+                placeholder = { Text("Search title, merchant, ref no...", color = AppTheme.colors.textTertiary) },
                 leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = "Search", tint = TextSecondary)
+                    Icon(Icons.Default.Search, contentDescription = "Search", tint = AppTheme.colors.textSecondary)
                 },
                 trailingIcon = {
                     if (state.searchQuery.isNotEmpty()) {
                         IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextSecondary)
+                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = AppTheme.colors.textSecondary)
                         }
                     }
                 },
@@ -116,12 +125,8 @@ fun TransactionsScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = ElectricBlue,
-                    unfocusedBorderColor = GlassBorder,
-                    focusedContainerColor = CharcoalCard,
-                    unfocusedContainerColor = CharcoalCard
-                )
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppTheme.colors.textPrimary),
+                colors = rupeeFlowTextFieldColors()
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -147,17 +152,26 @@ fun TransactionsScreen(
                     val isSelected = state.selectedTypeFilter == key
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = if (isSelected) ElectricBlue.copy(alpha = 0.2f) else CharcoalCard,
+                        color = if (isSelected) {
+                            if (isDark) ElectricBlue.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer
+                        } else {
+                            if (isDark) CharcoalCard else AppTheme.colors.surface
+                        },
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
-                            if (isSelected) ElectricBlue else GlassBorder
+                            if (isSelected) AppTheme.colors.primaryAccent else (if (isDark) GlassBorder else AppTheme.colors.cardBorder)
                         ),
                         modifier = Modifier.clickable { viewModel.onTypeFilterSelected(key) }
                     ) {
                         Text(
                             text = label,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (isSelected) ElectricBlueLight else TextSecondary,
+                            color = if (isSelected) {
+                                if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)
+                            } else {
+                                AppTheme.colors.textSecondary
+                            },
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                         )
                     }
@@ -179,10 +193,18 @@ fun TransactionsScreen(
                     val isSelected = state.selectedPaymentMethodFilter == method
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = if (isSelected) VibrantCyan.copy(alpha = 0.2f) else CharcoalCard,
+                        color = if (isSelected) {
+                            if (isDark) VibrantCyan.copy(alpha = 0.2f) else Color(0xFFCFFAFE)
+                        } else {
+                            if (isDark) CharcoalCard else AppTheme.colors.surface
+                        },
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
-                            if (isSelected) VibrantCyan else GlassBorder
+                            if (isSelected) {
+                                if (isDark) VibrantCyan else Color(0xFF0891B2)
+                            } else {
+                                if (isDark) GlassBorder else AppTheme.colors.cardBorder
+                            }
                         ),
                         modifier = Modifier.clickable {
                             viewModel.onPaymentMethodFilterSelected(if (isSelected) null else method)
@@ -191,7 +213,12 @@ fun TransactionsScreen(
                         Text(
                             text = method.displayName,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (isSelected) VibrantCyan else TextMuted,
+                            color = if (isSelected) {
+                                if (isDark) VibrantCyan else Color(0xFF0E7490)
+                            } else {
+                                AppTheme.colors.textSecondary
+                            },
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                         )
                     }
@@ -217,7 +244,7 @@ fun TransactionsScreen(
                             Text(
                                 text = "No transactions found",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary
+                                color = AppTheme.colors.textSecondary
                             )
                         }
                     }
@@ -257,7 +284,7 @@ fun TransactionsScreen(
         )
     }
 
-    // ✅ Edit Transaction Dialog
+    // Edit Transaction Dialog
     editingTransaction?.let { txn ->
         EditTransactionDialog(
             transaction = txn,

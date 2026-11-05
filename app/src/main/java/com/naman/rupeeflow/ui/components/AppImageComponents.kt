@@ -164,6 +164,7 @@ fun GroupMemberAvatarRow(
     avatarSize: Dp = 22.dp,
     maxAvatars: Int = 3
 ) {
+    val isDark = AppTheme.isDark
     val members = remember(memberIds, allFriends) {
         memberIds.mapNotNull { mId -> allFriends.firstOrNull { it.id == mId } }
     }
@@ -179,7 +180,7 @@ fun GroupMemberAvatarRow(
                 friend = member,
                 modifier = Modifier
                     .size(avatarSize)
-                    .border(1.dp, CharcoalCard, CircleShape)
+                    .border(1.dp, if (isDark) CharcoalCard else AppTheme.colors.surface, CircleShape)
             )
         }
         if (members.size > maxAvatars) {
@@ -187,15 +188,15 @@ fun GroupMemberAvatarRow(
                 modifier = Modifier
                     .size(avatarSize)
                     .clip(CircleShape)
-                    .background(CharcoalCardHover)
-                    .border(1.dp, GlassBorder, CircleShape),
+                    .background(if (isDark) CharcoalCardHover else Color(0xFFF1F5F9))
+                    .border(1.dp, if (isDark) GlassBorder else AppTheme.colors.cardBorder, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "+${members.size - maxAvatars}",
                     style = MaterialTheme.typography.labelSmall,
                     fontSize = 9.sp,
-                    color = TextSecondary,
+                    color = AppTheme.colors.textSecondary,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -212,6 +213,7 @@ fun BillAttachmentSection(
     onImageSelected: (String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isDark = AppTheme.isDark
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var showFullscreenReceipt by remember { mutableStateOf(false) }
@@ -252,14 +254,14 @@ fun BillAttachmentSection(
                 Icon(
                     imageVector = Icons.Default.ReceiptLong,
                     contentDescription = null,
-                    tint = VibrantCyan,
+                    tint = AppTheme.colors.primaryAccent,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "Receipt / Bill Photo",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
             }
             if (billImagePath != null) {
@@ -270,7 +272,7 @@ fun BillAttachmentSection(
                     },
                     contentPadding = PaddingValues(0.dp)
                 ) {
-                    Text("Remove", color = CoralRed, style = MaterialTheme.typography.labelSmall)
+                    Text("Remove", color = if (isDark) CoralRed else Color(0xFFDC2626), style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -281,8 +283,11 @@ fun BillAttachmentSection(
             val bitmap = rememberBitmapFromPath(billImagePath)
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = CharcoalCard,
-                border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+                color = if (isDark) CharcoalCard else AppTheme.colors.surface,
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (isDark) GlassBorder else AppTheme.colors.cardBorder
+                ),
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { showFullscreenReceipt = true }
@@ -305,10 +310,10 @@ fun BillAttachmentSection(
                             modifier = Modifier
                                 .size(56.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(CharcoalSurface),
+                                .background(if (isDark) CharcoalSurface else Color(0xFFF1F5F9)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = TextMuted)
+                            Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = AppTheme.colors.textTertiary)
                         }
                     }
 
@@ -318,19 +323,19 @@ fun BillAttachmentSection(
                         Text(
                             text = "Bill receipt attached",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextPrimary,
+                            color = AppTheme.colors.textPrimary,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
                             text = "Tap to view full receipt",
                             style = MaterialTheme.typography.labelSmall,
-                            color = VibrantCyan
+                            color = AppTheme.colors.primaryAccent
                         )
                     }
 
                     // Action to replace
                     IconButton(onClick = { galleryLauncher.launch("image/*") }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Replace", tint = TextSecondary)
+                        Icon(Icons.Default.Refresh, contentDescription = "Replace", tint = AppTheme.colors.textSecondary)
                     }
                 }
             }
@@ -353,11 +358,19 @@ fun BillAttachmentSection(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = TextPrimary
+                        contentColor = AppTheme.colors.textPrimary
                     ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder)
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isDark) GlassBorder else AppTheme.colors.cardBorder
+                    )
                 ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp), tint = VibrantCyan)
+                    Icon(
+                        Icons.Default.CameraAlt,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = AppTheme.colors.primaryAccent
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Take Photo", style = MaterialTheme.typography.labelSmall)
                 }
@@ -367,11 +380,19 @@ fun BillAttachmentSection(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = TextPrimary
+                        contentColor = AppTheme.colors.textPrimary
                     ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder)
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isDark) GlassBorder else AppTheme.colors.cardBorder
+                    )
                 ) {
-                    Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(16.dp), tint = ElectricBlueLight)
+                    Icon(
+                        Icons.Default.PhotoLibrary,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = AppTheme.colors.primaryAccent
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Upload Bill", style = MaterialTheme.typography.labelSmall)
                 }

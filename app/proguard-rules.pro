@@ -1,5 +1,5 @@
 # ==============================================================================
-# RupeeFlow — Production ProGuard & R8 Optimization Rules ✅
+# RupeeFlow — Production ProGuard & R8 Optimization Rules 
 # ==============================================================================
 
 # Core Kotlin & Annotations

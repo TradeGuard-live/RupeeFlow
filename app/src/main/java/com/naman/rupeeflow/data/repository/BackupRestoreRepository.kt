@@ -138,7 +138,7 @@ class BackupRestoreRepository(
     }
 
     /**
-     * ✅ Exports an AES-256-GCM encrypted backup protected by a user password.
+     * Exports an AES-256-GCM encrypted backup protected by a user password.
      */
     suspend fun exportEncryptedBackup(password: String): String {
         require(password.length >= 4) { "Password must be at least 4 characters" }
@@ -172,7 +172,7 @@ class BackupRestoreRepository(
     }
 
     /**
-     * ✅ Decrypts an encrypted backup envelope using password.
+     * Decrypts an encrypted backup envelope using password.
      */
     fun decryptBackup(envelopeJson: String, password: String): String {
         val root = JSONObject(envelopeJson)
@@ -196,7 +196,7 @@ class BackupRestoreRepository(
     }
 
     /**
-     * ✅ Inspects and validates a backup before restoring, returning structured preview info.
+     * Inspects and validates a backup before restoring, returning structured preview info.
      */
     fun inspectBackup(content: String, password: String? = null): BackupPreview {
         return try {

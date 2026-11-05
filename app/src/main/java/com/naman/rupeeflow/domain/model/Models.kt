@@ -25,7 +25,7 @@ data class Category(
     val isDefault: Boolean = false
 )
 
-// ✅ Friend Group domain model for organizing friends and group splitting
+// Friend Group domain model for organizing friends and group splitting
 data class FriendGroup(
     val id: Long = 0,
     val name: String,
@@ -92,7 +92,7 @@ data class Transaction(
         }
 }
 
-// ✅ Production hardening: default values for backward compatibility and clean construction
+// Production hardening: default values for backward compatibility and clean construction
 data class Settlement(
     val id: Long = 0,
     val payerId: Long?, // null means "ME", else friend ID
@@ -106,7 +106,7 @@ data class Settlement(
     val createdAt: Long = System.currentTimeMillis()
 )
 
-// ✅ Production hardening: robust default parameters for testability and non-SMS sources
+// Production hardening: robust default parameters for testability and non-SMS sources
 data class PendingTransaction(
     val id: Long = 0,
     val detectedAmountPaise: Long,
@@ -124,8 +124,8 @@ data class PendingTransaction(
 data class FinancialSummary(
     val totalExpenseThisMonthPaise: Long = 0,
     val totalIncomeThisMonthPaise: Long = 0,
-    val totalRefundThisMonthPaise: Long = 0, // ✅ Clearly separated refunds
-    val netSpendingPaise: Long = 0,          // ✅ Net spending = (Gross Expenses - Refunds)
+    val totalRefundThisMonthPaise: Long = 0, // Clearly separated refunds
+    val netSpendingPaise: Long = 0,          // Net spending = (Gross Expenses - Refunds)
     val totalCashSpendingPaise: Long = 0,
     val totalOnlineSpendingPaise: Long = 0,
     val totalOwedToMePaise: Long = 0,
@@ -151,10 +151,10 @@ data class DailySpending(
 data class AnalyticsData(
     val totalSpentPaise: Long = 0,
     val totalIncomePaise: Long = 0,
-    val totalRefundPaise: Long = 0,  // ✅ Separated refund reporting
-    val netSpendingPaise: Long = 0,  // ✅ Net spending after refunds
+    val totalRefundPaise: Long = 0,  // Separated refund reporting
+    val netSpendingPaise: Long = 0,  // Net spending after refunds
     val totalSavingsPaise: Long = 0,
-    val savingsRate: Float = 0f,     // ✅ Savings rate percentage
+    val savingsRate: Float = 0f,     // Savings rate percentage
     val cashSpendingPaise: Long = 0,
     val onlineSpendingPaise: Long = 0,
     val dailyAveragePaise: Long = 0,
@@ -167,7 +167,7 @@ data class AnalyticsData(
     val percentageChangeVsPrevious: Float = 0f
 )
 
-// ✅ Dynamic input ranking model
+// Dynamic input ranking model
 data class InputUsage(
     val id: Long = 0,
     val fieldType: String,

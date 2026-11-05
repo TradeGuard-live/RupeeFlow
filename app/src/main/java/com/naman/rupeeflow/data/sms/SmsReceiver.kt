@@ -39,7 +39,7 @@ class SmsReceiver : BroadcastReceiver() {
         val fullBody = fullBodyBuilder.toString()
         if (fullBody.isBlank()) return
 
-        // ✅ Use goAsync() to guarantee execution completion before BroadcastReceiver termination
+        // Use goAsync() to guarantee execution completion before BroadcastReceiver termination
         val pendingResult = goAsync()
 
         CoroutineScope(Dispatchers.IO).launch {

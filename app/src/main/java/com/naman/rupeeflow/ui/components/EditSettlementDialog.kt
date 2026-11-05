@@ -2,6 +2,7 @@ package com.naman.rupeeflow.ui.components
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -93,8 +94,8 @@ fun EditSettlementDialog(
     }) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = CharcoalSurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+            color = AppTheme.colors.surfaceElevated,
+            border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
             modifier = Modifier
                 .fillMaxWidth()
                 .wrapContentHeight()
@@ -114,12 +115,12 @@ fun EditSettlementDialog(
                     Text(
                         text = "Edit Settlement",
                         style = MaterialTheme.typography.titleLarge,
-                        color = TextPrimary
+                        color = AppTheme.colors.textPrimary
                     )
                     IconButton(onClick = {
                         if (hasUnsavedChanges) showDiscardConfirm = true else onDismiss()
                     }) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary)
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTheme.colors.textSecondary)
                     }
                 }
 
@@ -129,7 +130,7 @@ fun EditSettlementDialog(
                 Text(
                     text = "Settlement Partner",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
@@ -142,17 +143,17 @@ fun EditSettlementDialog(
                         val isSelected = selectedFriend?.id == friend.id
                         Surface(
                             shape = RoundedCornerShape(20.dp),
-                            color = if (isSelected) VibrantCyan.copy(alpha = 0.2f) else CharcoalCard,
-                            border = androidx.compose.foundation.BorderStroke(
+                            color = if (isSelected) AppTheme.colors.accentContainer else AppTheme.colors.cardBackground,
+                            border = BorderStroke(
                                 1.dp,
-                                if (isSelected) VibrantCyan else GlassBorder
+                                if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.cardBorder
                             ),
                             modifier = Modifier.clickable { selectedFriend = friend }
                         ) {
                             Text(
                                 text = friend.name,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isSelected) VibrantCyan else TextSecondary,
+                                color = if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                             )
                         }
@@ -167,7 +168,7 @@ fun EditSettlementDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(CharcoalCard)
+                            .background(AppTheme.colors.surfaceSecondary)
                             .padding(4.dp),
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
@@ -178,7 +179,7 @@ fun EditSettlementDialog(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (isFriendPayingMe) EmeraldMint.copy(alpha = 0.2f) else Color.Transparent)
+                                .background(if (isFriendPayingMe) AppTheme.colors.incomeGreen.copy(alpha = 0.2f) else Color.Transparent)
                                 .clickable { isFriendPayingMe = true }
                                 .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
@@ -186,7 +187,7 @@ fun EditSettlementDialog(
                             Text(
                                 text = opt1,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isFriendPayingMe) EmeraldMint else TextSecondary,
+                                color = if (isFriendPayingMe) AppTheme.colors.incomeGreen else AppTheme.colors.textSecondary,
                                 fontWeight = if (isFriendPayingMe) FontWeight.Bold else FontWeight.Normal
                             )
                         }
@@ -203,7 +204,7 @@ fun EditSettlementDialog(
                             Text(
                                 text = opt2,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (!isFriendPayingMe) CoralRed else TextSecondary,
+                                color = if (!isFriendPayingMe) CoralRed else AppTheme.colors.textSecondary,
                                 fontWeight = if (!isFriendPayingMe) FontWeight.Bold else FontWeight.Normal
                             )
                         }
@@ -225,7 +226,7 @@ fun EditSettlementDialog(
                 Text(
                     text = "Settlement Date & Time",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
@@ -234,8 +235,8 @@ fun EditSettlementDialog(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = CharcoalCard,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+                        color = AppTheme.colors.cardBackground,
+                        border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
                         modifier = Modifier
                             .weight(1f)
                             .clickable {
@@ -261,20 +262,20 @@ fun EditSettlementDialog(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = ElectricBlue, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.CalendarToday, contentDescription = null, tint = AppTheme.colors.primaryAccent, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = DateTimeUtils.formatDate(selectedDateTimeMillis, "dd MMM yyyy"),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = TextPrimary
+                                color = AppTheme.colors.textPrimary
                             )
                         }
                     }
 
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = CharcoalCard,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+                        color = AppTheme.colors.cardBackground,
+                        border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
                         modifier = Modifier
                             .weight(1f)
                             .clickable {
@@ -299,12 +300,12 @@ fun EditSettlementDialog(
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Schedule, contentDescription = null, tint = VibrantCyan, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Schedule, contentDescription = null, tint = AppTheme.colors.primaryAccent, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = DateTimeUtils.formatTime(selectedDateTimeMillis),
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = TextPrimary
+                                color = AppTheme.colors.textPrimary
                             )
                         }
                     }
@@ -316,7 +317,7 @@ fun EditSettlementDialog(
                 Text(
                     text = "Payment Method",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 PaymentMethodSelectorRow(
@@ -330,16 +331,11 @@ fun EditSettlementDialog(
                 OutlinedTextField(
                     value = referenceNumber,
                     onValueChange = { referenceNumber = it },
-                    label = { Text("Reference / UTR (Optional)", color = TextSecondary) },
-                    placeholder = { Text("e.g. UPI Ref, NEFT ID", color = TextMuted) },
+                    label = { Text("Reference / UTR (Optional)", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("e.g. UPI Ref, NEFT ID", color = AppTheme.colors.textMuted) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = ElectricBlue,
-                        unfocusedBorderColor = GlassBorder,
-                        focusedContainerColor = CharcoalCard,
-                        unfocusedContainerColor = CharcoalCard
-                    ),
+                    colors = rupeeFlowTextFieldColors(),
                     shape = RoundedCornerShape(14.dp)
                 )
 
@@ -349,17 +345,12 @@ fun EditSettlementDialog(
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Notes (Optional)", color = TextSecondary) },
-                    placeholder = { Text("e.g. Cleared bill remainder", color = TextMuted) },
+                    label = { Text("Notes (Optional)", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("e.g. Cleared bill remainder", color = AppTheme.colors.textMuted) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = false,
                     maxLines = 3,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = ElectricBlue,
-                        unfocusedBorderColor = GlassBorder,
-                        focusedContainerColor = CharcoalCard,
-                        unfocusedContainerColor = CharcoalCard
-                    ),
+                    colors = rupeeFlowTextFieldColors(),
                     shape = RoundedCornerShape(14.dp)
                 )
 
@@ -372,7 +363,7 @@ fun EditSettlementDialog(
                         if (isSaving || amountPaise <= 0L) return@Button
                         isSaving = true
 
-                        // ✅ Preserve settlement.id, settlement.createdAt, and settlement.isReversed
+                        // Preserve settlement.id, settlement.createdAt, and settlement.isReversed
                         val updatedSettlement = settlement.copy(
                             payerId = if (isFriendPayingMe) friend.id else null,
                             receiverId = if (isFriendPayingMe) null else friend.id,
@@ -391,8 +382,8 @@ fun EditSettlementDialog(
                         .height(52.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isFriendPayingMe) EmeraldMint else ElectricBlue,
-                        contentColor = MidnightDark
+                        containerColor = if (isFriendPayingMe) AppTheme.colors.incomeGreen else AppTheme.colors.primaryAccent,
+                        contentColor = Color.White
                     ),
                     enabled = !isSaving && amountPaise > 0L && selectedFriend != null
                 ) {
@@ -409,8 +400,8 @@ fun EditSettlementDialog(
     if (showDiscardConfirm) {
         AlertDialog(
             onDismissRequest = { showDiscardConfirm = false },
-            title = { Text("Discard Changes?", color = TextPrimary) },
-            text = { Text("You have unsaved edits to this settlement. Are you sure you want to discard them?", color = TextSecondary) },
+            title = { Text("Discard Changes?", color = AppTheme.colors.textPrimary) },
+            text = { Text("You have unsaved edits to this settlement. Are you sure you want to discard them?", color = AppTheme.colors.textSecondary) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -423,10 +414,10 @@ fun EditSettlementDialog(
             },
             dismissButton = {
                 TextButton(onClick = { showDiscardConfirm = false }) {
-                    Text("Keep Editing", color = TextSecondary)
+                    Text("Keep Editing", color = AppTheme.colors.textSecondary)
                 }
             },
-            containerColor = CharcoalSurface,
+            containerColor = AppTheme.colors.surfaceElevated,
             shape = RoundedCornerShape(20.dp)
         )
     }

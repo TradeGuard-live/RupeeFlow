@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -46,13 +47,13 @@ fun TransactionDetailDialog(
     val isIncomeOrRefund = transaction.transactionType == TransactionType.INCOME ||
             transaction.transactionType == TransactionType.REFUND
     val amountPrefix = if (isIncomeOrRefund) "+" else "-"
-    val amountColor = if (isIncomeOrRefund) EmeraldMint else TextPrimary
+    val amountColor = if (isIncomeOrRefund) AppTheme.colors.incomeGreen else AppTheme.colors.textPrimary
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = CharcoalSurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+            color = AppTheme.colors.surfaceElevated,
+            border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -86,12 +87,12 @@ fun TransactionDetailDialog(
                         Text(
                             text = category?.name ?: "Expense",
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextSecondary
+                            color = AppTheme.colors.textSecondary
                         )
                     }
 
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary)
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTheme.colors.textSecondary)
                     }
                 }
 
@@ -109,7 +110,7 @@ fun TransactionDetailDialog(
                 Text(
                     text = transaction.title,
                     style = MaterialTheme.typography.titleLarge,
-                    color = TextPrimary
+                    color = AppTheme.colors.textPrimary
                 )
 
                 if (transaction.description.isNotBlank()) {
@@ -117,7 +118,7 @@ fun TransactionDetailDialog(
                     Text(
                         text = transaction.description,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
+                        color = AppTheme.colors.textSecondary
                     )
                 }
 
@@ -155,7 +156,7 @@ fun TransactionDetailDialog(
                     Text(
                         text = "Attached Bill / Receipt",
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
+                        color = AppTheme.colors.textPrimary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     var showFullscreenReceipt by remember { mutableStateOf(false) }
@@ -163,8 +164,8 @@ fun TransactionDetailDialog(
 
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = CharcoalCard,
-                        border = BorderStroke(1.dp, GlassBorder),
+                        color = AppTheme.colors.cardBackground,
+                        border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { showFullscreenReceipt = true }
@@ -187,10 +188,10 @@ fun TransactionDetailDialog(
                                     modifier = Modifier
                                         .size(60.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(CharcoalSurface),
+                                        .background(AppTheme.colors.surfaceSecondary),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = VibrantCyan)
+                                    Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = AppTheme.colors.primaryAccent)
                                 }
                             }
                             Spacer(modifier = Modifier.width(12.dp))
@@ -199,15 +200,15 @@ fun TransactionDetailDialog(
                                     text = "View Attached Receipt",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = TextPrimary
+                                    color = AppTheme.colors.textPrimary
                                 )
                                 Text(
                                     text = "Tap to view in fullscreen with zoom",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = VibrantCyan
+                                    color = AppTheme.colors.primaryAccent
                                 )
                             }
-                            Icon(Icons.Default.ZoomIn, contentDescription = null, tint = TextSecondary)
+                            Icon(Icons.Default.ZoomIn, contentDescription = null, tint = AppTheme.colors.textSecondary)
                         }
                     }
 
@@ -226,7 +227,7 @@ fun TransactionDetailDialog(
                     Text(
                         text = "Participants & Breakdown",
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
+                        color = AppTheme.colors.textPrimary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -246,21 +247,21 @@ fun TransactionDetailDialog(
                                     Text(
                                         text = if (part.friendId == null) "Me (You)" else part.friendName,
                                         style = MaterialTheme.typography.bodyMedium,
-                                        color = TextPrimary,
+                                        color = AppTheme.colors.textPrimary,
                                         fontWeight = if (part.friendId == null) FontWeight.Bold else FontWeight.Normal
                                     )
                                     if (part.percentage > 0.0) {
                                         Text(
                                             text = "${part.percentage}%",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = TextSecondary
+                                            color = AppTheme.colors.textSecondary
                                         )
                                     }
                                 }
                                 Text(
                                     text = CurrencyUtils.formatPaiseToRupees(part.shareAmountPaise),
                                     style = MaterialTheme.typography.titleSmall,
-                                    color = if (part.friendId == null) EmeraldMint else VibrantCyan
+                                    color = if (part.friendId == null) AppTheme.colors.incomeGreen else AppTheme.colors.primaryAccent
                                 )
                             }
                         }
@@ -269,7 +270,7 @@ fun TransactionDetailDialog(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // ✅ Responsive 2-column, 2-row action button layout
+                // Responsive 2-column, 2-row action button layout
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -279,7 +280,7 @@ fun TransactionDetailDialog(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // Edit Button (Filled primary cyan)
+                        // Edit Button (Filled primary cyan/blue)
                         Button(
                             onClick = {
                                 onDismiss()
@@ -291,8 +292,8 @@ fun TransactionDetailDialog(
                             shape = RoundedCornerShape(14.dp),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = VibrantCyan,
-                                contentColor = MidnightDark
+                                containerColor = AppTheme.colors.primaryAccent,
+                                contentColor = Color.White
                             )
                         ) {
                             Icon(
@@ -321,8 +322,8 @@ fun TransactionDetailDialog(
                                 .heightIn(min = 48.dp),
                             shape = RoundedCornerShape(14.dp),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ElectricBlue),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, ElectricBlue)
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AppTheme.colors.primaryAccent),
+                            border = BorderStroke(1.dp, AppTheme.colors.primaryAccent)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.ContentCopy,
@@ -346,7 +347,7 @@ fun TransactionDetailDialog(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         // Ignore / Restore Button
-                        val ignoreColor = if (transaction.isIgnored) EmeraldMint else AmberGold
+                        val ignoreColor = if (transaction.isIgnored) AppTheme.colors.incomeGreen else AmberGold
                         OutlinedButton(
                             onClick = {
                                 onToggleIgnore(transaction)
@@ -358,7 +359,7 @@ fun TransactionDetailDialog(
                             shape = RoundedCornerShape(14.dp),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = ignoreColor),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, ignoreColor)
+                            border = BorderStroke(1.dp, ignoreColor)
                         ) {
                             Icon(
                                 imageVector = if (transaction.isIgnored) Icons.Default.Visibility else Icons.Default.VisibilityOff,
@@ -384,7 +385,7 @@ fun TransactionDetailDialog(
                             shape = RoundedCornerShape(14.dp),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralRed),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, CoralRed)
+                            border = BorderStroke(1.dp, CoralRed)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DeleteOutline,
@@ -411,11 +412,11 @@ fun TransactionDetailDialog(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Delete Transaction?", color = TextPrimary) },
+            title = { Text("Delete Transaction?", color = AppTheme.colors.textPrimary) },
             text = {
                 Text(
                     "Are you sure you want to delete '${transaction.title}'? This will permanently remove its accounting records.",
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
             },
             confirmButton = {
@@ -431,10 +432,10 @@ fun TransactionDetailDialog(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
                 }
             },
-            containerColor = CharcoalSurface,
+            containerColor = AppTheme.colors.surfaceElevated,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -448,7 +449,7 @@ private fun DetailRow(label: String, value: String) {
             .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
-        Text(text = value, style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+        Text(text = value, style = MaterialTheme.typography.titleSmall, color = AppTheme.colors.textPrimary)
     }
 }

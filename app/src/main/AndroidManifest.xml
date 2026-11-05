@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- SMS Detection Permissions -->
-    <!-- ✅ Only RECEIVE_SMS is needed to intercept incoming transaction alerts; READ_SMS is not needed -->
+    <!-- Only RECEIVE_SMS is needed to intercept incoming transaction alerts; READ_SMS is not needed -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
 
     <!-- Notification Permissions for Android 13+ -->
@@ -42,7 +42,7 @@
         </receiver>
 
         <!-- Notification Listener Service (Companion fallback for UPI/Banking apps) -->
-        <!-- ✅ Hardened exported=true with BIND_NOTIFICATION_LISTENER_SERVICE permission required on Android 12+ -->
+        <!-- Hardened exported=true with BIND_NOTIFICATION_LISTENER_SERVICE permission required on Android 12+ -->
         <service
             android:name=".data.sms.RupeeFlowNotificationListener"
             android:exported="true"

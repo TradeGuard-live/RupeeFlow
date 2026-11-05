@@ -49,7 +49,7 @@ class AnalyticsViewModel(
                 _uiState.map { it.selectedPeriod }.distinctUntilChanged()
             ) { txns, categories, friends, settlements, period ->
                 val friendsWithLedger = LedgerCalculator.computeFriendLedgers(friends, txns, settlements)
-                // ✅ Overflow-protected aggregations
+                // Overflow-protected aggregations
                 val owedToMe = friendsWithLedger.filter { it.netBalancePaise > 0L }.safeSumOf { it.netBalancePaise }
                 val iOwe = friendsWithLedger.filter { it.netBalancePaise < 0L }.safeSumOf { SafeMath.safeAbs(it.netBalancePaise) }
 
@@ -164,7 +164,7 @@ class AnalyticsViewModel(
             }
         }
 
-        // ✅ Net spending accounting for refunds
+        // Net spending accounting for refunds
         val netSpending = (totalSpent - totalRefund).coerceAtLeast(0L)
         val netSavings = totalIncome - netSpending
         val savingsRate = if (totalIncome > 0L) {

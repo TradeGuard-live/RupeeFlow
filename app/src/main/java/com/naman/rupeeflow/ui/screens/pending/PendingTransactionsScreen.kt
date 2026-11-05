@@ -1,5 +1,6 @@
 package com.naman.rupeeflow.ui.screens.pending
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -46,10 +47,10 @@ fun PendingTransactionsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Detected Transactions", color = TextPrimary) },
+                title = { Text("Detected Transactions", color = AppTheme.colors.textPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTheme.colors.textPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -80,17 +81,17 @@ fun PendingTransactionsScreen(
                     val isSelected = selectedFilter == key
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = if (isSelected) ElectricBlue.copy(alpha = 0.25f) else CharcoalCard,
-                        border = androidx.compose.foundation.BorderStroke(
+                        color = if (isSelected) AppTheme.colors.accentContainer else AppTheme.colors.cardBackground,
+                        border = BorderStroke(
                             1.dp,
-                            if (isSelected) ElectricBlue else GlassBorder
+                            if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.cardBorder
                         ),
                         modifier = Modifier.clickable { selectedFilter = key }
                     ) {
                         Text(
                             text = label,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (isSelected) ElectricBlueLight else TextSecondary,
+                            color = if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                         )
                     }
@@ -106,21 +107,21 @@ fun PendingTransactionsScreen(
                         Icon(
                             imageVector = Icons.Default.CheckCircle,
                             contentDescription = null,
-                            tint = EmeraldMint,
+                            tint = AppTheme.colors.incomeGreen,
                             modifier = Modifier.size(56.dp)
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             text = if (selectedFilter == "PENDING") "All Caught Up!" else "No Transactions Found",
                             style = MaterialTheme.typography.titleLarge,
-                            color = TextPrimary
+                            color = AppTheme.colors.textPrimary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = if (selectedFilter == "PENDING") "No pending SMS transactions awaiting review."
                             else "No detected transactions in this category.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextSecondary
+                            color = AppTheme.colors.textSecondary
                         )
                     }
                 }
@@ -133,10 +134,10 @@ fun PendingTransactionsScreen(
                     items(displayList, key = { it.id }) { item ->
                         val isAdded = item.status == PendingStatus.RESOLVED
                         // If added: subtle green/card styling. If not added: distinct AmberGold/ElectricBlue styling
-                        val cardBorderColor = if (isAdded) EmeraldMint.copy(alpha = 0.35f) else AmberGold
-                        val cardBgColor = if (isAdded) CharcoalCard.copy(alpha = 0.7f) else CharcoalCard
-                        val iconBgColor = if (isAdded) EmeraldMint.copy(alpha = 0.15f) else AmberGold.copy(alpha = 0.2f)
-                        val iconColor = if (isAdded) EmeraldMint else AmberGold
+                        val cardBorderColor = if (isAdded) AppTheme.colors.incomeGreen.copy(alpha = 0.35f) else AmberGold
+                        val cardBgColor = AppTheme.colors.cardBackground
+                        val iconBgColor = if (isAdded) AppTheme.colors.incomeGreen.copy(alpha = 0.15f) else AmberGold.copy(alpha = 0.2f)
+                        val iconColor = if (isAdded) AppTheme.colors.incomeGreen else AmberGold
 
                         RupeeFlowCard(
                             modifier = Modifier.fillMaxWidth(),
@@ -173,19 +174,19 @@ fun PendingTransactionsScreen(
                                             Text(
                                                 text = CurrencyUtils.formatPaiseToRupees(item.detectedAmountPaise),
                                                 style = MaterialTheme.typography.titleLarge,
-                                                color = if (isAdded) TextSecondary else TextPrimary
+                                                color = if (isAdded) AppTheme.colors.textSecondary else AppTheme.colors.textPrimary
                                             )
 
                                             // Status Badge
                                             if (isAdded) {
                                                 Surface(
                                                     shape = RoundedCornerShape(6.dp),
-                                                    color = EmeraldMint.copy(alpha = 0.2f)
+                                                    color = AppTheme.colors.incomeGreen.copy(alpha = 0.2f)
                                                 ) {
                                                     Text(
                                                         text = "Added ✓",
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = EmeraldMint,
+                                                        color = AppTheme.colors.incomeGreen,
                                                         fontWeight = FontWeight.Bold,
                                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                                         fontSize = 11.sp
@@ -212,20 +213,20 @@ fun PendingTransactionsScreen(
                                         Text(
                                             text = "${item.detectedMerchant ?: item.detectedBank ?: "Bank"} • ${DateTimeUtils.formatRelativeDate(item.timestamp)}",
                                             style = MaterialTheme.typography.bodyMedium,
-                                            color = TextSecondary
+                                            color = AppTheme.colors.textSecondary
                                         )
                                     }
 
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         if (!isAdded) {
                                             IconButton(onClick = { viewModel.ignorePending(item.id) }) {
-                                                Icon(Icons.Default.Close, contentDescription = "Ignore", tint = TextMuted)
+                                                Icon(Icons.Default.Close, contentDescription = "Ignore", tint = AppTheme.colors.textMuted)
                                             }
                                             Button(
                                                 onClick = { selectedDetectedForAdd = item },
                                                 colors = ButtonDefaults.buttonColors(
-                                                    containerColor = ElectricBlue,
-                                                    contentColor = MidnightDark
+                                                    containerColor = AppTheme.colors.primaryAccent,
+                                                    contentColor = Color.White
                                                 ),
                                                 shape = RoundedCornerShape(10.dp),
                                                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
@@ -235,12 +236,12 @@ fun PendingTransactionsScreen(
                                         } else {
                                             OutlinedButton(
                                                 onClick = { selectedDetectedForAdd = item },
-                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
-                                                border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = AppTheme.colors.textSecondary),
+                                                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
                                                 shape = RoundedCornerShape(10.dp),
                                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                                             ) {
-                                                Text("Re-add", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                                Text("Re-add", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textSecondary)
                                             }
                                         }
                                     }
@@ -251,7 +252,7 @@ fun PendingTransactionsScreen(
                                 Text(
                                     text = item.rawContent,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextMuted,
+                                    color = AppTheme.colors.textMuted,
                                     maxLines = 2,
                                     fontSize = 10.sp
                                 )

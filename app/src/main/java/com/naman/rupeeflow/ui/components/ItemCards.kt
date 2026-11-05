@@ -33,6 +33,7 @@ fun TransactionItemCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val isLight = !AppTheme.isDark
     val category = transaction.category
     val catColor = CategoryIconHelper.parseColor(category?.colorHex)
     val catIcon = CategoryIconHelper.getIcon(category?.iconName)
@@ -41,9 +42,9 @@ fun TransactionItemCard(
             transaction.transactionType == TransactionType.REFUND
     val amountPrefix = if (isIncomeOrRefund) "+" else "-"
     val amountColor = when {
-        transaction.isIgnored -> TextMuted
-        isIncomeOrRefund -> EmeraldMint
-        else -> CoralRed
+        transaction.isIgnored -> AppTheme.colors.textTertiary
+        isIncomeOrRefund -> if (isLight) Color(0xFF059669) else EmeraldMint
+        else -> if (isLight) Color(0xFFDC2626) else CoralRed
     }
 
     RupeeFlowCard(
@@ -60,7 +61,7 @@ fun TransactionItemCard(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(catColor.copy(alpha = 0.2f)),
+                    .background(catColor.copy(alpha = if (isLight) 0.15f else 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -79,7 +80,7 @@ fun TransactionItemCard(
                     Text(
                         text = transaction.title,
                         style = MaterialTheme.typography.titleMedium,
-                        color = if (transaction.isIgnored) TextMuted else TextPrimary,
+                        color = if (transaction.isIgnored) AppTheme.colors.textTertiary else AppTheme.colors.textPrimary,
                         textDecoration = if (transaction.isIgnored) TextDecoration.LineThrough else null,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -90,14 +91,15 @@ fun TransactionItemCard(
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
                             shape = RoundedCornerShape(4.dp),
-                            color = AmberGold.copy(alpha = 0.2f)
+                            color = if (isLight) Color(0xFFFEF3C7) else AmberGold.copy(alpha = 0.2f)
                         ) {
                             Text(
                                 text = "IGNORED",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = AmberGold,
+                                color = if (isLight) Color(0xFFD97706) else AmberGold,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
-                                fontSize = 9.sp
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }
@@ -112,41 +114,42 @@ fun TransactionItemCard(
                     Text(
                         text = DateTimeUtils.formatRelativeDate(transaction.transactionDate),
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary
+                        color = AppTheme.colors.textSecondary
                     )
 
-                    Text("•", color = TextMuted, fontSize = 10.sp)
+                    Text("•", color = AppTheme.colors.textTertiary, fontSize = 10.sp)
 
                     Text(
                         text = transaction.paymentMethod.displayName,
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextMuted
+                        color = AppTheme.colors.textSecondary
                     )
 
                     if (transaction.isSplit) {
-                        Text("•", color = TextMuted, fontSize = 10.sp)
+                        Text("•", color = AppTheme.colors.textTertiary, fontSize = 10.sp)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Default.Group,
                                 contentDescription = null,
-                                tint = VibrantCyan,
+                                tint = AppTheme.colors.primaryAccent,
                                 modifier = Modifier.size(12.dp)
                             )
                             Spacer(modifier = Modifier.width(2.dp))
                             Text(
                                 text = "Split",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = VibrantCyan
+                                color = AppTheme.colors.primaryAccent,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
 
                     if (!transaction.billImagePath.isNullOrBlank()) {
-                        Text("•", color = TextMuted, fontSize = 10.sp)
+                        Text("•", color = AppTheme.colors.textTertiary, fontSize = 10.sp)
                         Icon(
                             imageVector = Icons.Default.ReceiptLong,
                             contentDescription = "Receipt attached",
-                            tint = VibrantCyan,
+                            tint = AppTheme.colors.primaryAccent,
                             modifier = Modifier.size(12.dp)
                         )
                     }
@@ -155,18 +158,18 @@ fun TransactionItemCard(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // ✅ Amount Column with Reversed Hierarchy for Split Transactions
+            // Amount Column with Reversed Hierarchy for Split Transactions
             Column(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.Center
             ) {
                 if (transaction.isSplit && transaction.transactionType == TransactionType.EXPENSE) {
-                    // Upper: Your share prominent, larger, and bold
+                    // Upper: User's split share prominent, larger, and bold with semantic coloring
                     Text(
-                        text = "Your share: ${CurrencyUtils.formatPaiseToRupees(transaction.userExpensePaise)}",
+                        text = "$amountPrefix${CurrencyUtils.formatPaiseToRupees(transaction.userExpensePaise)}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = if (transaction.isIgnored) TextMuted else VibrantCyan,
+                        color = amountColor,
                         textDecoration = if (transaction.isIgnored) TextDecoration.LineThrough else null
                     )
 
@@ -176,7 +179,7 @@ fun TransactionItemCard(
                     Text(
                         text = "Total amount: ${CurrencyUtils.formatPaiseToRupees(transaction.amountPaise)}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary,
+                        color = AppTheme.colors.textSecondary,
                         fontSize = 11.sp,
                         textDecoration = if (transaction.isIgnored) TextDecoration.LineThrough else null
                     )
@@ -186,7 +189,7 @@ fun TransactionItemCard(
                         Text(
                             text = "Paid by ${transaction.paidByName}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted,
+                            color = AppTheme.colors.textTertiary,
                             fontSize = 10.sp
                         )
                     }
@@ -213,25 +216,26 @@ fun FriendItemCard(
     onClick: () -> Unit,
     onDelete: (() -> Unit)? = null
 ) {
-    // ✅ Strict Color Rules:
-    // Green (EmeraldMint) = Money owed to me (They owe you)
-    // Red (CoralRed) = Money I owe (You owe)
-    // Neutral (TextSecondary) = Zero balance (All settled up)
+    val isLight = !AppTheme.isDark
+    // Strict Color Rules:
+    // Green = Money owed to me (They owe you)
+    // Red = Money I owe (You owe)
+    // Neutral = Zero balance (All settled up)
     val (statusText, statusColor, statusBg) = when (friend.status) {
         FriendBalanceStatus.THEY_OWE_ME -> Triple(
             "They owe you ${CurrencyUtils.formatPaiseToRupees(friend.totalTheyOweMePaise)}",
-            EmeraldMint,
-            EmeraldMint.copy(alpha = 0.15f)
+            if (isLight) Color(0xFF047857) else EmeraldMint,
+            if (isLight) Color(0xFFD1FAE5) else EmeraldMint.copy(alpha = 0.15f)
         )
         FriendBalanceStatus.I_OWE_THEM -> Triple(
             "You owe ${CurrencyUtils.formatPaiseToRupees(friend.totalIOweThemPaise)}",
-            CoralRed,
-            CoralRed.copy(alpha = 0.15f)
+            if (isLight) Color(0xFFB91C1C) else CoralRed,
+            if (isLight) Color(0xFFFEE2E2) else CoralRed.copy(alpha = 0.15f)
         )
         FriendBalanceStatus.SETTLED -> Triple(
             "All settled up",
-            TextSecondary,
-            CharcoalCard
+            if (isLight) Color(0xFF64748B) else TextSecondary,
+            if (isLight) Color(0xFFF1F5F9) else CharcoalCard
         )
     }
 
@@ -250,7 +254,7 @@ fun FriendItemCard(
             FriendAvatar(
                 friend = friend,
                 modifier = Modifier.size(46.dp),
-                fallbackColor = ElectricBlue
+                fallbackColor = AppTheme.colors.primaryAccent
             )
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -260,14 +264,15 @@ fun FriendItemCard(
                 Text(
                     text = friend.name,
                     style = MaterialTheme.typography.titleMedium,
-                    color = TextPrimary
+                    color = AppTheme.colors.textPrimary,
+                    fontWeight = FontWeight.SemiBold
                 )
                 if (!friend.phoneNumber.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = friend.phoneNumber,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextMuted
+                        color = AppTheme.colors.textSecondary
                     )
                 }
             }
@@ -283,7 +288,6 @@ fun FriendItemCard(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // ✅ Standard Icons.Default for balance indicators
                     val icon = when (friend.status) {
                         FriendBalanceStatus.THEY_OWE_ME -> Icons.Default.CallReceived
                         FriendBalanceStatus.I_OWE_THEM -> Icons.Default.CallMade
@@ -299,7 +303,8 @@ fun FriendItemCard(
                     Text(
                         text = statusText,
                         style = MaterialTheme.typography.labelSmall,
-                        color = statusColor
+                        color = statusColor,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -313,7 +318,7 @@ fun FriendItemCard(
                         Icon(
                             imageVector = Icons.Default.MoreVert,
                             contentDescription = "Options",
-                            tint = TextMuted,
+                            tint = AppTheme.colors.textTertiary,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -322,7 +327,7 @@ fun FriendItemCard(
                         onDismissRequest = { showMenu = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Delete Friend", color = CoralRed) },
+                            text = { Text("Delete Friend", color = if (isLight) Color(0xFFDC2626) else CoralRed) },
                             onClick = {
                                 showMenu = false
                                 onDelete()

@@ -40,12 +40,13 @@ fun CustomBarChart(
     barColor: Color = ElectricBlue,
     activeBarColor: Color = VibrantCyan
 ) {
+    val isDark = AppTheme.isDark
     if (data.isEmpty()) {
         Box(
             modifier = modifier.fillMaxWidth().height(180.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("No spending recorded for this period", color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
+            Text("No spending recorded for this period", color = AppTheme.colors.textSecondary, style = MaterialTheme.typography.bodyMedium)
         }
         return
     }
@@ -68,8 +69,8 @@ fun CustomBarChart(
         if (selectedItem != null) {
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = activeBarColor.copy(alpha = 0.18f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, activeBarColor.copy(alpha = 0.6f)),
+                color = if (isDark) activeBarColor.copy(alpha = 0.18f) else Color(0xFFEFF6FF),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (isDark) activeBarColor.copy(alpha = 0.6f) else Color(0xFF93C5FD)),
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .padding(bottom = 8.dp)
@@ -82,13 +83,13 @@ fun CustomBarChart(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(activeBarColor)
+                            .background(if (isDark) activeBarColor else Color(0xFF2563EB))
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "${selectedItem.dayLabel}: ${CurrencyUtils.formatPaiseToRupees(selectedItem.amountPaise)}",
                         style = MaterialTheme.typography.titleSmall,
-                        color = TextPrimary,
+                        color = AppTheme.colors.textPrimary,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -121,10 +122,11 @@ fun CustomBarChart(
 
                 // Draw horizontal guide lines
                 val guideLines = 3
+                val gridColor = if (isDark) GlassBorder.copy(alpha = 0.3f) else Color(0xFFE2E8F0)
                 for (g in 1..guideLines) {
                     val y = chartHeight * (g.toFloat() / (guideLines + 1))
                     drawLine(
-                        color = GlassBorder.copy(alpha = 0.3f),
+                        color = gridColor,
                         start = Offset(0f, y),
                         end = Offset(size.width, y),
                         strokeWidth = 1.dp.toPx()
@@ -140,7 +142,7 @@ fun CustomBarChart(
 
                     val isSelected = selectedIndex == index
                     val isMax = item.amountPaise == maxAmount && maxAmount > 0L
-                    val color = if (isSelected) activeBarColor else if (isMax) activeBarColor.copy(alpha = 0.85f) else barColor
+                    val color = if (isSelected) (if (isDark) activeBarColor else Color(0xFF2563EB)) else if (isMax) (if (isDark) activeBarColor.copy(alpha = 0.85f) else Color(0xFF3B82F6)) else (if (isDark) barColor else Color(0xFF60A5FA))
 
                     val brush = Brush.verticalGradient(
                         colors = listOf(
@@ -161,7 +163,7 @@ fun CustomBarChart(
                     // Selection highlight outline
                     if (isSelected) {
                         drawRoundRect(
-                            color = Color.White,
+                            color = if (isDark) Color.White else Color(0xFF2563EB),
                             topLeft = Offset(x - barWidth / 2 - 1.dp.toPx(), top - 1.dp.toPx()),
                             size = Size(barWidth + 2.dp.toPx(), currentHeight + 2.dp.toPx()),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(7.dp.toPx(), 7.dp.toPx()),
@@ -184,7 +186,7 @@ fun CustomBarChart(
                 Text(
                     text = item.dayLabel,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (isSelected) activeBarColor else TextSecondary,
+                    color = if (isSelected) (if (isDark) activeBarColor else Color(0xFF2563EB)) else AppTheme.colors.textSecondary,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     fontSize = 11.sp,
                     modifier = Modifier.clickable {
@@ -203,12 +205,13 @@ fun CustomLineChart(
     lineColor: Color = ElectricBlue,
     fillGradientStart: Color = VibrantCyan.copy(alpha = 0.3f)
 ) {
+    val isDark = AppTheme.isDark
     if (data.isEmpty() || data.size < 2) {
         Box(
             modifier = modifier.fillMaxWidth().height(180.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("Insufficient trend data", color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
+            Text("Insufficient trend data", color = AppTheme.colors.textSecondary, style = MaterialTheme.typography.bodyMedium)
         }
         return
     }
@@ -231,8 +234,8 @@ fun CustomLineChart(
         if (selectedItem != null) {
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = lineColor.copy(alpha = 0.18f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, lineColor.copy(alpha = 0.6f)),
+                color = if (isDark) lineColor.copy(alpha = 0.18f) else Color(0xFFEFF6FF),
+                border = androidx.compose.foundation.BorderStroke(1.dp, if (isDark) lineColor.copy(alpha = 0.6f) else Color(0xFF93C5FD)),
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .padding(bottom = 8.dp)
@@ -251,7 +254,7 @@ fun CustomLineChart(
                     Text(
                         text = "${selectedItem.dayLabel}: ${CurrencyUtils.formatPaiseToRupees(selectedItem.amountPaise)}",
                         style = MaterialTheme.typography.titleSmall,
-                        color = TextPrimary,
+                        color = AppTheme.colors.textPrimary,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -326,12 +329,12 @@ fun CustomLineChart(
                 points.forEachIndexed { index, point ->
                     val isSelected = selectedIndex == index
                     drawCircle(
-                        color = MidnightDark,
+                        color = if (isDark) MidnightDark else Color.White,
                         radius = if (isSelected) 6.dp.toPx() else 4.dp.toPx(),
                         center = point
                     )
                     drawCircle(
-                        color = if (isSelected) Color.White else lineColor,
+                        color = if (isSelected) (if (isDark) Color.White else Color(0xFF2563EB)) else lineColor,
                         radius = if (isSelected) 4.5.dp.toPx() else 2.5.dp.toPx(),
                         center = point
                     )
@@ -351,7 +354,7 @@ fun CustomLineChart(
                 Text(
                     text = item.dayLabel,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (isSelected) lineColor else TextSecondary,
+                    color = if (isSelected) lineColor else AppTheme.colors.textSecondary,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     fontSize = 11.sp,
                     modifier = Modifier.clickable {
@@ -374,7 +377,7 @@ fun CustomDonutChart(
             modifier = modifier.fillMaxWidth().height(180.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("No categorical expenses recorded", color = TextSecondary, style = MaterialTheme.typography.bodyMedium)
+            Text("No categorical expenses recorded", color = AppTheme.colors.textSecondary, style = MaterialTheme.typography.bodyMedium)
         }
         return
     }
@@ -426,13 +429,14 @@ fun CustomDonutChart(
                 Text(
                     text = "Total Spent",
                     style = MaterialTheme.typography.labelSmall,
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = CurrencyUtils.formatPaiseCompact(totalAmountPaise),
                     style = MaterialTheme.typography.titleLarge,
-                    color = TextPrimary
+                    color = AppTheme.colors.textPrimary,
+                    fontWeight = FontWeight.Bold
                 )
             }
         }
@@ -461,7 +465,7 @@ fun CustomDonutChart(
                         Text(
                             text = item.category.name,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = TextPrimary
+                            color = AppTheme.colors.textPrimary
                         )
                     }
 
@@ -469,13 +473,14 @@ fun CustomDonutChart(
                         Text(
                             text = CurrencyUtils.formatPaiseToRupees(item.totalSpentPaise),
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextPrimary
+                            color = AppTheme.colors.textPrimary,
+                            fontWeight = FontWeight.SemiBold
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "(${String.format(java.util.Locale.US, "%.1f", item.percentage)}%)",
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary
+                            color = AppTheme.colors.textSecondary
                         )
                     }
                 }

@@ -44,7 +44,7 @@ fun AnalyticsScreen(
                 Text(
                     text = "Financial Analytics",
                     style = MaterialTheme.typography.headlineLarge,
-                    color = TextPrimary
+                    color = AppTheme.colors.textPrimary
                 )
             }
 
@@ -54,7 +54,7 @@ fun AnalyticsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(CharcoalCard)
+                        .background(AppTheme.colors.surfaceSecondary)
                         .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -64,7 +64,7 @@ fun AnalyticsScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (isSelected) ElectricBlue.copy(alpha = 0.25f) else Color.Transparent)
+                                .background(if (isSelected) AppTheme.colors.accentContainer else Color.Transparent)
                                 .clickable { viewModel.setPeriod(key) }
                                 .padding(vertical = 10.dp),
                             contentAlignment = Alignment.Center
@@ -72,7 +72,7 @@ fun AnalyticsScreen(
                             Text(
                                 text = label,
                                 style = MaterialTheme.typography.titleSmall,
-                                color = if (isSelected) ElectricBlueLight else TextSecondary,
+                                color = if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                             )
                         }
@@ -91,12 +91,12 @@ fun AnalyticsScreen(
                         Text(
                             text = "TOTAL SPENDING",
                             style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary
+                            color = AppTheme.colors.textSecondary
                         )
 
                         if (data.percentageChangeVsPrevious != 0f) {
                             val isHigher = data.percentageChangeVsPrevious > 0f
-                            val badgeColor = if (isHigher) CoralRed else EmeraldMint
+                            val badgeColor = if (isHigher) CoralRed else AppTheme.colors.incomeGreen
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = badgeColor.copy(alpha = 0.15f)
@@ -127,7 +127,7 @@ fun AnalyticsScreen(
                     Text(
                         text = CurrencyUtils.formatPaiseToRupees(data.totalSpentPaise),
                         style = MaterialTheme.typography.displayLarge,
-                        color = TextPrimary
+                        color = AppTheme.colors.textPrimary
                     )
 
                     Spacer(modifier = Modifier.height(6.dp))
@@ -135,7 +135,7 @@ fun AnalyticsScreen(
                     Text(
                         text = "Daily average: ${CurrencyUtils.formatPaiseToRupees(data.dailyAveragePaise)}",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary
+                        color = AppTheme.colors.textSecondary
                     )
                 }
             }
@@ -149,13 +149,13 @@ fun AnalyticsScreen(
                     MiniStatCard(
                         title = "Income Recorded",
                         amountFormatted = CurrencyUtils.formatPaiseToRupees(data.totalIncomePaise),
-                        accentColor = EmeraldMint,
+                        accentColor = AppTheme.colors.incomeGreen,
                         modifier = Modifier.weight(1f)
                     )
                     MiniStatCard(
                         title = "Savings",
                         amountFormatted = CurrencyUtils.formatPaiseToRupees(data.totalSavingsPaise),
-                        accentColor = VibrantCyan,
+                        accentColor = AppTheme.colors.primaryAccent,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -170,7 +170,7 @@ fun AnalyticsScreen(
                     MiniStatCard(
                         title = "Online Spending",
                         amountFormatted = CurrencyUtils.formatPaiseToRupees(data.onlineSpendingPaise),
-                        accentColor = ElectricBlue,
+                        accentColor = AppTheme.colors.primaryAccent,
                         modifier = Modifier.weight(1f)
                     )
                     MiniStatCard(
@@ -196,14 +196,14 @@ fun AnalyticsScreen(
                             Text(
                                 text = "Spending Trend",
                                 style = MaterialTheme.typography.titleMedium,
-                                color = TextPrimary
+                                color = AppTheme.colors.textPrimary
                             )
                             if (state.periodInfo.isNotBlank()) {
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = state.periodInfo,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = ElectricBlueLight
+                                    color = AppTheme.colors.primaryAccent
                                 )
                             }
                         }
@@ -212,7 +212,7 @@ fun AnalyticsScreen(
                         Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(CharcoalCard)
+                                .background(AppTheme.colors.surfaceSecondary)
                                 .padding(2.dp),
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
@@ -221,12 +221,12 @@ fun AnalyticsScreen(
                                 modifier = Modifier
                                     .size(32.dp)
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(if (isBarChart) ElectricBlue.copy(alpha = 0.25f) else Color.Transparent)
+                                    .background(if (isBarChart) AppTheme.colors.accentContainer else Color.Transparent)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.BarChart,
                                     contentDescription = "Bar Chart",
-                                    tint = if (isBarChart) ElectricBlue else TextSecondary,
+                                    tint = if (isBarChart) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -236,12 +236,12 @@ fun AnalyticsScreen(
                                 modifier = Modifier
                                     .size(32.dp)
                                     .clip(RoundedCornerShape(6.dp))
-                                    .background(if (!isBarChart) ElectricBlue.copy(alpha = 0.25f) else Color.Transparent)
+                                    .background(if (!isBarChart) AppTheme.colors.accentContainer else Color.Transparent)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.ShowChart,
                                     contentDescription = "Line Chart",
-                                    tint = if (!isBarChart) ElectricBlue else TextSecondary,
+                                    tint = if (!isBarChart) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -264,7 +264,7 @@ fun AnalyticsScreen(
                     Text(
                         text = "Category Distribution",
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
+                        color = AppTheme.colors.textPrimary
                     )
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -282,7 +282,7 @@ fun AnalyticsScreen(
                     Text(
                         text = "Friend Debt & Credit Position",
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
+                        color = AppTheme.colors.textPrimary
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
@@ -291,17 +291,17 @@ fun AnalyticsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
-                            Text(text = "Total Friends Owe You", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                            Text(text = "Total Friends Owe You", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = CurrencyUtils.formatPaiseToRupees(state.totalOwedToMe),
                                 style = MaterialTheme.typography.titleLarge,
-                                color = EmeraldMint
+                                color = AppTheme.colors.incomeGreen
                             )
                         }
 
                         Column(horizontalAlignment = Alignment.End) {
-                            Text(text = "Total You Owe Friends", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                            Text(text = "Total You Owe Friends", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = CurrencyUtils.formatPaiseToRupees(state.totalIOwe),

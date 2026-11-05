@@ -1,5 +1,6 @@
 package com.naman.rupeeflow.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -13,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -39,13 +41,13 @@ fun SettlementDetailDialog(
 
     val isFriendPayingMe = settlement.receiverId == null
     val directionText = if (isFriendPayingMe) "$friendName paid You" else "You paid $friendName"
-    val accentColor = if (isFriendPayingMe) EmeraldMint else CoralRed
+    val accentColor = if (isFriendPayingMe) AppTheme.colors.incomeGreen else CoralRed
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = CharcoalSurface,
-            border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder),
+            color = AppTheme.colors.surfaceElevated,
+            border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -79,12 +81,12 @@ fun SettlementDetailDialog(
                         Text(
                             text = "Settlement Details",
                             style = MaterialTheme.typography.titleMedium,
-                            color = TextSecondary
+                            color = AppTheme.colors.textSecondary
                         )
                     }
 
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextSecondary)
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTheme.colors.textSecondary)
                     }
                 }
 
@@ -94,7 +96,7 @@ fun SettlementDetailDialog(
                 Text(
                     text = CurrencyUtils.formatPaiseToRupees(settlement.amountPaise),
                     style = MaterialTheme.typography.displayLarge,
-                    color = if (settlement.isReversed) TextMuted else accentColor,
+                    color = if (settlement.isReversed) AppTheme.colors.textMuted else accentColor,
                     textDecoration = if (settlement.isReversed) TextDecoration.LineThrough else null
                 )
 
@@ -109,17 +111,17 @@ fun SettlementDetailDialog(
                     Text(
                         text = directionText,
                         style = MaterialTheme.typography.titleMedium,
-                        color = TextPrimary
+                        color = AppTheme.colors.textPrimary
                     )
 
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (settlement.isReversed) AmberGold.copy(alpha = 0.2f) else EmeraldMint.copy(alpha = 0.2f)
+                        color = if (settlement.isReversed) AmberGold.copy(alpha = 0.2f) else AppTheme.colors.incomeGreen.copy(alpha = 0.2f)
                     ) {
                         Text(
                             text = if (settlement.isReversed) "REVERSED" else "ACTIVE",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (settlement.isReversed) AmberGold else EmeraldMint,
+                            color = if (settlement.isReversed) AmberGold else AppTheme.colors.incomeGreen,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
@@ -127,7 +129,7 @@ fun SettlementDetailDialog(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(color = GlassBorder)
+                HorizontalDivider(color = AppTheme.colors.divider)
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Metadata Rows
@@ -166,10 +168,10 @@ fun SettlementDetailDialog(
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
-                HorizontalDivider(color = GlassBorder)
+                HorizontalDivider(color = AppTheme.colors.divider)
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // ✅ Responsive action button layout consistent with TransactionDetailDialog
+                // Responsive action button layout consistent with TransactionDetailDialog
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -189,8 +191,8 @@ fun SettlementDetailDialog(
                                 .weight(1f)
                                 .heightIn(min = 48.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = VibrantCyan,
-                                contentColor = MidnightDark
+                                containerColor = AppTheme.colors.primaryAccent,
+                                contentColor = Color.White
                             ),
                             shape = RoundedCornerShape(14.dp),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
@@ -214,7 +216,7 @@ fun SettlementDetailDialog(
                                     .weight(1f)
                                     .heightIn(min = 48.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberGold),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, AmberGold),
+                                border = BorderStroke(1.dp, AmberGold),
                                 shape = RoundedCornerShape(14.dp),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                             ) {
@@ -234,7 +236,7 @@ fun SettlementDetailDialog(
                                 modifier = Modifier
                                     .weight(1f)
                                     .heightIn(min = 48.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldMint, contentColor = MidnightDark),
+                                colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.incomeGreen, contentColor = Color.White),
                                 shape = RoundedCornerShape(14.dp),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                             ) {
@@ -258,7 +260,7 @@ fun SettlementDetailDialog(
                             .fillMaxWidth()
                             .heightIn(min = 48.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralRed),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CoralRed),
+                        border = BorderStroke(1.dp, CoralRed),
                         shape = RoundedCornerShape(14.dp),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
                     ) {
@@ -282,11 +284,11 @@ fun SettlementDetailDialog(
     if (showReverseConfirm) {
         AlertDialog(
             onDismissRequest = { showReverseConfirm = false },
-            title = { Text("Reverse Settlement?", color = TextPrimary) },
+            title = { Text("Reverse Settlement?", color = AppTheme.colors.textPrimary) },
             text = {
                 Text(
                     "Reversing will cancel this settlement payment. Ledger balances with $friendName will be restored to include this amount again.",
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
             },
             confirmButton = {
@@ -302,10 +304,10 @@ fun SettlementDetailDialog(
             },
             dismissButton = {
                 TextButton(onClick = { showReverseConfirm = false }) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
                 }
             },
-            containerColor = CharcoalSurface,
+            containerColor = AppTheme.colors.surfaceElevated,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -314,11 +316,11 @@ fun SettlementDetailDialog(
     if (showUnreverseConfirm) {
         AlertDialog(
             onDismissRequest = { showUnreverseConfirm = false },
-            title = { Text("Convert to Normal?", color = TextPrimary) },
+            title = { Text("Convert to Normal?", color = AppTheme.colors.textPrimary) },
             text = {
                 Text(
                     "This will restore this settlement back to active normal state and recalculate the ledger balances with $friendName.",
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
             },
             confirmButton = {
@@ -329,15 +331,15 @@ fun SettlementDetailDialog(
                         onDismiss()
                     }
                 ) {
-                    Text("Confirm Restore", color = EmeraldMint, fontWeight = FontWeight.Bold)
+                    Text("Confirm Restore", color = AppTheme.colors.incomeGreen, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showUnreverseConfirm = false }) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
                 }
             },
-            containerColor = CharcoalSurface,
+            containerColor = AppTheme.colors.surfaceElevated,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -346,11 +348,11 @@ fun SettlementDetailDialog(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Delete Settlement Record?", color = TextPrimary) },
+            title = { Text("Delete Settlement Record?", color = AppTheme.colors.textPrimary) },
             text = {
                 Text(
                     "Are you sure you want to permanently delete this settlement record? This action cannot be undone.",
-                    color = TextSecondary
+                    color = AppTheme.colors.textSecondary
                 )
             },
             confirmButton = {
@@ -366,10 +368,10 @@ fun SettlementDetailDialog(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("Cancel", color = TextSecondary)
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
                 }
             },
-            containerColor = CharcoalSurface,
+            containerColor = AppTheme.colors.surfaceElevated,
             shape = RoundedCornerShape(20.dp)
         )
     }
@@ -390,13 +392,13 @@ private fun DetailRow(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = TextSecondary,
+            tint = AppTheme.colors.textSecondary,
             modifier = Modifier.size(18.dp)
         )
         Spacer(modifier = Modifier.width(10.dp))
         Column {
-            Text(text = label, style = MaterialTheme.typography.labelSmall, color = TextMuted)
-            Text(text = value, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+            Text(text = label, style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textMuted)
+            Text(text = value, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
         }
     }
 }

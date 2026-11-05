@@ -16,7 +16,7 @@ interface FriendRepository {
     suspend fun updateFriend(friend: Friend)
     suspend fun deleteFriend(friend: Friend)
     suspend fun archiveFriend(id: Long)
-    // ✅ Safe friend lifecycle management
+    // Safe friend lifecycle management
     suspend fun unarchiveFriend(id: Long)
     suspend fun isFriendReferenced(friendId: Long): Boolean
 }
@@ -54,7 +54,7 @@ class FriendRepositoryImpl(
     }
 
     override suspend fun deleteFriend(friend: Friend) {
-        // ✅ Protect against identity collision:
+        // Protect against identity collision:
         // If friend is referenced in transactions or settlements, archive instead of deleting
         // to ensure foreign keys never convert friend to ME (null).
         if (isFriendReferenced(friend.id)) {

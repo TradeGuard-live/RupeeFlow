@@ -45,7 +45,7 @@ data class FriendEntity(
             entity = FriendEntity::class,
             parentColumns = ["id"],
             childColumns = ["paidByFriendId"],
-            onDelete = ForeignKey.RESTRICT // ✅ RESTRICT prevents friend deletion from setting paidByFriendId to NULL (ME)
+            onDelete = ForeignKey.RESTRICT // RESTRICT prevents friend deletion from setting paidByFriendId to NULL (ME)
         ),
         ForeignKey(
             entity = FriendGroupEntity::class,
@@ -98,7 +98,7 @@ data class TransactionEntity(
             entity = FriendEntity::class,
             parentColumns = ["id"],
             childColumns = ["friendId"],
-            onDelete = ForeignKey.RESTRICT // ✅ RESTRICT prevents friend deletion from setting friendId to NULL (ME)
+            onDelete = ForeignKey.RESTRICT // RESTRICT prevents friend deletion from setting friendId to NULL (ME)
         )
     ],
     indices = [
@@ -123,13 +123,13 @@ data class TransactionParticipantEntity(
             entity = FriendEntity::class,
             parentColumns = ["id"],
             childColumns = ["payerId"],
-            onDelete = ForeignKey.RESTRICT // ✅ RESTRICT prevents friend deletion from setting payerId to NULL (ME)
+            onDelete = ForeignKey.RESTRICT // RESTRICT prevents friend deletion from setting payerId to NULL (ME)
         ),
         ForeignKey(
             entity = FriendEntity::class,
             parentColumns = ["id"],
             childColumns = ["receiverId"],
-            onDelete = ForeignKey.RESTRICT // ✅ RESTRICT prevents friend deletion from setting receiverId to NULL (ME)
+            onDelete = ForeignKey.RESTRICT // RESTRICT prevents friend deletion from setting receiverId to NULL (ME)
         )
     ],
     indices = [
@@ -175,7 +175,7 @@ data class PendingTransactionEntity(
     val source: TransactionSource = TransactionSource.SMS
 )
 
-// ✅ Friend Group entities for organizing friends into custom groups
+// Friend Group entities for organizing friends into custom groups
 @Entity(tableName = "friend_groups")
 data class FriendGroupEntity(
     @PrimaryKey(autoGenerate = true)
@@ -216,7 +216,7 @@ data class FriendGroupMemberEntity(
     val addedAt: Long = System.currentTimeMillis()
 )
 
-// ✅ Dynamic smart input ranking entity for adaptive user suggestions
+// Dynamic smart input ranking entity for adaptive user suggestions
 @Entity(
     tableName = "input_usage",
     indices = [Index(value = ["fieldType", "optionId"], unique = true)]

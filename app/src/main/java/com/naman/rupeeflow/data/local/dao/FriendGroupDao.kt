@@ -5,7 +5,7 @@ import com.naman.rupeeflow.data.local.entity.FriendGroupEntity
 import com.naman.rupeeflow.data.local.entity.FriendGroupMemberEntity
 import kotlinx.coroutines.flow.Flow
 
-// ✅ DAO for friend groups and memberships
+// DAO for friend groups and memberships
 @Dao
 interface FriendGroupDao {
 

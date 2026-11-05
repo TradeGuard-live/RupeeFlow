@@ -98,7 +98,7 @@ class FriendsViewModel(
         }
     }
 
-    // ✅ Select group filter (null represents "All Friends") - dynamically updates ledger totals
+    // Select group filter (null represents "All Friends") - dynamically updates ledger totals
     fun selectGroup(groupId: Long?) {
         _uiState.update { current ->
             cachedData?.let { data ->
@@ -198,7 +198,7 @@ class FriendsViewModel(
         }
     }
 
-    // ✅ Group management operations
+    // Group management operations
     fun createGroup(
         name: String,
         iconName: String? = null,
@@ -227,7 +227,7 @@ class FriendsViewModel(
         }
     }
 
-    // ✅ Safe friend deletion & archiving
+    // Safe friend deletion & archiving
     fun deleteFriend(friend: Friend) {
         viewModelScope.launch {
             friendRepository.deleteFriend(friend)
@@ -244,7 +244,7 @@ class FriendsViewModel(
         }
     }
 
-    // ✅ Edit existing settlement
+    // Edit existing settlement
     fun updateSettlement(settlement: Settlement) {
         viewModelScope.launch {
             settlementRepository.updateSettlement(settlement)

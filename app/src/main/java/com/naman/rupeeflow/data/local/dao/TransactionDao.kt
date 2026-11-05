@@ -65,7 +65,7 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE amountPaise = :amountPaise AND transactionDate BETWEEN :startMillis AND :endMillis LIMIT 1")
     suspend fun findDuplicate(amountPaise: Long, startMillis: Long, endMillis: Long): TransactionEntity?
 
-    // ✅ Atomic save/update inside a single Room transaction
+    // Atomic save/update inside a single Room transaction
     // Enforces strict share balance validation, duplicate participant rejection,
     // and safe participant replacement.
     @androidx.room.Transaction

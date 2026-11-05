@@ -21,13 +21,13 @@ android {
             useSupportLibrary = true
         }
 
-        // ✅ Configure Room schema export directory
+        // Configure Room schema export directory
         ksp {
             arg("room.schemaLocation", "$projectDir/schemas")
         }
     }
 
-    // ✅ Industry-grade release signing config with safe fallback to debug keystore for CI/Dev
+    // Industry-grade release signing config with safe fallback to debug keystore for CI/Dev
     signingConfigs {
         create("release") {
             val keystoreFile = System.getenv("KEYSTORE_FILE")?.let { file(it) }
