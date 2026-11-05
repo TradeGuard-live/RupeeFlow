@@ -463,4 +463,52 @@ class DatabaseMigrationTest {
 
         db.close()
     }
+
+    @Test
+    fun testMigration2To4_DirectMigrationPreservesAllExistingRecords() {
+        val context = RuntimeEnvironment.getApplication()
+        val tempDbFile = File.createTempFile("test_migration_2_4", ".db")
+        tempDbFile.deleteOnExit()
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(tempDbFile.absolutePath)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        createV1Schema(db)
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA foreign_keys = ON;")
+
+        insertTestData(db)
+
+        // Migrate to version 2 first
+        RupeeFlowDatabase.MIGRATION_1_2.migrate(db)
+
+        // Direct migration from version 2 to 4
+        RupeeFlowDatabase.MIGRATION_2_4.migrate(db)
+
+        // Verify ALL records survived
+        verifyMigratedData(db)
+
+        // Verify new tables are functional
+        db.execSQL("INSERT INTO friend_groups (id, name, createdAt, updatedAt) VALUES (1, 'Hostel', 6000, 6000)")
+        db.execSQL("INSERT INTO friend_group_members (groupId, friendId, addedAt) VALUES (1, 1, 6000)")
+
+        val groupCursor = db.query("SELECT COUNT(*) FROM friend_groups")
+        assertTrue(groupCursor.moveToFirst())
+        assertEquals(1, groupCursor.getInt(0))
+        groupCursor.close()
+
+        val fkCursor = db.query("PRAGMA foreign_key_check")
+        assertEquals(0, fkCursor.count)
+        fkCursor.close()
+
+        db.close()
+    }
 }

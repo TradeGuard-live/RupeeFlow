@@ -29,14 +29,36 @@ jobs:
       - name: Verify Kotlin & Room Schema Compilation
         run: ./gradlew compileDebugKotlin --no-daemon
 
-      - name: Execute Full Automated Test Suite (175 Tests)
+      - name: Execute Unit & Database Test Suite
         run: ./gradlew testDebugUnitTest --no-daemon
+
+      - name: Generate Automated Test Summary
+        if: always()
+        run: |
+          if [ -d "app/build/test-results/testDebugUnitTest" ]; then
+            TOTAL_TESTS=$(grep -h "testsuite" app/build/test-results/testDebugUnitTest/*.xml | sed -n 's/.*tests="\([0-9]*\)".*/\1/p' | awk '{s+=$1} END {print s}')
+            FAILURES=$(grep -h "testsuite" app/build/test-results/testDebugUnitTest/*.xml | sed -n 's/.*failures="\([0-9]*\)".*/\1/p' | awk '{s+=$1} END {print s}')
+            SKIPPED=$(grep -h "testsuite" app/build/test-results/testDebugUnitTest/*.xml | sed -n 's/.*skipped="\([0-9]*\)".*/\1/p' | awk '{s+=$1} END {print s}')
+            ERRORS=$(grep -h "testsuite" app/build/test-results/testDebugUnitTest/*.xml | sed -n 's/.*errors="\([0-9]*\)".*/\1/p' | awk '{s+=$1} END {print s}')
+            PASSED=$((TOTAL_TESTS - FAILURES - ERRORS - SKIPPED))
+            echo "### 🧪 Automated Test Summary" >> $GITHUB_STEP_SUMMARY
+            echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|---|---:|" >> $GITHUB_STEP_SUMMARY
+            echo "| Total Tests | $TOTAL_TESTS |" >> $GITHUB_STEP_SUMMARY
+            echo "| Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+            echo "| Failed | $FAILURES |" >> $GITHUB_STEP_SUMMARY
+            echo "| Errors | $ERRORS |" >> $GITHUB_STEP_SUMMARY
+            echo "| Skipped | $SKIPPED |" >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Run Android Lint
         run: ./gradlew lintDebug --no-daemon
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon
+
+      - name: Build Production Release APK
+        run: ./gradlew assembleRelease --no-daemon
 
       - name: Build Production Release Bundle (AAB)
         run: ./gradlew bundleRelease --no-daemon
@@ -54,6 +76,13 @@ jobs:
         with:
           name: lint-results
           path: app/build/reports/lint-results-debug.html
+
+      - name: Upload Release APK Artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
 
       - name: Upload Release AAB Artifact
         if: success()
