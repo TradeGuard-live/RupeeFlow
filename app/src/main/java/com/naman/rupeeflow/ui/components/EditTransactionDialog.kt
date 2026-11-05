@@ -93,7 +93,8 @@ fun EditTransactionDialog(
             transaction.participants.mapNotNull { it.friendId }.toSet()
         )
     }
-    var selectedGroupFilterId by remember { mutableStateOf<Long?>(null) }
+    var selectedGroupFilterId by remember { mutableStateOf(transaction.groupId) }
+    var billImagePath by remember { mutableStateOf(transaction.billImagePath) }
     var splitMethod by remember { mutableStateOf(transaction.splitMethod) }
 
     // Participant inputs for Percentage & Custom ₹
@@ -463,52 +464,30 @@ fun EditTransactionDialog(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 11. Paid By (Who paid for the expense)
+            // Attached Bill / Receipt Photo
+            BillAttachmentSection(
+                billImagePath = billImagePath,
+                onImageSelected = { billImagePath = it }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // 11. Paid By (Group-First Payer Selection)
             Text(
                 text = "Paid By",
                 style = MaterialTheme.typography.labelSmall,
                 color = TextSecondary
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // "Me" pill
-                val isMeSelected = selectedPayerId == null
-                Surface(
-                    shape = RoundedCornerShape(20.dp),
-                    color = if (isMeSelected) ElectricBlue.copy(alpha = 0.2f) else CharcoalCard,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isMeSelected) ElectricBlue else GlassBorder),
-                    modifier = Modifier.clickable { selectedPayerId = null }
-                ) {
-                    Text(
-                        text = "Me (Default)",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (isMeSelected) ElectricBlueLight else TextSecondary,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                    )
-                }
-
-                friends.forEach { friend ->
-                    val isSelected = selectedPayerId == friend.id
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = if (isSelected) ElectricBlue.copy(alpha = 0.2f) else CharcoalCard,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSelected) ElectricBlue else GlassBorder),
-                        modifier = Modifier.clickable { selectedPayerId = friend.id }
-                    ) {
-                        Text(
-                            text = friend.name,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isSelected) ElectricBlueLight else TextSecondary,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                        )
-                    }
-                }
-            }
+            GroupFirstFriendSelector(
+                groups = groups,
+                allFriends = friends,
+                selectedGroupId = selectedGroupFilterId,
+                onGroupSelect = { selectedGroupFilterId = it },
+                isMultiSelect = false,
+                selectedPayerId = selectedPayerId,
+                onPayerSelect = { selectedPayerId = it }
+            )
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -548,168 +527,19 @@ fun EditTransactionDialog(
                 if (isSplitEnabled) {
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // ✅ Group Selector for Quick Participant Population
-                    if (groups.isNotEmpty()) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Select from Group",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextSecondary
-                            )
-                            if (selectedGroupFilterId != null) {
-                                Text(
-                                    text = "Group members auto-selected",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = VibrantCyan,
-                                    fontSize = 11.sp
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            val isAllSelected = selectedGroupFilterId == null
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = if (isAllSelected) ElectricBlue.copy(alpha = 0.25f) else CharcoalCard,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, if (isAllSelected) ElectricBlue else GlassBorder),
-                                modifier = Modifier.clickable { selectedGroupFilterId = null }
-                            ) {
-                                Text(
-                                    text = "All Friends (${friends.size})",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (isAllSelected) ElectricBlueLight else TextSecondary,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                )
-                            }
-
-                            groups.forEach { grp ->
-                                val isGrpSelected = selectedGroupFilterId == grp.id
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = if (isGrpSelected) VibrantCyan.copy(alpha = 0.25f) else CharcoalCard,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, if (isGrpSelected) VibrantCyan else GlassBorder),
-                                    modifier = Modifier.clickable {
-                                        selectedGroupFilterId = grp.id
-                                        val memberSet = grp.memberFriendIds.filter { mId -> friends.any { it.id == mId } }.toSet()
-                                        selectedFriendIds = memberSet
-                                    }
-                                ) {
-                                    Text(
-                                        text = "${grp.name} (${grp.memberCount})",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = if (isGrpSelected) VibrantCyan else TextSecondary,
-                                        fontWeight = if (isGrpSelected) FontWeight.Bold else FontWeight.Normal,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-                    }
-
-                    // Participant Count
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Participants (${allParticipantIds.size})",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextSecondary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (isMeIncluded) "You + ${selectedFriendIds.size} friends" else "${selectedFriendIds.size} friends (You excluded)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (allParticipantIds.isNotEmpty()) EmeraldMint else CoralRed,
-                            fontSize = 11.sp
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Checkbox for "Me (You)"
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { isMeIncluded = !isMeIncluded }
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = isMeIncluded,
-                            onCheckedChange = { isMeIncluded = it },
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = VibrantCyan,
-                                uncheckedColor = TextSecondary
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = "Me (You)",
-                                color = if (isMeIncluded) TextPrimary else TextMuted,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = if (isMeIncluded) "Include me in this expense" else "I am OUT of this expense (0 share)",
-                                color = if (isMeIncluded) EmeraldMint else AmberGold,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-
-                    HorizontalDivider(color = GlassBorder.copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 6.dp))
-
-                    // Participant checkboxes for Friends
-                    friends.forEach { friend ->
-                        val isChecked = selectedFriendIds.contains(friend.id)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable {
-                                    selectedFriendIds = if (isChecked) {
-                                        selectedFriendIds - friend.id
-                                    } else {
-                                        selectedFriendIds + friend.id
-                                    }
-                                }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = isChecked,
-                                onCheckedChange = { checked ->
-                                    selectedFriendIds = if (checked) {
-                                        selectedFriendIds + friend.id
-                                    } else {
-                                        selectedFriendIds - friend.id
-                                    }
-                                },
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = VibrantCyan,
-                                    uncheckedColor = TextSecondary
-                                )
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(friend.name, color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
+                    // Group-First Multi-Select Split Selector
+                    GroupFirstFriendSelector(
+                        groups = groups,
+                        allFriends = friends,
+                        selectedGroupId = selectedGroupFilterId,
+                        onGroupSelect = { selectedGroupFilterId = it },
+                        isMultiSelect = true,
+                        selectedFriendIds = selectedFriendIds,
+                        onSelectionChange = { selectedFriendIds = it },
+                        includeMe = isMeIncluded,
+                        onIncludeMeChange = { isMeIncluded = it },
+                        totalPaise = amountPaise
+                    )
 
                     if (allParticipantIds.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(14.dp))
@@ -1097,6 +927,8 @@ fun EditTransactionDialog(
                         transactionType = selectedType,
                         merchantName = merchantName.trim().takeIf { it.isNotBlank() },
                         referenceNumber = referenceNumber.trim().takeIf { it.isNotBlank() },
+                        groupId = selectedGroupFilterId,
+                        billImagePath = billImagePath,
                         updatedAt = System.currentTimeMillis()
                     )
 

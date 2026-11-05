@@ -11,6 +11,7 @@ import com.naman.rupeeflow.domain.model.Friend
 import com.naman.rupeeflow.domain.model.FriendBalanceStatus
 import com.naman.rupeeflow.domain.model.FriendGroup
 import com.naman.rupeeflow.domain.model.Settlement
+import com.naman.rupeeflow.domain.model.Transaction
 import com.naman.rupeeflow.domain.util.SafeMath
 import com.naman.rupeeflow.domain.util.safeSumOf
 import kotlinx.coroutines.flow.*
@@ -39,6 +40,8 @@ class FriendsViewModel(
     private val _uiState = MutableStateFlow(FriendsUiState())
     val uiState: StateFlow<FriendsUiState> = _uiState.asStateFlow()
 
+    private var cachedData: RawLedgerData? = null
+
     init {
         loadFriendsAndGroups()
     }
@@ -51,31 +54,16 @@ class FriendsViewModel(
                 settlementRepository.getAllSettlements(),
                 friendGroupRepository.getAllGroups()
             ) { friends, transactions, settlements, groups ->
-                val friendsWithLedger = LedgerCalculator.computeFriendLedgers(friends, transactions, settlements)
-
-                val activeFriends = friendsWithLedger.filter { !it.isArchived }
-                // ✅ Overflow-protected aggregations
-                val theyOwe = activeFriends.filter { it.netBalancePaise > 0L }.safeSumOf { it.netBalancePaise }
-                val iOwe = activeFriends.filter { it.netBalancePaise < 0L }.safeSumOf { SafeMath.safeAbs(it.netBalancePaise) }
-
-                GroupedLedgerData(friendsWithLedger, groups, theyOwe, iOwe)
+                RawLedgerData(friends, transactions, settlements, groups)
             }.collect { data ->
+                cachedData = data
                 _uiState.update { current ->
-                    val filtered = applyFilters(
-                        friends = data.friends,
-                        groups = data.groups,
+                    recalculateUiState(
+                        current = current,
+                        data = data,
                         selectedGroupId = current.selectedGroupId,
                         query = current.searchQuery,
                         filter = current.filterStatus
-                    )
-                    current.copy(
-                        isLoading = false,
-                        friends = data.friends,
-                        groups = data.groups,
-                        filteredFriends = filtered,
-                        totalTheyOweMePaise = data.theyOwe,
-                        totalIOweThemPaise = data.iOwe,
-                        netBalancePaise = SafeMath.safeSubtract(data.theyOwe, data.iOwe)
                     )
                 }
             }
@@ -84,58 +72,91 @@ class FriendsViewModel(
 
     fun onSearchQueryChanged(query: String) {
         _uiState.update { current ->
-            val filtered = applyFilters(
-                friends = current.friends,
-                groups = current.groups,
-                selectedGroupId = current.selectedGroupId,
-                query = query,
-                filter = current.filterStatus
-            )
-            current.copy(searchQuery = query, filteredFriends = filtered)
+            cachedData?.let { data ->
+                recalculateUiState(
+                    current = current,
+                    data = data,
+                    selectedGroupId = current.selectedGroupId,
+                    query = query,
+                    filter = current.filterStatus
+                )
+            } ?: current.copy(searchQuery = query)
         }
     }
 
     fun onFilterStatusSelected(filter: String) {
         _uiState.update { current ->
-            val filtered = applyFilters(
-                friends = current.friends,
-                groups = current.groups,
-                selectedGroupId = current.selectedGroupId,
-                query = current.searchQuery,
-                filter = filter
-            )
-            current.copy(filterStatus = filter, filteredFriends = filtered)
+            cachedData?.let { data ->
+                recalculateUiState(
+                    current = current,
+                    data = data,
+                    selectedGroupId = current.selectedGroupId,
+                    query = current.searchQuery,
+                    filter = filter
+                )
+            } ?: current.copy(filterStatus = filter)
         }
     }
 
-    // ✅ Select group filter (null represents "All Friends")
+    // ✅ Select group filter (null represents "All Friends") - dynamically updates ledger totals
     fun selectGroup(groupId: Long?) {
         _uiState.update { current ->
-            val filtered = applyFilters(
-                friends = current.friends,
-                groups = current.groups,
-                selectedGroupId = groupId,
-                query = current.searchQuery,
-                filter = current.filterStatus
-            )
-            current.copy(selectedGroupId = groupId, filteredFriends = filtered)
+            cachedData?.let { data ->
+                recalculateUiState(
+                    current = current,
+                    data = data,
+                    selectedGroupId = groupId,
+                    query = current.searchQuery,
+                    filter = current.filterStatus
+                )
+            } ?: current.copy(selectedGroupId = groupId)
         }
+    }
+
+    private fun recalculateUiState(
+        current: FriendsUiState,
+        data: RawLedgerData,
+        selectedGroupId: Long?,
+        query: String,
+        filter: String
+    ): FriendsUiState {
+        val group = if (selectedGroupId != null) data.groups.firstOrNull { it.id == selectedGroupId } else null
+        val groupMemberIds = group?.memberFriendIds?.toSet()
+
+        val ledgerResult = LedgerCalculator.computeGroupLedger(
+            groupId = selectedGroupId,
+            groupMemberIds = groupMemberIds,
+            allFriends = data.friends,
+            transactions = data.transactions,
+            settlements = data.settlements
+        )
+
+        val filtered = applyFilters(
+            friends = ledgerResult.friendsWithLedger,
+            query = query,
+            filter = filter
+        )
+
+        return current.copy(
+            isLoading = false,
+            friends = ledgerResult.friendsWithLedger,
+            groups = data.groups,
+            selectedGroupId = selectedGroupId,
+            filteredFriends = filtered,
+            searchQuery = query,
+            filterStatus = filter,
+            totalTheyOweMePaise = ledgerResult.totalTheyOweMePaise,
+            totalIOweThemPaise = ledgerResult.totalIOweThemPaise,
+            netBalancePaise = ledgerResult.netBalancePaise
+        )
     }
 
     private fun applyFilters(
         friends: List<Friend>,
-        groups: List<FriendGroup>,
-        selectedGroupId: Long?,
         query: String,
         filter: String
     ): List<Friend> {
-        val groupMemberIds = if (selectedGroupId != null) {
-            groups.firstOrNull { it.id == selectedGroupId }?.memberFriendIds?.toSet() ?: emptySet()
-        } else null
-
         return friends.filter { friend ->
-            val matchesGroup = groupMemberIds == null || groupMemberIds.contains(friend.id)
-
             val matchesQuery = query.isBlank() ||
                     friend.name.contains(query, ignoreCase = true) ||
                     (friend.phoneNumber?.contains(query, ignoreCase = true) == true)
@@ -148,17 +169,18 @@ class FriendsViewModel(
                 else -> !friend.isArchived // "ALL" shows all active friends
             }
 
-            matchesGroup && matchesQuery && matchesFilter
+            matchesQuery && matchesFilter
         }
     }
 
-    fun addFriend(name: String, phone: String?, email: String?, notes: String?) {
+    fun addFriend(name: String, phone: String?, email: String?, notes: String?, profileImagePath: String? = null) {
         viewModelScope.launch {
             val friend = Friend(
                 name = name.trim(),
                 phoneNumber = phone?.trim()?.takeIf { it.isNotBlank() },
                 email = email?.trim()?.takeIf { it.isNotBlank() },
-                notes = notes?.trim()?.takeIf { it.isNotBlank() }
+                notes = notes?.trim()?.takeIf { it.isNotBlank() },
+                profileImagePath = profileImagePath
             )
             val newFriendId = friendRepository.addFriend(friend)
 
@@ -170,10 +192,22 @@ class FriendsViewModel(
         }
     }
 
-    // ✅ Group management operations
-    fun createGroup(name: String, iconName: String? = null, colorHex: String? = null, friendIds: List<Long> = emptyList()) {
+    fun updateFriend(friend: Friend) {
         viewModelScope.launch {
-            val newGroupId = friendGroupRepository.createGroup(name, iconName, colorHex, friendIds)
+            friendRepository.updateFriend(friend)
+        }
+    }
+
+    // ✅ Group management operations
+    fun createGroup(
+        name: String,
+        iconName: String? = null,
+        colorHex: String? = null,
+        friendIds: List<Long> = emptyList(),
+        groupImagePath: String? = null
+    ) {
+        viewModelScope.launch {
+            val newGroupId = friendGroupRepository.createGroup(name, iconName, colorHex, friendIds, groupImagePath)
             selectGroup(newGroupId)
         }
     }
@@ -217,10 +251,10 @@ class FriendsViewModel(
         }
     }
 
-    private data class GroupedLedgerData(
+    private data class RawLedgerData(
         val friends: List<Friend>,
-        val groups: List<FriendGroup>,
-        val theyOwe: Long,
-        val iOwe: Long
+        val transactions: List<Transaction>,
+        val settlements: List<Settlement>,
+        val groups: List<FriendGroup>
     )
 }

@@ -122,6 +122,14 @@ class FriendDetailViewModel(
         _uiState.update { it.copy(filterType = filter) }
     }
 
+    fun updateFriendProfileImage(imagePath: String?) {
+        viewModelScope.launch {
+            val currentFriend = _uiState.value.friend ?: return@launch
+            val updated = currentFriend.copy(profileImagePath = imagePath)
+            friendRepository.updateFriend(updated)
+        }
+    }
+
     fun recordSettlement(settlement: Settlement) {
         viewModelScope.launch {
             settlementRepository.recordSettlement(settlement)

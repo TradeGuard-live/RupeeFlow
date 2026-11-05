@@ -1,6 +1,7 @@
 package com.naman.rupeeflow.di
 
 import android.content.Context
+import com.naman.rupeeflow.data.local.ImageStorageManager
 import com.naman.rupeeflow.data.local.RupeeFlowDatabase
 import com.naman.rupeeflow.data.repository.*
 
@@ -14,6 +15,8 @@ interface AppContainer {
     val userPreferencesRepository: UserPreferencesRepository
     val backupRestoreRepository: BackupRestoreRepository
     val friendGroupRepository: FriendGroupRepository
+    val inputRankingRepository: InputRankingRepository
+    val imageStorageManager: ImageStorageManager
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -25,6 +28,13 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     override val friendGroupRepository: FriendGroupRepository by lazy {
         FriendGroupRepositoryImpl(database.friendGroupDao())
     }
+
+    override val inputRankingRepository: InputRankingRepository by lazy {
+        InputRankingRepositoryImpl(database.inputUsageDao())
+    }
+
+    override val imageStorageManager: ImageStorageManager
+        get() = ImageStorageManager
 
     override val categoryRepository: CategoryRepository by lazy {
         CategoryRepositoryImpl(database.categoryDao())

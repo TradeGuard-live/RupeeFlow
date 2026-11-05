@@ -30,7 +30,7 @@ fun AnalyticsScreen(
     val data = state.analyticsData
 
     Scaffold(
-        containerColor = MidnightDark
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier

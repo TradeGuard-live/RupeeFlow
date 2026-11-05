@@ -49,7 +49,7 @@ fun OverviewScreen(
     }
 
     Scaffold(
-        containerColor = MidnightDark,
+        containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showFastAddSheet = true },

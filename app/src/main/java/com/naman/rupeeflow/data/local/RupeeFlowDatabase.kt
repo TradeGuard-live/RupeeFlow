@@ -24,9 +24,10 @@ import java.io.File
         SettlementEntity::class,
         PendingTransactionEntity::class,
         FriendGroupEntity::class,
-        FriendGroupMemberEntity::class
+        FriendGroupMemberEntity::class,
+        InputUsageEntity::class
     ],
-    version = 4, // ✅ Upgraded to version 4 with friend groups & memberships
+    version = 5, // ✅ Upgraded to version 5 with smart inputs, photos & group transactions
     exportSchema = true // ✅ Schema export enabled
 )
 @TypeConverters(Converters::class)
@@ -38,6 +39,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
     abstract fun settlementDao(): SettlementDao
     abstract fun pendingTransactionDao(): PendingTransactionDao
     abstract fun friendGroupDao(): FriendGroupDao
+    abstract fun inputUsageDao(): InputUsageDao
 
     companion object {
         @Volatile
@@ -302,6 +304,59 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
+        // ✅ Migration from version 4 to 5: Add profile/group images, transaction groupId/billImagePath, input_usage table
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Add profileImagePath to friends
+                db.execSQL("ALTER TABLE `friends` ADD COLUMN `profileImagePath` TEXT")
+
+                // 2. Add groupImagePath to friend_groups
+                db.execSQL("ALTER TABLE `friend_groups` ADD COLUMN `groupImagePath` TEXT")
+
+                // 3. Add groupId and billImagePath to transactions
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `groupId` INTEGER REFERENCES `friend_groups`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `billImagePath` TEXT")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_groupId` ON `transactions` (`groupId`)")
+
+                // 4. Create input_usage table for adaptive smart dynamic ranking
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `input_usage` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `fieldType` TEXT NOT NULL,
+                        `optionId` TEXT NOT NULL,
+                        `usageCount` INTEGER NOT NULL,
+                        `lastUsedAt` INTEGER NOT NULL,
+                        `preferenceScore` REAL NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_input_usage_fieldType_optionId` ON `input_usage` (`fieldType`, `optionId`)")
+            }
+        }
+
+        // ✅ Direct migration from version 1 to 5
+        val MIGRATION_1_5 = object : Migration(1, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_1_4.migrate(db)
+                MIGRATION_4_5.migrate(db)
+            }
+        }
+
+        // ✅ Direct migration from version 2 to 5
+        val MIGRATION_2_5 = object : Migration(2, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_2_4.migrate(db)
+                MIGRATION_4_5.migrate(db)
+            }
+        }
+
+        // ✅ Direct migration from version 3 to 5
+        val MIGRATION_3_5 = object : Migration(3, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_3_4.migrate(db)
+                MIGRATION_4_5.migrate(db)
+            }
+        }
+
         // ✅ Automatic safe pre-migration backup procedure
         fun createPreMigrationBackup(context: Context) {
             try {
@@ -325,7 +380,11 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                     RupeeFlowDatabase::class.java,
                     "rupeeflow_database.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3, MIGRATION_3_4, MIGRATION_1_4, MIGRATION_2_4)
+                    .addMigrations(
+                        MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3,
+                        MIGRATION_3_4, MIGRATION_1_4, MIGRATION_2_4,
+                        MIGRATION_4_5, MIGRATION_1_5, MIGRATION_2_5, MIGRATION_3_5
+                    )
                     .addCallback(DatabaseCallback(scope))
                     // ✅ Destructive migration removed! Data preservation guaranteed.
                     .build()

@@ -195,6 +195,8 @@ class TransactionRepositoryImpl(
             source = transaction.source,
             merchantName = transaction.merchantName,
             referenceNumber = transaction.referenceNumber,
+            groupId = transaction.groupId,
+            billImagePath = transaction.billImagePath,
             createdAt = transaction.createdAt,
             updatedAt = transaction.updatedAt
         )
@@ -216,6 +218,8 @@ class TransactionRepositoryImpl(
         source = source,
         merchantName = merchantName,
         referenceNumber = referenceNumber,
+        groupId = groupId,
+        billImagePath = billImagePath,
         createdAt = createdAt,
         updatedAt = System.currentTimeMillis()
     )

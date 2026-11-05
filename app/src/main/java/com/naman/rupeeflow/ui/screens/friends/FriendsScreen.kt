@@ -1,5 +1,10 @@
 package com.naman.rupeeflow.ui.screens.friends
 
+import android.graphics.Bitmap
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -18,18 +23,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.naman.rupeeflow.data.local.ImageStorageManager
 import com.naman.rupeeflow.domain.model.Friend
 import com.naman.rupeeflow.domain.model.FriendGroup
 import com.naman.rupeeflow.domain.util.CurrencyUtils
-import com.naman.rupeeflow.ui.components.FriendItemCard
-import com.naman.rupeeflow.ui.components.MiniStatCard
-import com.naman.rupeeflow.ui.components.SettleUpDialog
+import com.naman.rupeeflow.ui.components.*
 import com.naman.rupeeflow.ui.theme.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,7 +54,7 @@ fun FriendsScreen(
     var settlingFriend by remember { mutableStateOf<Friend?>(null) }
 
     Scaffold(
-        containerColor = MidnightDark,
+        containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddFriendDialog = true },
@@ -189,9 +196,15 @@ fun FriendsScreen(
                         modifier = Modifier.clickable { viewModel.selectGroup(grp.id) }
                     ) {
                         Row(
-                            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                            modifier = Modifier.padding(start = 8.dp, end = 4.dp, top = 3.dp, bottom = 3.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            GroupAvatar(
+                                group = grp,
+                                modifier = Modifier.size(20.dp),
+                                fallbackColor = grpColor
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "${grp.name} (${grp.memberCount})",
                                 style = MaterialTheme.typography.labelSmall,
@@ -365,8 +378,8 @@ fun FriendsScreen(
     if (showAddFriendDialog) {
         AddFriendDialog(
             onDismiss = { showAddFriendDialog = false },
-            onAdd = { name, phone, email, notes ->
-                viewModel.addFriend(name, phone, email, notes)
+            onAdd = { name, phone, email, notes, profileImagePath ->
+                viewModel.addFriend(name, phone, email, notes, profileImagePath)
                 showAddFriendDialog = false
             }
         )
@@ -377,8 +390,8 @@ fun FriendsScreen(
         CreateGroupDialog(
             allFriends = state.friends.filter { !it.isArchived },
             onDismiss = { showCreateGroupDialog = false },
-            onCreate = { name, icon, color, friendIds ->
-                viewModel.createGroup(name, icon, color, friendIds)
+            onCreate = { name, icon, color, friendIds, groupImagePath ->
+                viewModel.createGroup(name, icon, color, friendIds, groupImagePath)
                 showCreateGroupDialog = false
             }
         )
@@ -478,12 +491,26 @@ fun FriendsScreen(
 @Composable
 fun AddFriendDialog(
     onDismiss: () -> Unit,
-    onAdd: (name: String, phone: String?, email: String?, notes: String?) -> Unit
+    onAdd: (name: String, phone: String?, email: String?, notes: String?, profileImagePath: String?) -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
+    var profileImagePath by remember { mutableStateOf<String?>(null) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                val path = ImageStorageManager.saveProfileImage(context, uri)
+                if (path != null) {
+                    profileImagePath = path
+                }
+            }
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -512,7 +539,61 @@ fun AddFriendDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Profile Image Picker
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(bottom = 8.dp),
+                    contentAlignment = Alignment.BottomEnd
+                ) {
+                    val bitmap = rememberBitmapFromPath(profileImagePath)
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap,
+                            contentDescription = "Profile Picture",
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .clickable { galleryLauncher.launch("image/*") },
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .background(ElectricBlue.copy(alpha = 0.2f))
+                                .clickable { galleryLauncher.launch("image/*") },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = null,
+                                tint = ElectricBlueLight,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(VibrantCyan)
+                            .clickable { galleryLauncher.launch("image/*") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Upload Photo",
+                            tint = MidnightDark,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = name,
@@ -570,7 +651,7 @@ fun AddFriendDialog(
                 Button(
                     onClick = {
                         if (name.isNotBlank()) {
-                            onAdd(name, phone, email, notes)
+                            onAdd(name, phone, email, notes, profileImagePath)
                         }
                     },
                     modifier = Modifier
@@ -599,12 +680,26 @@ fun AddFriendDialog(
 fun CreateGroupDialog(
     allFriends: List<Friend>,
     onDismiss: () -> Unit,
-    onCreate: (name: String, icon: String?, color: String?, friendIds: List<Long>) -> Unit
+    onCreate: (name: String, icon: String?, color: String?, friendIds: List<Long>, groupImagePath: String?) -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var groupName by remember { mutableStateOf("") }
     var selectedFriendIds by remember { mutableStateOf(setOf<Long>()) }
     val colors = listOf("#06B6D4", "#3B82F6", "#10B981", "#8B5CF6", "#F59E0B", "#EC4899")
     var selectedColorHex by remember { mutableStateOf(colors.first()) }
+    var groupImagePath by remember { mutableStateOf<String?>(null) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                val path = ImageStorageManager.saveGroupImage(context, uri)
+                if (path != null) {
+                    groupImagePath = path
+                }
+            }
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -636,6 +731,60 @@ fun CreateGroupDialog(
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
+
+                // Group Profile Photo Picker
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(bottom = 8.dp),
+                    contentAlignment = Alignment.BottomEnd
+                ) {
+                    val bitmap = rememberBitmapFromPath(groupImagePath)
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap,
+                            contentDescription = "Group Picture",
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .clickable { galleryLauncher.launch("image/*") },
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .background(VibrantCyan.copy(alpha = 0.2f))
+                                .clickable { galleryLauncher.launch("image/*") },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Groups,
+                                contentDescription = null,
+                                tint = VibrantCyan,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(VibrantCyan)
+                            .clickable { galleryLauncher.launch("image/*") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Upload Photo",
+                            tint = MidnightDark,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = groupName,
@@ -772,7 +921,7 @@ fun CreateGroupDialog(
                 Button(
                     onClick = {
                         if (groupName.isNotBlank()) {
-                            onCreate(groupName, "group", selectedColorHex, selectedFriendIds.toList())
+                            onCreate(groupName, "group", selectedColorHex, selectedFriendIds.toList(), groupImagePath)
                         }
                     },
                     modifier = Modifier
@@ -798,8 +947,22 @@ fun EditGroupDialog(
     onSave: (group: FriendGroup, friendIds: List<Long>) -> Unit,
     onDelete: () -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var groupName by remember { mutableStateOf(group.name) }
     var selectedFriendIds by remember { mutableStateOf(group.memberFriendIds.toSet()) }
+    var groupImagePath by remember { mutableStateOf(group.groupImagePath) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                val path = ImageStorageManager.saveGroupImage(context, uri)
+                if (path != null) {
+                    groupImagePath = path
+                }
+            }
+        }
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -831,6 +994,60 @@ fun EditGroupDialog(
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
+
+                // Group Profile Photo Picker
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(bottom = 8.dp),
+                    contentAlignment = Alignment.BottomEnd
+                ) {
+                    val bitmap = rememberBitmapFromPath(groupImagePath)
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap,
+                            contentDescription = "Group Picture",
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .clickable { galleryLauncher.launch("image/*") },
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .background(VibrantCyan.copy(alpha = 0.2f))
+                                .clickable { galleryLauncher.launch("image/*") },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Groups,
+                                contentDescription = null,
+                                tint = VibrantCyan,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clip(CircleShape)
+                            .background(VibrantCyan)
+                            .clickable { galleryLauncher.launch("image/*") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Upload Photo",
+                            tint = MidnightDark,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = groupName,
@@ -947,7 +1164,7 @@ fun EditGroupDialog(
                     Button(
                         onClick = {
                             if (groupName.isNotBlank()) {
-                                onSave(group.copy(name = groupName.trim()), selectedFriendIds.toList())
+                                onSave(group.copy(name = groupName.trim(), groupImagePath = groupImagePath), selectedFriendIds.toList())
                             }
                         },
                         modifier = Modifier

@@ -46,7 +46,7 @@ fun SettingsScreen(
     var showResetConfirmDialog by remember { mutableStateOf(false) }
 
     Scaffold(
-        containerColor = MidnightDark
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier

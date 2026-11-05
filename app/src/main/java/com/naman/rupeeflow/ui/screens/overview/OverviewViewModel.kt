@@ -39,7 +39,8 @@ class OverviewViewModel(
     private val settlementRepository: SettlementRepository,
     private val pendingTransactionRepository: PendingTransactionRepository,
     private val categoryRepository: CategoryRepository,
-    private val friendGroupRepository: FriendGroupRepository? = null
+    private val friendGroupRepository: FriendGroupRepository? = null,
+    private val inputRankingRepository: InputRankingRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OverviewUiState())
@@ -88,6 +89,10 @@ class OverviewViewModel(
                     .filter { it.netBalancePaise != 0L }
                     .sortedByDescending { kotlin.math.abs(it.netBalancePaise) }
 
+                val rankedCategories = inputRankingRepository?.rankOptions("CATEGORY", bundle.categories) { it.id.toString() } ?: bundle.categories
+                val rankedGroups = inputRankingRepository?.rankOptions("GROUP", groups) { it.id.toString() } ?: groups
+                val rankedFriends = inputRankingRepository?.rankOptions("FRIEND", bundle.friends) { it.id.toString() } ?: bundle.friends
+
                 OverviewUiState(
                     isLoading = false,
                     summary = summary,
@@ -97,9 +102,9 @@ class OverviewViewModel(
                     recentTransactions = recent,
                     friendsWithBalances = outstandingFriends,
                     pendingTransactions = bundle.pendingList,
-                    categories = bundle.categories,
-                    allFriends = bundle.friends,
-                    friendGroups = groups
+                    categories = rankedCategories,
+                    allFriends = rankedFriends,
+                    friendGroups = rankedGroups
                 )
             }.collect { state ->
                 _uiState.value = state
@@ -179,6 +184,22 @@ class OverviewViewModel(
     fun saveTransaction(transaction: Transaction) {
         viewModelScope.launch {
             transactionRepository.saveTransaction(transaction)
+            inputRankingRepository?.let { ranking ->
+                ranking.recordUsage("CATEGORY", transaction.categoryId.toString())
+                ranking.recordUsage("PAYMENT_METHOD", transaction.paymentMethod.name)
+                ranking.recordUsage("TRANSACTION_TYPE", transaction.transactionType.name)
+                if (transaction.groupId != null) {
+                    ranking.recordUsage("GROUP", transaction.groupId.toString())
+                }
+                if (transaction.paidByFriendId != null) {
+                    ranking.recordUsage("FRIEND", transaction.paidByFriendId.toString())
+                }
+                transaction.participants.forEach { part ->
+                    if (part.friendId != null) {
+                        ranking.recordUsage("FRIEND", part.friendId.toString())
+                    }
+                }
+            }
         }
     }
 
@@ -202,6 +223,9 @@ class OverviewViewModel(
 
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
+            if (!transaction.billImagePath.isNullOrBlank()) {
+                com.naman.rupeeflow.data.local.ImageStorageManager.deleteImage(transaction.billImagePath)
+            }
             transactionRepository.deleteTransaction(transaction.id)
         }
     }

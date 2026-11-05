@@ -13,7 +13,13 @@ interface FriendGroupRepository {
     suspend fun getAllGroupsList(): List<FriendGroup>
     suspend fun getGroupById(id: Long): FriendGroup?
     fun getGroupByIdFlow(id: Long): Flow<FriendGroup?>
-    suspend fun createGroup(name: String, iconName: String? = null, colorHex: String? = null, friendIds: List<Long> = emptyList()): Long
+    suspend fun createGroup(
+        name: String,
+        iconName: String? = null,
+        colorHex: String? = null,
+        friendIds: List<Long> = emptyList(),
+        groupImagePath: String? = null
+    ): Long
     suspend fun updateGroup(group: FriendGroup, friendIds: List<Long>? = null)
     suspend fun deleteGroup(groupId: Long)
     suspend fun addFriendToGroup(groupId: Long, friendId: Long)
@@ -68,13 +74,15 @@ class FriendGroupRepositoryImpl(
         name: String,
         iconName: String?,
         colorHex: String?,
-        friendIds: List<Long>
+        friendIds: List<Long>,
+        groupImagePath: String?
     ): Long {
         val now = System.currentTimeMillis()
         val entity = FriendGroupEntity(
             name = name.trim(),
             iconName = iconName,
             colorHex = colorHex,
+            groupImagePath = groupImagePath,
             createdAt = now,
             updatedAt = now
         )
@@ -91,6 +99,7 @@ class FriendGroupRepositoryImpl(
             name = group.name.trim(),
             iconName = group.iconName,
             colorHex = group.colorHex,
+            groupImagePath = group.groupImagePath,
             createdAt = group.createdAt,
             updatedAt = System.currentTimeMillis()
         )
@@ -134,6 +143,7 @@ class FriendGroupRepositoryImpl(
         name = name,
         iconName = iconName,
         colorHex = colorHex,
+        groupImagePath = groupImagePath,
         memberCount = members.size,
         memberFriendIds = members,
         createdAt = createdAt,

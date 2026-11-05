@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.CallMade
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,7 +43,7 @@ fun TransactionItemCard(
     val amountColor = when {
         transaction.isIgnored -> TextMuted
         isIncomeOrRefund -> EmeraldMint
-        else -> TextPrimary
+        else -> CoralRed
     }
 
     RupeeFlowCard(
@@ -138,6 +139,16 @@ fun TransactionItemCard(
                                 color = VibrantCyan
                             )
                         }
+                    }
+
+                    if (!transaction.billImagePath.isNullOrBlank()) {
+                        Text("•", color = TextMuted, fontSize = 10.sp)
+                        Icon(
+                            imageVector = Icons.Default.ReceiptLong,
+                            contentDescription = "Receipt attached",
+                            tint = VibrantCyan,
+                            modifier = Modifier.size(12.dp)
+                        )
                     }
                 }
             }
@@ -236,25 +247,11 @@ fun FriendItemCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Friend Avatar
-            val initials = friend.name.split(" ")
-                .mapNotNull { it.firstOrNull()?.toString() }
-                .take(2)
-                .joinToString("")
-                .uppercase()
-
-            Box(
-                modifier = Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(ElectricBlue.copy(alpha = 0.25f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = initials.ifBlank { "F" },
-                    style = MaterialTheme.typography.titleMedium,
-                    color = ElectricBlueLight
-                )
-            }
+            FriendAvatar(
+                friend = friend,
+                modifier = Modifier.size(46.dp),
+                fallbackColor = ElectricBlue
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 

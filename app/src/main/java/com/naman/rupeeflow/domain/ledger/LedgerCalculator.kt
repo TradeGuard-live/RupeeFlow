@@ -7,6 +7,13 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import kotlin.math.abs
 
+data class GroupLedgerResult(
+    val totalTheyOweMePaise: Long,
+    val totalIOweThemPaise: Long,
+    val netBalancePaise: Long,
+    val friendsWithLedger: List<Friend>
+)
+
 object LedgerCalculator {
 
     /**
@@ -187,6 +194,70 @@ object LedgerCalculator {
                 status = status
             )
         }
+    }
+
+    /**
+     * ✅ Computes ledger summary and individual friend balances scoped to a specific group or consolidated.
+     * When [groupId] is null, calculates consolidated balances across all friends.
+     * When [groupId] is non-null, calculates strictly for members of that group and transactions/settlements in that scope.
+     */
+    fun computeGroupLedger(
+        groupId: Long?,
+        groupMemberIds: Set<Long>?,
+        allFriends: List<Friend>,
+        transactions: List<Transaction>,
+        settlements: List<Settlement>
+    ): GroupLedgerResult {
+        if (groupId == null || groupMemberIds == null) {
+            val friendsWithLedger = computeFriendLedgers(allFriends, transactions, settlements)
+            val activeFriends = friendsWithLedger.filter { !it.isArchived }
+            val theyOwe = activeFriends.filter { it.netBalancePaise > 0L }.safeSumOf { it.netBalancePaise }
+            val iOwe = activeFriends.filter { it.netBalancePaise < 0L }.safeSumOf { SafeMath.safeAbs(it.netBalancePaise) }
+            return GroupLedgerResult(
+                totalTheyOweMePaise = theyOwe,
+                totalIOweThemPaise = iOwe,
+                netBalancePaise = SafeMath.safeSubtract(theyOwe, iOwe),
+                friendsWithLedger = friendsWithLedger
+            )
+        }
+
+        // Specific group selected:
+        // Filter transactions:
+        // If there are transactions explicitly tagged with this groupId, use those.
+        // Otherwise, if no transactions are tagged with this groupId, consider transactions
+        // where groupId is null and participants include group members.
+        // Transactions tagged with a DIFFERENT group are ALWAYS excluded.
+        val hasTaggedTransactions = transactions.any { it.groupId == groupId }
+        val groupTransactions = transactions.filter { txn ->
+            if (hasTaggedTransactions) {
+                txn.groupId == groupId
+            } else {
+                txn.groupId == null && (
+                    txn.participants.any { it.friendId in groupMemberIds } ||
+                    txn.paidByFriendId in groupMemberIds
+                )
+            }
+        }
+
+        // Filter settlements to members of this group
+        val groupSettlements = settlements.filter { s ->
+            (s.payerId in groupMemberIds) || (s.receiverId in groupMemberIds)
+        }
+
+        // Filter friends to group members
+        val memberFriends = allFriends.filter { it.id in groupMemberIds }
+        val groupFriendsWithLedger = computeFriendLedgers(memberFriends, groupTransactions, groupSettlements)
+
+        val activeGroupFriends = groupFriendsWithLedger.filter { !it.isArchived }
+        val theyOwe = activeGroupFriends.filter { it.netBalancePaise > 0L }.safeSumOf { it.netBalancePaise }
+        val iOwe = activeGroupFriends.filter { it.netBalancePaise < 0L }.safeSumOf { SafeMath.safeAbs(it.netBalancePaise) }
+
+        return GroupLedgerResult(
+            totalTheyOweMePaise = theyOwe,
+            totalIOweThemPaise = iOwe,
+            netBalancePaise = SafeMath.safeSubtract(theyOwe, iOwe),
+            friendsWithLedger = groupFriendsWithLedger
+        )
     }
 
     /**

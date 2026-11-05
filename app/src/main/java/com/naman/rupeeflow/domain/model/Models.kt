@@ -6,6 +6,7 @@ data class Friend(
     val phoneNumber: String? = null,
     val email: String? = null,
     val notes: String? = null,
+    val profileImagePath: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val isArchived: Boolean = false,
     // Dynamically computed ledger metrics
@@ -30,6 +31,7 @@ data class FriendGroup(
     val name: String,
     val iconName: String? = null,
     val colorHex: String? = null,
+    val groupImagePath: String? = null,
     val memberCount: Int = 0,
     val memberFriendIds: List<Long> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
@@ -65,6 +67,8 @@ data class Transaction(
     val source: TransactionSource = TransactionSource.MANUAL,
     val merchantName: String? = null,
     val referenceNumber: String? = null,
+    val groupId: Long? = null,
+    val billImagePath: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 ) {
@@ -161,4 +165,14 @@ data class AnalyticsData(
     val dailySpendingTrend: List<DailySpending> = emptyList(),
     val previousPeriodSpentPaise: Long = 0,
     val percentageChangeVsPrevious: Float = 0f
+)
+
+// ✅ Dynamic input ranking model
+data class InputUsage(
+    val id: Long = 0,
+    val fieldType: String,
+    val optionId: String,
+    val usageCount: Long = 1,
+    val lastUsedAt: Long = System.currentTimeMillis(),
+    val preferenceScore: Double = 0.0
 )

@@ -85,6 +85,7 @@ class FriendRepositoryImpl(
         phoneNumber = phoneNumber,
         email = email,
         notes = notes,
+        profileImagePath = profileImagePath,
         createdAt = createdAt,
         isArchived = isArchived
     )
@@ -95,6 +96,7 @@ class FriendRepositoryImpl(
         phoneNumber = phoneNumber,
         email = email,
         notes = notes,
+        profileImagePath = profileImagePath,
         createdAt = createdAt,
         isArchived = isArchived
     )

@@ -511,4 +511,107 @@ class DatabaseMigrationTest {
 
         db.close()
     }
+
+    @Test
+    fun testMigration4To5_AddsGroupAndBillImageAndInputUsage() {
+        val context = RuntimeEnvironment.getApplication()
+        val tempDbFile = File.createTempFile("test_migration_4_5", ".db")
+        tempDbFile.deleteOnExit()
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(tempDbFile.absolutePath)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        createV1Schema(db)
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA foreign_keys = ON;")
+
+        insertTestData(db)
+
+        // Step up to version 4
+        RupeeFlowDatabase.MIGRATION_1_2.migrate(db)
+        RupeeFlowDatabase.MIGRATION_2_3.migrate(db)
+        RupeeFlowDatabase.MIGRATION_3_4.migrate(db)
+
+        // Now migrate 4 -> 5
+        RupeeFlowDatabase.MIGRATION_4_5.migrate(db)
+
+        // Verify data preserved
+        verifyMigratedData(db)
+
+        // Verify new columns and input_usage table
+        db.execSQL("UPDATE friends SET profileImagePath = '/data/profiles/friend1.jpg' WHERE id = 1")
+        val friendCursor = db.query("SELECT profileImagePath FROM friends WHERE id = 1")
+        assertTrue(friendCursor.moveToFirst())
+        assertEquals("/data/profiles/friend1.jpg", friendCursor.getString(0))
+        friendCursor.close()
+
+        db.execSQL("INSERT INTO friend_groups (id, name, createdAt, updatedAt, groupImagePath) VALUES (10, 'Trip', 7000, 7000, '/data/groups/trip.jpg')")
+        val grpCursor = db.query("SELECT groupImagePath FROM friend_groups WHERE id = 10")
+        assertTrue(grpCursor.moveToFirst())
+        assertEquals("/data/groups/trip.jpg", grpCursor.getString(0))
+        grpCursor.close()
+
+        db.execSQL("UPDATE transactions SET groupId = 10, billImagePath = '/data/bills/bill1.jpg' WHERE id = 1")
+        val txnCursor = db.query("SELECT groupId, billImagePath FROM transactions WHERE id = 1")
+        assertTrue(txnCursor.moveToFirst())
+        assertEquals(10L, txnCursor.getLong(0))
+        assertEquals("/data/bills/bill1.jpg", txnCursor.getString(1))
+        txnCursor.close()
+
+        // Verify input_usage table
+        db.execSQL("INSERT INTO input_usage (fieldType, optionId, usageCount, lastUsedAt, preferenceScore) VALUES ('CATEGORY', '1', 5, 10000, 0.0)")
+        val usageCursor = db.query("SELECT usageCount FROM input_usage WHERE fieldType = 'CATEGORY' AND optionId = '1'")
+        assertTrue(usageCursor.moveToFirst())
+        assertEquals(5, usageCursor.getInt(0))
+        usageCursor.close()
+
+        val fkCursor = db.query("PRAGMA foreign_key_check")
+        assertEquals(0, fkCursor.count)
+        fkCursor.close()
+
+        db.close()
+    }
+
+    @Test
+    fun testMigration1To5_DirectMigrationPreservesAllExistingRecords() {
+        val context = RuntimeEnvironment.getApplication()
+        val tempDbFile = File.createTempFile("test_migration_1_5", ".db")
+        tempDbFile.deleteOnExit()
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(tempDbFile.absolutePath)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        createV1Schema(db)
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA foreign_keys = ON;")
+
+        insertTestData(db)
+
+        // Direct migration from version 1 to 5
+        RupeeFlowDatabase.MIGRATION_1_5.migrate(db)
+
+        verifyMigratedData(db)
+
+        val fkCursor = db.query("PRAGMA foreign_key_check")
+        assertEquals(0, fkCursor.count)
+        fkCursor.close()
+
+        db.close()
+    }
 }

@@ -27,6 +27,7 @@ data class FriendEntity(
     val phoneNumber: String? = null,
     val email: String? = null,
     val notes: String? = null,
+    val profileImagePath: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val isArchived: Boolean = false
 )
@@ -45,11 +46,18 @@ data class FriendEntity(
             parentColumns = ["id"],
             childColumns = ["paidByFriendId"],
             onDelete = ForeignKey.RESTRICT // ✅ RESTRICT prevents friend deletion from setting paidByFriendId to NULL (ME)
+        ),
+        ForeignKey(
+            entity = FriendGroupEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["groupId"],
+            onDelete = ForeignKey.SET_NULL
         )
     ],
     indices = [
         Index(value = ["categoryId"]),
         Index(value = ["paidByFriendId"]),
+        Index(value = ["groupId"]),
         Index(value = ["transactionDate"]),
         Index(value = ["transactionStatus"])
     ]
@@ -71,6 +79,8 @@ data class TransactionEntity(
     val source: TransactionSource = TransactionSource.MANUAL,
     val merchantName: String? = null,
     val referenceNumber: String? = null,
+    val groupId: Long? = null,
+    val billImagePath: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )
@@ -173,6 +183,7 @@ data class FriendGroupEntity(
     val name: String,
     val iconName: String? = null,
     val colorHex: String? = null,
+    val groupImagePath: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )
@@ -203,4 +214,19 @@ data class FriendGroupMemberEntity(
     val groupId: Long,
     val friendId: Long,
     val addedAt: Long = System.currentTimeMillis()
+)
+
+// ✅ Dynamic smart input ranking entity for adaptive user suggestions
+@Entity(
+    tableName = "input_usage",
+    indices = [Index(value = ["fieldType", "optionId"], unique = true)]
+)
+data class InputUsageEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val fieldType: String,
+    val optionId: String,
+    val usageCount: Long = 1,
+    val lastUsedAt: Long = System.currentTimeMillis(),
+    val preferenceScore: Double = 0.0
 )

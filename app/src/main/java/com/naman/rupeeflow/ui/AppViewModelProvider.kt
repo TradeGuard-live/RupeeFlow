@@ -23,7 +23,8 @@ object AppViewModelProvider {
                 settlementRepository = app.appContainer.settlementRepository,
                 pendingTransactionRepository = app.appContainer.pendingTransactionRepository,
                 categoryRepository = app.appContainer.categoryRepository,
-                friendGroupRepository = app.appContainer.friendGroupRepository
+                friendGroupRepository = app.appContainer.friendGroupRepository,
+                inputRankingRepository = app.appContainer.inputRankingRepository
             )
         }
         initializer {
@@ -33,7 +34,8 @@ object AppViewModelProvider {
                 categoryRepository = app.appContainer.categoryRepository,
                 friendRepository = app.appContainer.friendRepository,
                 settlementRepository = app.appContainer.settlementRepository,
-                friendGroupRepository = app.appContainer.friendGroupRepository
+                friendGroupRepository = app.appContainer.friendGroupRepository,
+                inputRankingRepository = app.appContainer.inputRankingRepository
             )
         }
         initializer {

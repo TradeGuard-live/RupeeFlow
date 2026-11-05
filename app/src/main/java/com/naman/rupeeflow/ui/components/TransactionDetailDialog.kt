@@ -1,6 +1,9 @@
 package com.naman.rupeeflow.ui.components
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -13,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -143,6 +147,77 @@ fun TransactionDetailDialog(
                     }
                     DetailRow("Source", transaction.source.name)
                     DetailRow("Status", transaction.transactionStatus.name)
+                }
+
+                // Attached Bill / Receipt Photo Preview
+                if (!transaction.billImagePath.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Attached Bill / Receipt",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    var showFullscreenReceipt by remember { mutableStateOf(false) }
+                    val receiptBitmap = rememberBitmapFromPath(transaction.billImagePath)
+
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = CharcoalCard,
+                        border = BorderStroke(1.dp, GlassBorder),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showFullscreenReceipt = true }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (receiptBitmap != null) {
+                                Image(
+                                    bitmap = receiptBitmap,
+                                    contentDescription = "Receipt Preview",
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(8.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(CharcoalSurface),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.ReceiptLong, contentDescription = null, tint = VibrantCyan)
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "View Attached Receipt",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Tap to view in fullscreen with zoom",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = VibrantCyan
+                                )
+                            }
+                            Icon(Icons.Default.ZoomIn, contentDescription = null, tint = TextSecondary)
+                        }
+                    }
+
+                    if (showFullscreenReceipt) {
+                        FullScreenReceiptDialog(
+                            imagePath = transaction.billImagePath,
+                            title = "${transaction.title} - Receipt",
+                            onDismiss = { showFullscreenReceipt = false }
+                        )
+                    }
                 }
 
                 // Participants / Split breakdown

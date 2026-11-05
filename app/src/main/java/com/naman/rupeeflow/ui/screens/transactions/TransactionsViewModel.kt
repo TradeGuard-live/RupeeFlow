@@ -2,11 +2,7 @@ package com.naman.rupeeflow.ui.screens.transactions
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.naman.rupeeflow.data.repository.CategoryRepository
-import com.naman.rupeeflow.data.repository.FriendGroupRepository
-import com.naman.rupeeflow.data.repository.FriendRepository
-import com.naman.rupeeflow.data.repository.SettlementRepository
-import com.naman.rupeeflow.data.repository.TransactionRepository
+import com.naman.rupeeflow.data.repository.*
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.DateTimeUtils
 import kotlinx.coroutines.flow.*
@@ -32,7 +28,8 @@ class TransactionsViewModel(
     private val categoryRepository: CategoryRepository,
     private val friendRepository: FriendRepository,
     private val settlementRepository: SettlementRepository,
-    private val friendGroupRepository: FriendGroupRepository? = null
+    private val friendGroupRepository: FriendGroupRepository? = null,
+    private val inputRankingRepository: InputRankingRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TransactionsUiState())
@@ -62,13 +59,17 @@ class TransactionsViewModel(
                         methodFilter = current.selectedPaymentMethodFilter,
                         categoryFilter = current.selectedCategoryFilter
                     )
+                    val rankedCategories = inputRankingRepository?.rankOptions("CATEGORY", bundle.categories) { it.id.toString() } ?: bundle.categories
+                    val rankedGroups = inputRankingRepository?.rankOptions("GROUP", bundle.groups) { it.id.toString() } ?: bundle.groups
+                    val rankedFriends = inputRankingRepository?.rankOptions("FRIEND", bundle.friends) { it.id.toString() } ?: bundle.friends
+
                     current.copy(
                         isLoading = false,
                         allTransactions = bundle.txns,
                         filteredTransactions = filtered,
-                        categories = bundle.categories,
-                        friends = bundle.friends,
-                        friendGroups = bundle.groups
+                        categories = rankedCategories,
+                        friends = rankedFriends,
+                        friendGroups = rankedGroups
                     )
                 }
             }
@@ -206,6 +207,22 @@ class TransactionsViewModel(
     fun saveTransaction(transaction: Transaction) {
         viewModelScope.launch {
             transactionRepository.saveTransaction(transaction)
+            inputRankingRepository?.let { ranking ->
+                ranking.recordUsage("CATEGORY", transaction.categoryId.toString())
+                ranking.recordUsage("PAYMENT_METHOD", transaction.paymentMethod.name)
+                ranking.recordUsage("TRANSACTION_TYPE", transaction.transactionType.name)
+                if (transaction.groupId != null) {
+                    ranking.recordUsage("GROUP", transaction.groupId.toString())
+                }
+                if (transaction.paidByFriendId != null) {
+                    ranking.recordUsage("FRIEND", transaction.paidByFriendId.toString())
+                }
+                transaction.participants.forEach { part ->
+                    if (part.friendId != null) {
+                        ranking.recordUsage("FRIEND", part.friendId.toString())
+                    }
+                }
+            }
         }
     }
 
@@ -235,6 +252,9 @@ class TransactionsViewModel(
 
     fun deleteTransaction(transaction: Transaction) {
         viewModelScope.launch {
+            if (!transaction.billImagePath.isNullOrBlank()) {
+                com.naman.rupeeflow.data.local.ImageStorageManager.deleteImage(transaction.billImagePath)
+            }
             transactionRepository.deleteTransaction(transaction.id)
         }
     }

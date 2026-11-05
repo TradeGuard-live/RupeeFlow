@@ -36,7 +36,7 @@ fun TransactionsScreen(
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
 
     Scaffold(
-        containerColor = MidnightDark,
+        containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showFastAddSheet = true },

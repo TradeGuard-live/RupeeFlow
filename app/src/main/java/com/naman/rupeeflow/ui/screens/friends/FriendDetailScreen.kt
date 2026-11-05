@@ -1,5 +1,10 @@
 package com.naman.rupeeflow.ui.screens.friends
 
+import android.graphics.Bitmap
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,10 +19,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.naman.rupeeflow.data.local.ImageStorageManager
 import com.naman.rupeeflow.domain.model.FriendBalanceStatus
 import com.naman.rupeeflow.domain.model.Settlement
 import com.naman.rupeeflow.domain.model.Transaction
@@ -25,6 +32,7 @@ import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
 import com.naman.rupeeflow.ui.components.*
 import com.naman.rupeeflow.ui.theme.*
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -107,10 +115,10 @@ fun FriendDetailScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MidnightDark)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
-        containerColor = MidnightDark
+        containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
         if (friend == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -126,6 +134,84 @@ fun FriendDetailScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Profile & Avatar Card
+            item {
+                val context = LocalContext.current
+                val scope = rememberCoroutineScope()
+                val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+                    if (uri != null) {
+                        scope.launch {
+                            val path = ImageStorageManager.saveProfileImage(context, uri)
+                            if (path != null) {
+                                viewModel.updateFriendProfileImage(path)
+                            }
+                        }
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = CharcoalCard,
+                    border = BorderStroke(1.dp, GlassBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(contentAlignment = Alignment.BottomEnd) {
+                            FriendAvatar(
+                                friend = friend,
+                                modifier = Modifier.size(60.dp),
+                                fallbackColor = ElectricBlue
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .clip(CircleShape)
+                                    .background(VibrantCyan)
+                                    .clickable { galleryLauncher.launch("image/*") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CameraAlt,
+                                    contentDescription = "Change profile picture",
+                                    tint = MidnightDark,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(16.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = friend.name,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = TextPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (!friend.phoneNumber.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = friend.phoneNumber,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSecondary
+                                )
+                            }
+                            if (!friend.email.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = friend.email,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMuted
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Hero Balance Card
             item {
                 val (bannerText, bannerColor, bannerIcon) = when (friend.status) {
