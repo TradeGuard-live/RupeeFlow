@@ -24,6 +24,18 @@ data class Category(
     val isDefault: Boolean = false
 )
 
+// ✅ Friend Group domain model for organizing friends and group splitting
+data class FriendGroup(
+    val id: Long = 0,
+    val name: String,
+    val iconName: String? = null,
+    val colorHex: String? = null,
+    val memberCount: Int = 0,
+    val memberFriendIds: List<Long> = emptyList(),
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
 data class TransactionParticipant(
     val id: Long = 0,
     val transactionId: Long = 0,

@@ -113,11 +113,13 @@ class DatabaseAndMigrationQATest {
         val friendDao = db.friendDao()
         val txnDao = db.transactionDao()
         val settlementDao = db.settlementDao()
+        val groupDao = db.friendGroupDao()
 
         assertNotNull(catDao)
         assertNotNull(friendDao)
         assertNotNull(txnDao)
         assertNotNull(settlementDao)
+        assertNotNull(groupDao)
 
         val cursor = db.openHelper.readableDatabase.query("SELECT name FROM sqlite_master WHERE type='table'")
         val tableNames = mutableListOf<String>()
@@ -132,6 +134,8 @@ class DatabaseAndMigrationQATest {
         assertTrue(tableNames.contains("transaction_participants"))
         assertTrue(tableNames.contains("settlements"))
         assertTrue(tableNames.contains("pending_transactions"))
+        assertTrue(tableNames.contains("friend_groups"))
+        assertTrue(tableNames.contains("friend_group_members"))
 
         db.close()
     }
@@ -199,14 +203,19 @@ class DatabaseAndMigrationQATest {
         db.execSQL("INSERT INTO transaction_participants (id, transactionId, friendId, shareAmountPaise, percentage, splitMethod) VALUES (1, 1, 101, 30000, 50.0, 'EQUAL')")
         db.execSQL("INSERT INTO transaction_participants (id, transactionId, friendId, shareAmountPaise, percentage, splitMethod) VALUES (2, 1, null, 30000, 50.0, 'EQUAL')")
 
-        // Sequential upgrade: v1 -> v2 -> v3
+        // Sequential upgrade: v1 -> v2 -> v3 -> v4
         RupeeFlowDatabase.MIGRATION_1_2.migrate(db)
         RupeeFlowDatabase.MIGRATION_2_3.migrate(db)
+        RupeeFlowDatabase.MIGRATION_3_4.migrate(db)
 
         // Expected: All records preserved
         val partCursor = db.query("SELECT * FROM transaction_participants")
         assertEquals(2, partCursor.count)
         partCursor.close()
+
+        val groupCursor = db.query("SELECT * FROM friend_groups")
+        assertNotNull(groupCursor)
+        groupCursor.close()
 
         val fkCheck = db.query("PRAGMA foreign_key_check")
         assertEquals(0, fkCheck.count)

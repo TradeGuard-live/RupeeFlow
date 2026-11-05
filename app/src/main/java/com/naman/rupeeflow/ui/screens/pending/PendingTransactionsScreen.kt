@@ -268,6 +268,7 @@ fun PendingTransactionsScreen(
         FastAddExpenseSheet(
             categories = state.categories,
             friends = state.friends,
+            groups = state.friendGroups,
             onDismiss = { selectedDetectedForAdd = null },
             initialAmountPaise = item.detectedAmountPaise,
             initialTitle = item.detectedMerchant ?: item.detectedBank,

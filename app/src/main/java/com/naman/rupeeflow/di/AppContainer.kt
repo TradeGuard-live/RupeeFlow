@@ -13,12 +13,17 @@ interface AppContainer {
     val pendingTransactionRepository: PendingTransactionRepository
     val userPreferencesRepository: UserPreferencesRepository
     val backupRestoreRepository: BackupRestoreRepository
+    val friendGroupRepository: FriendGroupRepository
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val database: RupeeFlowDatabase by lazy {
         RupeeFlowDatabase.getDatabase(context)
+    }
+
+    override val friendGroupRepository: FriendGroupRepository by lazy {
+        FriendGroupRepositoryImpl(database.friendGroupDao())
     }
 
     override val categoryRepository: CategoryRepository by lazy {

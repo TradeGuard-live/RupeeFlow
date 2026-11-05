@@ -9,12 +9,14 @@ import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.CallMade
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -142,30 +144,50 @@ fun TransactionItemCard(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Amount
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "$amountPrefix${CurrencyUtils.formatPaiseToRupees(transaction.amountPaise)}",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = amountColor,
-                    textDecoration = if (transaction.isIgnored) TextDecoration.LineThrough else null
-                )
-
-                if (transaction.isSplit && transaction.transactionType == com.naman.rupeeflow.domain.model.TransactionType.EXPENSE) {
+            // ✅ Amount Column with Reversed Hierarchy for Split Transactions
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.Center
+            ) {
+                if (transaction.isSplit && transaction.transactionType == TransactionType.EXPENSE) {
+                    // Upper: Your share prominent, larger, and bold
                     Text(
                         text = "Your share: ${CurrencyUtils.formatPaiseToRupees(transaction.userExpensePaise)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = VibrantCyan,
-                        fontSize = 11.sp
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (transaction.isIgnored) TextMuted else VibrantCyan,
+                        textDecoration = if (transaction.isIgnored) TextDecoration.LineThrough else null
                     )
-                }
 
-                if (transaction.isSplit && transaction.paidByFriendId != null) {
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    // Lower: Total transaction amount smaller, secondary text
                     Text(
-                        text = "Paid by ${transaction.paidByName}",
+                        text = "Total amount: ${CurrencyUtils.formatPaiseToRupees(transaction.amountPaise)}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = TextMuted,
-                        fontSize = 10.sp
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        textDecoration = if (transaction.isIgnored) TextDecoration.LineThrough else null
+                    )
+
+                    if (transaction.paidByFriendId != null) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Paid by ${transaction.paidByName}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted,
+                            fontSize = 10.sp
+                        )
+                    }
+                } else {
+                    // For non-split transactions, income, refunds, transfers:
+                    // Total amount displayed prominently with no misleading split share
+                    Text(
+                        text = "$amountPrefix${CurrencyUtils.formatPaiseToRupees(transaction.amountPaise)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = amountColor,
+                        textDecoration = if (transaction.isIgnored) TextDecoration.LineThrough else null
                     )
                 }
             }
@@ -177,11 +199,16 @@ fun TransactionItemCard(
 fun FriendItemCard(
     friend: Friend,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
+    // ✅ Strict Color Rules:
+    // Green (EmeraldMint) = Money owed to me (They owe you)
+    // Red (CoralRed) = Money I owe (You owe)
+    // Neutral (TextSecondary) = Zero balance (All settled up)
     val (statusText, statusColor, statusBg) = when (friend.status) {
         FriendBalanceStatus.THEY_OWE_ME -> Triple(
-            "Owes you ${CurrencyUtils.formatPaiseToRupees(friend.totalTheyOweMePaise)}",
+            "They owe you ${CurrencyUtils.formatPaiseToRupees(friend.totalTheyOweMePaise)}",
             EmeraldMint,
             EmeraldMint.copy(alpha = 0.15f)
         )
@@ -191,11 +218,13 @@ fun FriendItemCard(
             CoralRed.copy(alpha = 0.15f)
         )
         FriendBalanceStatus.SETTLED -> Triple(
-            "Settled up",
+            "All settled up",
             TextSecondary,
             CharcoalCard
         )
     }
+
+    var showMenu by remember { mutableStateOf(false) }
 
     RupeeFlowCard(
         modifier = modifier.fillMaxWidth(),
@@ -275,6 +304,34 @@ fun FriendItemCard(
                         style = MaterialTheme.typography.labelSmall,
                         color = statusColor
                     )
+                }
+            }
+
+            if (onDelete != null) {
+                Box {
+                    IconButton(
+                        onClick = { showMenu = true },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "Options",
+                            tint = TextMuted,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Delete Friend", color = CoralRed) },
+                            onClick = {
+                                showMenu = false
+                                onDelete()
+                            }
+                        )
+                    }
                 }
             }
         }

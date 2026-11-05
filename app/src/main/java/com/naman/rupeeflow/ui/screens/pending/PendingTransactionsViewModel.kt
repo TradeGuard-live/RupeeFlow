@@ -3,6 +3,7 @@ package com.naman.rupeeflow.ui.screens.pending
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.naman.rupeeflow.data.repository.CategoryRepository
+import com.naman.rupeeflow.data.repository.FriendGroupRepository
 import com.naman.rupeeflow.data.repository.FriendRepository
 import com.naman.rupeeflow.data.repository.PendingTransactionRepository
 import com.naman.rupeeflow.data.repository.SettlementRepository
@@ -15,7 +16,8 @@ data class PendingUiState(
     val isLoading: Boolean = true,
     val allDetectedTransactions: List<PendingTransaction> = emptyList(),
     val categories: List<Category> = emptyList(),
-    val friends: List<Friend> = emptyList()
+    val friends: List<Friend> = emptyList(),
+    val friendGroups: List<FriendGroup> = emptyList()
 ) {
     val pendingTransactions: List<PendingTransaction>
         get() = allDetectedTransactions.filter { it.status == PendingStatus.PENDING }
@@ -29,7 +31,8 @@ class PendingTransactionsViewModel(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
     private val friendRepository: FriendRepository,
-    private val settlementRepository: SettlementRepository
+    private val settlementRepository: SettlementRepository,
+    private val friendGroupRepository: FriendGroupRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PendingUiState())
@@ -41,16 +44,19 @@ class PendingTransactionsViewModel(
 
     private fun loadPending() {
         viewModelScope.launch {
+            val groupsFlow = friendGroupRepository?.getAllGroups() ?: flowOf(emptyList())
             combine(
                 pendingTransactionRepository.getAllDetectedTransactions(),
                 categoryRepository.getAllCategories(),
-                friendRepository.getActiveFriends()
-            ) { detectedList, categories, friends ->
+                friendRepository.getActiveFriends(),
+                groupsFlow
+            ) { detectedList, categories, friends, groups ->
                 PendingUiState(
                     isLoading = false,
                     allDetectedTransactions = detectedList,
                     categories = categories,
-                    friends = friends
+                    friends = friends,
+                    friendGroups = groups
                 )
             }.collect { state ->
                 _uiState.value = state

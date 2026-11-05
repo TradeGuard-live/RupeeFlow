@@ -164,7 +164,11 @@ fun FriendDetailScreen(
                         .height(52.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (friend.status == FriendBalanceStatus.THEY_OWE_ME) EmeraldMint else ElectricBlue,
+                        containerColor = when (friend.status) {
+                            FriendBalanceStatus.THEY_OWE_ME -> EmeraldMint
+                            FriendBalanceStatus.I_OWE_THEM -> CoralRed
+                            FriendBalanceStatus.SETTLED -> ElectricBlue
+                        },
                         contentColor = MidnightDark
                     )
                 ) {
@@ -475,6 +479,7 @@ fun FriendDetailScreen(
             transaction = txn,
             categories = state.categories,
             friends = state.allFriends.ifEmpty { listOfNotNull(friend) },
+            groups = state.friendGroups,
             onDismiss = { editingTransaction = null },
             onSave = { updated -> viewModel.saveTransaction(updated) }
         )

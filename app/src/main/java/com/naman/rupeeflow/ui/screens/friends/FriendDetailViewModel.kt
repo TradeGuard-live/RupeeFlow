@@ -3,6 +3,7 @@ package com.naman.rupeeflow.ui.screens.friends
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.naman.rupeeflow.data.repository.CategoryRepository
+import com.naman.rupeeflow.data.repository.FriendGroupRepository
 import com.naman.rupeeflow.data.repository.FriendRepository
 import com.naman.rupeeflow.data.repository.SettlementRepository
 import com.naman.rupeeflow.data.repository.TransactionRepository
@@ -22,7 +23,8 @@ data class FriendDetailUiState(
     val remainingBalancePaise: Long = 0L,
     val filterType: String = "ALL", // "ALL", "EXPENSES", "SETTLEMENTS"
     val allFriends: List<Friend> = emptyList(),
-    val categories: List<Category> = emptyList()
+    val categories: List<Category> = emptyList(),
+    val friendGroups: List<FriendGroup> = emptyList()
 )
 
 class FriendDetailViewModel(
@@ -30,7 +32,8 @@ class FriendDetailViewModel(
     private val friendRepository: FriendRepository,
     private val transactionRepository: TransactionRepository,
     private val settlementRepository: SettlementRepository,
-    private val categoryRepository: CategoryRepository? = null
+    private val categoryRepository: CategoryRepository? = null,
+    private val friendGroupRepository: FriendGroupRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FriendDetailUiState())
@@ -43,21 +46,27 @@ class FriendDetailViewModel(
     private fun loadFriendDetails() {
         viewModelScope.launch {
             val categoriesFlow = categoryRepository?.getAllCategories() ?: flowOf(emptyList())
-            combine(
+            val groupsFlow = friendGroupRepository?.getAllGroups() ?: flowOf(emptyList())
+
+            val baseFlow = combine(
                 friendRepository.getFriendByIdFlow(friendId),
                 transactionRepository.getAllTransactions(),
                 settlementRepository.getSettlementsForFriend(friendId),
                 friendRepository.getAllFriends(),
                 categoriesFlow
             ) { rawFriend, allTxns, settlements, allFriends, categories ->
-                if (rawFriend == null) return@combine null
+                FriendBaseData(rawFriend, allTxns, settlements, allFriends, categories)
+            }
+
+            combine(baseFlow, groupsFlow) { data, groups ->
+                val rawFriend = data.rawFriend ?: return@combine null
 
                 // Compute ledger for this friend
-                val friendsWithLedger = LedgerCalculator.computeFriendLedgers(listOf(rawFriend), allTxns, settlements)
+                val friendsWithLedger = LedgerCalculator.computeFriendLedgers(listOf(rawFriend), data.allTxns, data.settlements)
                 val computedFriend = friendsWithLedger.firstOrNull() ?: rawFriend
 
                 // Filter related transactions where friend is participant OR payer
-                val relatedTxns = allTxns.filter { txn ->
+                val relatedTxns = data.allTxns.filter { txn ->
                     txn.paidByFriendId == friendId ||
                             txn.participants.any { it.friendId == friendId }
                 }
@@ -71,7 +80,7 @@ class FriendDetailViewModel(
                     }
 
                 // Settlements sum
-                val validSettlements = settlements.filter { !it.isReversed }
+                val validSettlements = data.settlements.filter { !it.isReversed }
                 val received = validSettlements
                     .filter { it.payerId == friendId && it.receiverId == null }
                     .sumOf { it.amountPaise }
@@ -83,14 +92,15 @@ class FriendDetailViewModel(
                     isLoading = false,
                     friend = computedFriend,
                     relatedTransactions = relatedTxns,
-                    settlements = settlements,
+                    settlements = data.settlements,
                     totalSharedExpensesPaise = totalShared,
                     totalPaymentsReceivedPaise = received,
                     totalPaymentsMadePaise = paid,
                     remainingBalancePaise = computedFriend.netBalancePaise,
                     filterType = _uiState.value.filterType,
-                    allFriends = allFriends,
-                    categories = categories
+                    allFriends = data.allFriends,
+                    categories = data.categories,
+                    friendGroups = groups
                 )
             }.collect { state ->
                 if (state != null) {
@@ -99,6 +109,14 @@ class FriendDetailViewModel(
             }
         }
     }
+
+    private data class FriendBaseData(
+        val rawFriend: Friend?,
+        val allTxns: List<Transaction>,
+        val settlements: List<Settlement>,
+        val allFriends: List<Friend>,
+        val categories: List<Category>
+    )
 
     fun setFilterType(filter: String) {
         _uiState.update { it.copy(filterType = filter) }

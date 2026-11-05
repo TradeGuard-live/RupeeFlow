@@ -29,7 +29,8 @@ data class OverviewUiState(
     val friendsWithBalances: List<Friend> = emptyList(),
     val pendingTransactions: List<PendingTransaction> = emptyList(),
     val categories: List<Category> = emptyList(),
-    val allFriends: List<Friend> = emptyList()
+    val allFriends: List<Friend> = emptyList(),
+    val friendGroups: List<FriendGroup> = emptyList()
 )
 
 class OverviewViewModel(
@@ -37,7 +38,8 @@ class OverviewViewModel(
     private val friendRepository: FriendRepository,
     private val settlementRepository: SettlementRepository,
     private val pendingTransactionRepository: PendingTransactionRepository,
-    private val categoryRepository: CategoryRepository
+    private val categoryRepository: CategoryRepository,
+    private val friendGroupRepository: FriendGroupRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OverviewUiState())
@@ -51,6 +53,7 @@ class OverviewViewModel(
 
     private fun loadData() {
         viewModelScope.launch {
+            val groupsFlow = friendGroupRepository?.getAllGroups() ?: flowOf(emptyList())
             val baseFlow = combine(
                 transactionRepository.getAllTransactions(),
                 friendRepository.getActiveFriends(),
@@ -61,7 +64,7 @@ class OverviewViewModel(
                 OverviewBundle(transactions, friends, settlements, pendingList, categories)
             }
 
-            combine(baseFlow, weekOffset) { bundle, offset ->
+            combine(baseFlow, groupsFlow, weekOffset) { bundle, groups, offset ->
                 val friendsWithLedger = LedgerCalculator.computeFriendLedgers(bundle.friends, bundle.transactions, bundle.settlements)
 
                 val startOfMonth = DateTimeUtils.getStartOfMonth()
@@ -95,7 +98,8 @@ class OverviewViewModel(
                     friendsWithBalances = outstandingFriends,
                     pendingTransactions = bundle.pendingList,
                     categories = bundle.categories,
-                    allFriends = bundle.friends
+                    allFriends = bundle.friends,
+                    friendGroups = groups
                 )
             }.collect { state ->
                 _uiState.value = state

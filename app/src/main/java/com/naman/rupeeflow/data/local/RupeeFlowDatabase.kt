@@ -22,9 +22,11 @@ import java.io.File
         TransactionEntity::class,
         TransactionParticipantEntity::class,
         SettlementEntity::class,
-        PendingTransactionEntity::class
+        PendingTransactionEntity::class,
+        FriendGroupEntity::class,
+        FriendGroupMemberEntity::class
     ],
-    version = 3, // ✅ Upgraded to version 3 with safe Room migration
+    version = 4, // ✅ Upgraded to version 4 with friend groups & memberships
     exportSchema = true // ✅ Schema export enabled
 )
 @TypeConverters(Converters::class)
@@ -35,6 +37,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun settlementDao(): SettlementDao
     abstract fun pendingTransactionDao(): PendingTransactionDao
+    abstract fun friendGroupDao(): FriendGroupDao
 
     companion object {
         @Volatile
@@ -253,6 +256,52 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
+        // ✅ Migration from version 3 to 4: Add friend_groups and friend_group_members tables
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `friend_groups` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `iconName` TEXT,
+                        `colorHex` TEXT,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `friend_group_members` (
+                        `groupId` INTEGER NOT NULL,
+                        `friendId` INTEGER NOT NULL,
+                        `addedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`groupId`, `friendId`),
+                        FOREIGN KEY(`groupId`) REFERENCES `friend_groups`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE,
+                        FOREIGN KEY(`friendId`) REFERENCES `friends`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_friend_group_members_groupId` ON `friend_group_members` (`groupId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_friend_group_members_friendId` ON `friend_group_members` (`friendId`)")
+            }
+        }
+
+        // ✅ Direct migration from version 1 to 4
+        val MIGRATION_1_4 = object : Migration(1, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_1_3.migrate(db)
+                MIGRATION_3_4.migrate(db)
+            }
+        }
+
+        // ✅ Direct migration from version 2 to 4
+        val MIGRATION_2_4 = object : Migration(2, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_2_3.migrate(db)
+                MIGRATION_3_4.migrate(db)
+            }
+        }
+
         // ✅ Automatic safe pre-migration backup procedure
         fun createPreMigrationBackup(context: Context) {
             try {
@@ -276,7 +325,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                     RupeeFlowDatabase::class.java,
                     "rupeeflow_database.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3, MIGRATION_3_4, MIGRATION_1_4, MIGRATION_2_4)
                     .addCallback(DatabaseCallback(scope))
                     // ✅ Destructive migration removed! Data preservation guaranteed.
                     .build()

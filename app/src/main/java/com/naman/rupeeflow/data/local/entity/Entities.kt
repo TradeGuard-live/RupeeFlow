@@ -164,3 +164,43 @@ data class PendingTransactionEntity(
     val status: PendingStatus = PendingStatus.PENDING,
     val source: TransactionSource = TransactionSource.SMS
 )
+
+// ✅ Friend Group entities for organizing friends into custom groups
+@Entity(tableName = "friend_groups")
+data class FriendGroupEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val name: String,
+    val iconName: String? = null,
+    val colorHex: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "friend_group_members",
+    primaryKeys = ["groupId", "friendId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = FriendGroupEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["groupId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = FriendEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["friendId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["groupId"]),
+        Index(value = ["friendId"])
+    ]
+)
+data class FriendGroupMemberEntity(
+    val groupId: Long,
+    val friendId: Long,
+    val addedAt: Long = System.currentTimeMillis()
+)

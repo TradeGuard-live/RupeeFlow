@@ -3,6 +3,7 @@ package com.naman.rupeeflow.ui.screens.transactions
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.naman.rupeeflow.data.repository.CategoryRepository
+import com.naman.rupeeflow.data.repository.FriendGroupRepository
 import com.naman.rupeeflow.data.repository.FriendRepository
 import com.naman.rupeeflow.data.repository.SettlementRepository
 import com.naman.rupeeflow.data.repository.TransactionRepository
@@ -22,14 +23,16 @@ data class TransactionsUiState(
     val selectedPaymentMethodFilter: PaymentMethod? = null,
     val selectedCategoryFilter: Category? = null,
     val categories: List<Category> = emptyList(),
-    val friends: List<Friend> = emptyList()
+    val friends: List<Friend> = emptyList(),
+    val friendGroups: List<FriendGroup> = emptyList()
 )
 
 class TransactionsViewModel(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
     private val friendRepository: FriendRepository,
-    private val settlementRepository: SettlementRepository
+    private val settlementRepository: SettlementRepository,
+    private val friendGroupRepository: FriendGroupRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TransactionsUiState())
@@ -41,16 +44,18 @@ class TransactionsViewModel(
 
     private fun loadData() {
         viewModelScope.launch {
+            val groupsFlow = friendGroupRepository?.getAllGroups() ?: flowOf(emptyList())
             combine(
                 transactionRepository.getAllTransactions(),
                 categoryRepository.getAllCategories(),
-                friendRepository.getActiveFriends()
-            ) { txns, categories, friends ->
-                Triple(txns, categories, friends)
-            }.collect { (txns, categories, friends) ->
+                friendRepository.getActiveFriends(),
+                groupsFlow
+            ) { txns, categories, friends, groups ->
+                GroupedTransactionBundle(txns, categories, friends, groups)
+            }.collect { bundle ->
                 _uiState.update { current ->
                     val filtered = applyFilters(
-                        txns = txns,
+                        txns = bundle.txns,
                         query = current.searchQuery,
                         typeFilter = current.selectedTypeFilter,
                         dateFilter = current.selectedDateFilter,
@@ -59,15 +64,23 @@ class TransactionsViewModel(
                     )
                     current.copy(
                         isLoading = false,
-                        allTransactions = txns,
+                        allTransactions = bundle.txns,
                         filteredTransactions = filtered,
-                        categories = categories,
-                        friends = friends
+                        categories = bundle.categories,
+                        friends = bundle.friends,
+                        friendGroups = bundle.groups
                     )
                 }
             }
         }
     }
+
+    private data class GroupedTransactionBundle(
+        val txns: List<Transaction>,
+        val categories: List<Category>,
+        val friends: List<Friend>,
+        val groups: List<FriendGroup>
+    )
 
     fun onSearchQueryChanged(query: String) {
         _uiState.update { current ->

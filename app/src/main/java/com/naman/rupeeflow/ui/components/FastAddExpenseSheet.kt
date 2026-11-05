@@ -39,6 +39,7 @@ enum class SheetEntryType {
 fun FastAddExpenseSheet(
     categories: List<Category>,
     friends: List<Friend>,
+    groups: List<FriendGroup> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (Transaction) -> Unit,
     onSaveSettlement: ((Settlement) -> Unit)? = null,
@@ -87,6 +88,7 @@ fun FastAddExpenseSheet(
     var isSplitEnabled by remember { mutableStateOf(false) }
     var isMeIncluded by remember { mutableStateOf(true) }
     var selectedFriendIds by remember { mutableStateOf(setOf<Long>()) }
+    var selectedGroupFilterId by remember { mutableStateOf<Long?>(null) }
     var splitMethod by remember { mutableStateOf(SplitMethod.EQUAL) }
     var customRupeeInputs by remember { mutableStateOf(mapOf<Long?, String>()) } // null = Me
     var percentageInputs by remember { mutableStateOf(mapOf<Long?, String>()) } // null = Me
@@ -294,7 +296,7 @@ fun FastAddExpenseSheet(
                                     text = if (friend.status == FriendBalanceStatus.THEY_OWE_ME) "${friend.name} owes you ${CurrencyUtils.formatPaiseToRupees(friendBal)}"
                                     else "You owe ${friend.name} ${CurrencyUtils.formatPaiseToRupees(friendBal)}",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextSecondary
+                                    color = if (friend.status == FriendBalanceStatus.THEY_OWE_ME) EmeraldMint else CoralRed
                                 )
                                 TextButton(
                                     onClick = { amountText = (friendBal / 100.0).toString() },
@@ -573,11 +575,104 @@ fun FastAddExpenseSheet(
                         if (isSplitEnabled) {
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            Text(
-                                text = "Select Participants to Split With",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextSecondary
-                            )
+                            // ✅ Group Selector for Quick Participant Population
+                            if (groups.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Select from Group",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextSecondary
+                                    )
+                                    if (selectedGroupFilterId != null) {
+                                        Text(
+                                            text = "Group members auto-selected",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = VibrantCyan,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    // All Friends option
+                                    val isAllSelected = selectedGroupFilterId == null
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = if (isAllSelected) ElectricBlue.copy(alpha = 0.25f) else CharcoalCard,
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isAllSelected) ElectricBlue else GlassBorder),
+                                        modifier = Modifier.clickable {
+                                            selectedGroupFilterId = null
+                                        }
+                                    ) {
+                                        Text(
+                                            text = "All Friends (${friends.size})",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = if (isAllSelected) ElectricBlueLight else TextSecondary,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                                        )
+                                    }
+
+                                    // Custom group chips
+                                    groups.forEach { grp ->
+                                        val isGrpSelected = selectedGroupFilterId == grp.id
+                                        Surface(
+                                            shape = RoundedCornerShape(16.dp),
+                                            color = if (isGrpSelected) VibrantCyan.copy(alpha = 0.25f) else CharcoalCard,
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isGrpSelected) VibrantCyan else GlassBorder),
+                                            modifier = Modifier.clickable {
+                                                selectedGroupFilterId = grp.id
+                                                // Auto-select group members
+                                                val memberSet = grp.memberFriendIds.filter { mId -> friends.any { it.id == mId } }.toSet()
+                                                selectedFriendIds = memberSet
+                                            }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "${grp.name} (${grp.memberCount})",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = if (isGrpSelected) VibrantCyan else TextSecondary,
+                                                    fontWeight = if (isGrpSelected) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+                            }
+
+                            // Selected Participant Count Indicator
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Participants (${allParticipantIds.size})",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (isMeIncluded) "You + ${selectedFriendIds.size} friends" else "${selectedFriendIds.size} friends (You excluded)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (allParticipantIds.isNotEmpty()) EmeraldMint else CoralRed,
+                                    fontSize = 11.sp
+                                )
+                            }
                             Spacer(modifier = Modifier.height(8.dp))
 
                             // Checkbox for "Me (You)" so user can be out of the expense
