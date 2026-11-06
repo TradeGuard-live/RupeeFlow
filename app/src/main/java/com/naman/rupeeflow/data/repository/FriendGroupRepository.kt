@@ -77,36 +77,33 @@ class FriendGroupRepositoryImpl(
         friendIds: List<Long>,
         groupImagePath: String?
     ): Long {
+        val trimmed = name.trim()
+        require(trimmed.isNotBlank()) { "Group name cannot be blank" }
         val now = System.currentTimeMillis()
         val entity = FriendGroupEntity(
-            name = name.trim(),
+            name = trimmed,
             iconName = iconName,
             colorHex = colorHex,
             groupImagePath = groupImagePath,
             createdAt = now,
             updatedAt = now
         )
-        val groupId = friendGroupDao.insertGroup(entity)
-        if (friendIds.isNotEmpty()) {
-            friendGroupDao.setGroupMembers(groupId, friendIds)
-        }
-        return groupId
+        return friendGroupDao.createGroupWithMembers(entity, friendIds)
     }
 
     override suspend fun updateGroup(group: FriendGroup, friendIds: List<Long>?) {
+        val trimmed = group.name.trim()
+        require(trimmed.isNotBlank()) { "Group name cannot be blank" }
         val entity = FriendGroupEntity(
             id = group.id,
-            name = group.name.trim(),
+            name = trimmed,
             iconName = group.iconName,
             colorHex = group.colorHex,
             groupImagePath = group.groupImagePath,
             createdAt = group.createdAt,
             updatedAt = System.currentTimeMillis()
         )
-        friendGroupDao.updateGroup(entity)
-        if (friendIds != null) {
-            friendGroupDao.setGroupMembers(group.id, friendIds)
-        }
+        friendGroupDao.updateGroupWithMembers(entity, friendIds)
     }
 
     override suspend fun deleteGroup(groupId: Long) {

@@ -70,10 +70,36 @@ interface FriendGroupDao {
     suspend fun setGroupMembers(groupId: Long, friendIds: List<Long>) {
         removeAllMembersForGroup(groupId)
         if (friendIds.isNotEmpty()) {
-            val distinctMembers = friendIds.distinct().map {
+            val distinctMembers = friendIds.distinct().filter { it > 0 }.map {
                 FriendGroupMemberEntity(groupId = groupId, friendId = it)
             }
-            insertMembers(distinctMembers)
+            if (distinctMembers.isNotEmpty()) {
+                insertMembers(distinctMembers)
+            }
+        }
+    }
+
+    @Transaction
+    suspend fun createGroupWithMembers(group: FriendGroupEntity, friendIds: List<Long>): Long {
+        require(group.name.isNotBlank()) { "Group name cannot be blank" }
+        val groupId = insertGroup(group)
+        if (friendIds.isNotEmpty()) {
+            val distinctMembers = friendIds.distinct().filter { it > 0 }.map {
+                FriendGroupMemberEntity(groupId = groupId, friendId = it)
+            }
+            if (distinctMembers.isNotEmpty()) {
+                insertMembers(distinctMembers)
+            }
+        }
+        return groupId
+    }
+
+    @Transaction
+    suspend fun updateGroupWithMembers(group: FriendGroupEntity, friendIds: List<Long>?) {
+        require(group.name.isNotBlank()) { "Group name cannot be blank" }
+        updateGroup(group)
+        if (friendIds != null) {
+            setGroupMembers(group.id, friendIds)
         }
     }
 }

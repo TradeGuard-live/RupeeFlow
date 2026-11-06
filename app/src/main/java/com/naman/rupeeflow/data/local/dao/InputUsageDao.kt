@@ -50,4 +50,10 @@ interface InputUsageDao {
 
     @Query("DELETE FROM input_usage")
     suspend fun clearAll()
+
+    @Query("SELECT * FROM input_usage ORDER BY lastUsedAt DESC")
+    suspend fun getAllUsageList(): List<InputUsageEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertUsages(entities: List<InputUsageEntity>)
 }

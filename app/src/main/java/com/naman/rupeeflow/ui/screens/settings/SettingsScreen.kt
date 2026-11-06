@@ -1,18 +1,24 @@
 package com.naman.rupeeflow.ui.screens.settings
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -27,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.core.content.ContextCompat
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.ui.components.CategoryIconHelper
 import com.naman.rupeeflow.ui.components.RupeeFlowCard
@@ -46,6 +53,20 @@ fun SettingsScreen(
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var showRestoreDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
+    var showSmsDisclosureDialog by remember { mutableStateOf(false) }
+    var showNotificationDisclosureDialog by remember { mutableStateOf(false) }
+
+    val smsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.setSmsDetectionEnabled(true)
+            Toast.makeText(context, "SMS Detection Enabled", Toast.LENGTH_SHORT).show()
+        } else {
+            viewModel.setSmsDetectionEnabled(false)
+            Toast.makeText(context, "SMS permission denied. Manual transaction entry remains active.", Toast.LENGTH_LONG).show()
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background
@@ -127,7 +148,21 @@ fun SettingsScreen(
                         title = "Auto-detect Financial SMS",
                         subtitle = "Automatically recognize debits, credits & UPI messages",
                         checked = state.smsDetectionEnabled,
-                        onCheckedChange = { viewModel.setSmsDetectionEnabled(it) },
+                        onCheckedChange = { enable ->
+                            if (enable) {
+                                val hasPermission = ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.RECEIVE_SMS
+                                ) == PackageManager.PERMISSION_GRANTED
+                                if (hasPermission) {
+                                    viewModel.setSmsDetectionEnabled(true)
+                                } else {
+                                    showSmsDisclosureDialog = true
+                                }
+                            } else {
+                                viewModel.setSmsDetectionEnabled(false)
+                            }
+                        },
                         icon = Icons.Default.Sms,
                         iconTint = AppTheme.colors.primaryAccent
                     )
@@ -139,13 +174,10 @@ fun SettingsScreen(
                         subtitle = "Companion detection for Google Pay, PhonePe, Paytm & Bank apps",
                         checked = state.notificationListenerEnabled,
                         onCheckedChange = { enabled ->
-                            viewModel.setNotificationListenerEnabled(enabled)
                             if (enabled) {
-                                // Open system notification access settings
-                                try {
-                                    val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-                                    context.startActivity(intent)
-                                } catch (_: Exception) {}
+                                showNotificationDisclosureDialog = true
+                            } else {
+                                viewModel.setNotificationListenerEnabled(false)
                             }
                         },
                         icon = Icons.Default.NotificationsActive,
@@ -422,16 +454,11 @@ fun SettingsScreen(
     // Restore Backup Dialog
     if (showRestoreDialog) {
         RestoreBackupDialog(
+            viewModel = viewModel,
             onDismiss = { showRestoreDialog = false },
-            onRestore = { json ->
-                viewModel.restoreBackup(json) { success ->
-                    if (success) {
-                        Toast.makeText(context, "Database restored successfully!", Toast.LENGTH_LONG).show()
-                        showRestoreDialog = false
-                    } else {
-                        Toast.makeText(context, "Invalid JSON format!", Toast.LENGTH_LONG).show()
-                    }
-                }
+            onRestoreSuccess = {
+                Toast.makeText(context, "Database restored successfully!", Toast.LENGTH_LONG).show()
+                showRestoreDialog = false
             }
         )
     }
@@ -463,7 +490,7 @@ fun SettingsScreen(
                         }
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = CoralRed,
+                        containerColor = AppTheme.colors.error,
                         contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(10.dp)
@@ -473,6 +500,125 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showResetConfirmDialog = false }) {
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
+                }
+            }
+        )
+    }
+
+    // SMS Detection Prominent Disclosure Dialog (Google Play Sensitive Permissions Compliance)
+    if (showSmsDisclosureDialog) {
+        AlertDialog(
+            onDismissRequest = { showSmsDisclosureDialog = false },
+            containerColor = AppTheme.colors.surfaceElevated,
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Sms,
+                    contentDescription = null,
+                    tint = AppTheme.colors.primaryAccent,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "SMS Financial Detection",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = AppTheme.colors.textPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "RupeeFlow requests SMS access strictly to automatically detect financial debit, credit, and UPI expense messages from your bank.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = AppTheme.colors.textPrimary
+                    )
+                    Text(
+                        text = "• Only bank transaction alerts are parsed locally on your device.\n" +
+                                "• Personal messages, OTPs, and private text chats are never stored or tracked.\n" +
+                                "• All processing is 100% offline and on-device. No data is ever transmitted to remote servers.\n" +
+                                "• You can disable this feature at any time. Manual transaction entry is always available.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.textSecondary
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showSmsDisclosureDialog = false
+                        smsPermissionLauncher.launch(Manifest.permission.RECEIVE_SMS)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent)
+                ) {
+                    Text("Consent & Enable")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSmsDisclosureDialog = false }) {
+                    Text("Decline / Keep Manual", color = AppTheme.colors.textSecondary)
+                }
+            }
+        )
+    }
+
+    // Notification Listener Service Disclosure Dialog
+    if (showNotificationDisclosureDialog) {
+        AlertDialog(
+            onDismissRequest = { showNotificationDisclosureDialog = false },
+            containerColor = AppTheme.colors.surfaceElevated,
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.NotificationsActive,
+                    contentDescription = null,
+                    tint = AmberGold,
+                    modifier = Modifier.size(32.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Notification Access",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = AppTheme.colors.textPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "RupeeFlow can monitor payment notifications from apps like Google Pay, PhonePe, Paytm, and your bank to automatically create draft transactions for your review.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = AppTheme.colors.textPrimary
+                    )
+                    Text(
+                        text = "• Notification content is processed strictly on-device to extract transaction amounts and merchants.\n" +
+                                "• No private notifications, messages, or credentials are saved or uploaded.\n" +
+                                "• You will be guided to Android System Settings to grant access.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.textSecondary
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showNotificationDisclosureDialog = false
+                        viewModel.setNotificationListenerEnabled(true)
+                        try {
+                            val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                            context.startActivity(intent)
+                        } catch (_: Exception) {
+                            Toast.makeText(context, "Could not open Notification Settings", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AmberGold)
+                ) {
+                    Text("Proceed to Settings", color = Color.Black)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNotificationDisclosureDialog = false }) {
                     Text("Cancel", color = AppTheme.colors.textSecondary)
                 }
             }
@@ -740,45 +886,173 @@ fun AddCategoryDialog(
 
 @Composable
 fun RestoreBackupDialog(
+    viewModel: SettingsViewModel,
     onDismiss: () -> Unit,
-    onRestore: (String) -> Unit
+    onRestoreSuccess: () -> Unit
 ) {
     var jsonText by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var isRestoring by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val preview = remember(jsonText, password) {
+        if (jsonText.isNotBlank()) {
+            viewModel.inspectBackup(jsonText, password.takeIf { it.isNotBlank() })
+        } else null
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(20.dp),
             color = AppTheme.colors.surfaceElevated,
             border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Text("Restore Backup", style = MaterialTheme.typography.titleLarge, color = AppTheme.colors.textPrimary)
-                Spacer(modifier = Modifier.height(12.dp))
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = "Restore Backup",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = AppTheme.colors.textPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedTextField(
                     value = jsonText,
-                    onValueChange = { jsonText = it },
-                    label = { Text("Paste JSON Backup", color = AppTheme.colors.textSecondary) },
+                    onValueChange = {
+                        jsonText = it
+                        errorMessage = null
+                    },
+                    label = { Text("Paste Backup Content", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("Paste plaintext or encrypted JSON payload...", color = AppTheme.colors.textTertiary) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(140.dp),
+                        .height(110.dp),
                     colors = rupeeFlowTextFieldColors(),
                     shape = RoundedCornerShape(12.dp)
                 )
 
+                if (preview?.isEncrypted == true) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = {
+                            password = it
+                            errorMessage = null
+                        },
+                        label = { Text("Backup Password", color = AppTheme.colors.textSecondary) },
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = rupeeFlowTextFieldColors(),
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true
+                    )
+                }
+
+                if (preview != null && preview.isValid && (!preview.isEncrypted || password.isNotBlank())) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    RupeeFlowCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        borderColor = AppTheme.colors.incomeGreen
+                    ) {
+                        Text(
+                            text = "BACKUP VERIFIED (v${preview.version})",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AppTheme.colors.incomeGreen,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        DetailRow("Categories", "${preview.categoriesCount}")
+                        DetailRow("Friends", "${preview.friendsCount}")
+                        DetailRow("Friend Groups", "${preview.groupsCount}")
+                        DetailRow("Transactions", "${preview.transactionsCount}")
+                        DetailRow("Settlements", "${preview.settlementsCount}")
+                        DetailRow("Total Volume", CurrencyUtils.formatPaiseToRupees(preview.totalVolumePaise))
+                        if (preview.imagesCount > 0) {
+                            DetailRow("Images / Receipts", "${preview.imagesCount}")
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Atomic restore guarantee: All records and attachments will be written together. If an error occurs, the live database will be preserved unchanged.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.textSecondary
+                    )
+                } else if (preview != null && !preview.isValid) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = preview.errorMessage ?: "Invalid or corrupted backup",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.error
+                    )
+                }
+
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = errorMessage!!,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.error
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Button(
-                    onClick = {
-                        if (jsonText.isNotBlank()) onRestore(jsonText)
-                    },
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent, contentColor = Color.White),
-                    enabled = jsonText.isNotBlank()
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("Restore Database")
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Cancel", color = AppTheme.colors.textSecondary)
+                    }
+
+                    Button(
+                        onClick = {
+                            if (jsonText.isNotBlank()) {
+                                isRestoring = true
+                                errorMessage = null
+                                if (preview?.isEncrypted == true) {
+                                    viewModel.restoreEncryptedBackup(jsonText, password) { success ->
+                                        isRestoring = false
+                                        if (success) onRestoreSuccess() else errorMessage = "Decryption or restore failed. Check password."
+                                    }
+                                } else {
+                                    viewModel.restoreBackup(jsonText) { success ->
+                                        isRestoring = false
+                                        if (success) onRestoreSuccess() else errorMessage = "Restore failed: Invalid schema or corrupted data."
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppTheme.colors.primaryAccent,
+                            contentColor = Color.White
+                        ),
+                        enabled = jsonText.isNotBlank() && !isRestoring && (preview?.isValid == true)
+                    ) {
+                        if (isRestoring) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Confirm Restore")
+                        }
+                    }
                 }
             }
         }

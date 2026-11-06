@@ -45,7 +45,7 @@ interface TransactionDao {
     suspend fun insertParticipantEntities(participants: List<TransactionParticipantEntity>)
 
     @Update
-    suspend fun updateTransactionEntity(transaction: TransactionEntity)
+    suspend fun updateTransactionEntity(transaction: TransactionEntity): Int
 
     @Query("DELETE FROM transaction_participants WHERE transactionId = :transactionId")
     suspend fun deleteParticipantsForTransaction(transactionId: Long)
@@ -92,9 +92,13 @@ interface TransactionDao {
         val txnId = if (transaction.id == 0L) {
             insertTransactionEntity(transaction)
         } else {
-            updateTransactionEntity(transaction)
             deleteParticipantsForTransaction(transaction.id)
-            transaction.id
+            val rows = updateTransactionEntity(transaction)
+            if (rows == 0) {
+                insertTransactionEntity(transaction)
+            } else {
+                transaction.id
+            }
         }
 
         if (participants.isNotEmpty()) {

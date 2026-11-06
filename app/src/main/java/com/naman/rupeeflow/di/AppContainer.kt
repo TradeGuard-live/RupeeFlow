@@ -76,7 +76,9 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             transactionRepository = transactionRepository,
             friendRepository = friendRepository,
             settlementRepository = settlementRepository,
-            categoryRepository = categoryRepository
+            categoryRepository = categoryRepository,
+            friendGroupRepository = friendGroupRepository,
+            context = context
         )
     }
 }

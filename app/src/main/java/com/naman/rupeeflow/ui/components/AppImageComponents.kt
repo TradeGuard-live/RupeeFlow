@@ -47,9 +47,13 @@ import java.io.File
  */
 @Composable
 fun rememberBitmapFromPath(path: String?): ImageBitmap? {
-    if (path.isNullOrBlank()) return null
-    return produceState<ImageBitmap?>(initialValue = null, path) {
-        value = withContext(Dispatchers.IO) {
+    var bitmap by remember(path) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(path) {
+        if (path.isNullOrBlank()) {
+            bitmap = null
+            return@LaunchedEffect
+        }
+        bitmap = withContext(Dispatchers.IO) {
             try {
                 val file = File(path)
                 if (file.exists() && file.length() > 0) {
@@ -62,7 +66,8 @@ fun rememberBitmapFromPath(path: String?): ImageBitmap? {
                 null
             }
         }
-    }.value
+    }
+    return bitmap
 }
 
 /**

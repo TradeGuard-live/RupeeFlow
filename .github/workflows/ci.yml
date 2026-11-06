@@ -57,11 +57,22 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Build Production Release APK
-        run: ./gradlew assembleRelease --no-daemon
-
-      - name: Build Production Release Bundle (AAB)
-        run: ./gradlew bundleRelease --no-daemon
+      - name: Verify Release Signing & Build Production Artifacts
+        id: release_build
+        run: |
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Release keystore secret detected. Decoding and configuring release signing..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+            export KEYSTORE_FILE="$GITHUB_WORKSPACE/release.keystore"
+            export KEYSTORE_PASSWORD="${{ secrets.KEYSTORE_PASSWORD }}"
+            export KEY_ALIAS="${{ secrets.KEY_ALIAS }}"
+            export KEY_PASSWORD="${{ secrets.KEY_PASSWORD }}"
+            ./gradlew assembleRelease bundleRelease --no-daemon
+            echo "release_built=true" >> $GITHUB_OUTPUT
+          else
+            echo "Release signing secrets not configured. Production signing is BLOCKED pending secret configuration."
+            echo "release_built=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Upload Test Results
         if: always()
@@ -77,15 +88,22 @@ jobs:
           name: lint-results
           path: app/build/reports/lint-results-debug.html
 
-      - name: Upload Release APK Artifact
+      - name: Upload Debug APK Artifact
         if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload Release APK Artifact
+        if: steps.release_build.outputs.release_built == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
           path: app/build/outputs/apk/release/app-release.apk
 
       - name: Upload Release AAB Artifact
-        if: success()
+        if: steps.release_build.outputs.release_built == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: app-release-bundle

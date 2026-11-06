@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -7,14 +10,14 @@ plugins {
 
 android {
     namespace = "com.naman.rupeeflow"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.naman.rupeeflow"
         minSdk = 29
-        targetSdk = 35
-        versionCode = 3
-        versionName = "1.2.0"
+        targetSdk = 36
+        versionCode = 4
+        versionName = "1.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -27,23 +30,42 @@ android {
         }
     }
 
-    // Industry-grade release signing config with safe fallback to debug keystore for CI/Dev
+    // Production release signing config with permanent release/upload keystore requirement (NO debug fallback)
     signingConfigs {
         create("release") {
-            val keystoreFile = System.getenv("KEYSTORE_FILE")?.let { file(it) }
-            if (keystoreFile != null && keystoreFile.exists()) {
-                storeFile = keystoreFile
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
-                keyAlias = System.getenv("KEY_ALIAS") ?: ""
-                keyPassword = System.getenv("KEY_PASSWORD") ?: ""
-            } else {
-                // Fallback to debug keystore for development / CI builds without committed secrets
-                val debugKeystore = signingConfigs.getByName("debug")
-                storeFile = debugKeystore.storeFile
-                storePassword = debugKeystore.storePassword
-                keyAlias = debugKeystore.keyAlias
-                keyPassword = debugKeystore.keyPassword
+            val localProperties = Properties().apply {
+                val localPropsFile = rootProject.file("local.properties")
+                if (localPropsFile.exists()) {
+                    FileInputStream(localPropsFile).use { load(it) }
+                }
             }
+
+            val keystorePath = System.getenv("KEYSTORE_FILE")
+                ?: (project.findProperty("KEYSTORE_FILE") as? String)
+                ?: localProperties.getProperty("release.keystore")
+            val storePass = System.getenv("KEYSTORE_PASSWORD")
+                ?: (project.findProperty("KEYSTORE_PASSWORD") as? String)
+                ?: localProperties.getProperty("release.keystore.password")
+                ?: ""
+            val alias = System.getenv("KEY_ALIAS")
+                ?: (project.findProperty("KEY_ALIAS") as? String)
+                ?: localProperties.getProperty("release.key.alias")
+                ?: ""
+            val keyPass = System.getenv("KEY_PASSWORD")
+                ?: (project.findProperty("KEY_PASSWORD") as? String)
+                ?: localProperties.getProperty("release.key.password")
+                ?: ""
+
+            if (!keystorePath.isNullOrBlank()) {
+                val kf = file(keystorePath)
+                if (kf.exists()) {
+                    storeFile = kf
+                    storePassword = storePass
+                    keyAlias = alias
+                    keyPassword = keyPass
+                }
+            }
+            // Fallback to debug keystore is strictly removed.
         }
     }
 
@@ -54,7 +76,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("release")
+            val releaseSigning = signingConfigs.getByName("release")
+            if (releaseSigning.storeFile != null && releaseSigning.storeFile!!.exists()) {
+                signingConfig = releaseSigning
+            } else {
+                signingConfig = null
+            }
         }
         debug {
             applicationIdSuffix = ""
@@ -98,8 +125,13 @@ android {
     }
 
     lint {
-        checkReleaseBuilds = false
-        abortOnError = false
+        checkReleaseBuilds = true
+        abortOnError = true
+        warningsAsErrors = false
+        checkDependencies = true
+        ignoreTestSources = true
+        htmlReport = true
+        xmlReport = true
     }
 
     sourceSets {
@@ -149,6 +181,8 @@ dependencies {
 
     // Testing
     testImplementation("junit:junit:4.13.2")
+    testImplementation("androidx.test:core:1.6.1")
+    testImplementation("androidx.test.ext:junit:1.2.1")
     testImplementation("org.json:json:20240303")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation("org.mockito:mockito-core:5.14.2")
@@ -156,4 +190,34 @@ dependencies {
     testImplementation("androidx.sqlite:sqlite-framework:2.4.0")
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     testImplementation("org.robolectric:robolectric:4.14.1")
+
+    // Android Instrumentation Testing
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation(composeBom)
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.room:room-testing:$roomVersion")
+    androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
+}
+
+// Strictly fail production release tasks if permanent release signing keystore is missing
+gradle.taskGraph.whenReady {
+    val releaseTaskPatterns = listOf("assembleRelease", "bundleRelease")
+    val hasReleaseTask = allTasks.any { task ->
+        releaseTaskPatterns.any { pattern -> task.name == pattern }
+    }
+    if (hasReleaseTask) {
+        val releaseConfig = android.signingConfigs.findByName("release")
+        val storeFile = releaseConfig?.storeFile
+        if (storeFile == null || !storeFile.exists()) {
+            throw GradleException(
+                "PRODUCTION RELEASE SIGNING BLOCKED: Permanent release/upload keystore is missing or not configured. " +
+                "Production release builds (assembleRelease / bundleRelease) require a permanent release/upload keystore " +
+                "and will never silently fall back to debug signing. " +
+                "Please configure KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS, and KEY_PASSWORD via environment variables, " +
+                "GitHub Actions secrets, or local.properties."
+            )
+        }
+    }
 }

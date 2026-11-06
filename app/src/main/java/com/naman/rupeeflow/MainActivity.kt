@@ -80,20 +80,13 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun requestRequiredPermissions() {
-        val permissionsToRequest = mutableListOf<String>()
-
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECEIVE_SMS) != PackageManager.PERMISSION_GRANTED) {
-            permissionsToRequest.add(Manifest.permission.RECEIVE_SMS)
-        }
-
+        // Only request notification posting permission on Android 13+ for transaction alerts.
+        // Sensitive RECEIVE_SMS is NEVER requested on app launch; it requires explicit in-app
+        // user opt-in and prominent disclosure inside Settings pursuant to Google Play Policy.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+                permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
             }
-        }
-
-        if (permissionsToRequest.isNotEmpty()) {
-            permissionLauncher.launch(permissionsToRequest.toTypedArray())
         }
     }
 }
