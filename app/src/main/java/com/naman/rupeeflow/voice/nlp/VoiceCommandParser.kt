@@ -6,6 +6,7 @@ import com.naman.rupeeflow.voice.model.*
 
 /**
  * Parses natural language input into typed VoiceCommand objects.
+ * Accurately extracts friends, groups, phone numbers, amounts, dates, and split configurations.
  */
 object VoiceCommandParser {
 
@@ -24,14 +25,39 @@ object VoiceCommandParser {
             VoiceIntent.CANCEL -> VoiceCommand.Cancel
             VoiceIntent.HELP -> VoiceCommand.Help
 
+            // Friend management
+            VoiceIntent.FRIEND_CREATE -> parseFriendCreate(normalized, text)
+            VoiceIntent.FRIEND_UPDATE -> parseFriendUpdate(normalized, text, friends)
+            VoiceIntent.FRIEND_DELETE -> parseFriendDelete(normalized, text, friends)
+            VoiceIntent.FRIEND_SEARCH -> parseFriendSearch(normalized, text)
+            VoiceIntent.FRIEND_ARCHIVE -> parseFriendDelete(normalized, text, friends)
+            VoiceIntent.FRIEND_UNARCHIVE -> parseFriendSearch(normalized, text)
+
+            // Group management
+            VoiceIntent.GROUP_CREATE -> parseGroupCreate(normalized, text, friends)
+            VoiceIntent.GROUP_UPDATE -> parseGroupUpdate(normalized, text, groups)
+            VoiceIntent.GROUP_DELETE -> parseGroupDelete(normalized, text, groups)
+            VoiceIntent.GROUP_ADD_MEMBER -> parseGroupAddMember(normalized, text, friends, groups)
+            VoiceIntent.GROUP_REMOVE_MEMBER -> parseGroupRemoveMember(normalized, text, friends, groups)
+            VoiceIntent.GROUP_LIST -> VoiceCommand.ListGroups(rawInput = text)
+
+            // Navigation and Backup
+            VoiceIntent.NAVIGATE_SCREEN -> parseNavigation(normalized, text)
+            VoiceIntent.BACKUP_CREATE -> VoiceCommand.CreateBackup(rawInput = text)
+            VoiceIntent.BACKUP_RESTORE -> VoiceCommand.RestoreBackup(rawInput = text)
+
+            // Settlements
             VoiceIntent.CREATE_SETTLEMENT -> parseSettlementCreation(normalized, friends)
             VoiceIntent.EDIT_SETTLEMENT -> parseSettlementEdit(normalized, friends)
             VoiceIntent.REVERSE_SETTLEMENT -> parseSettlementReverse(normalized, friends)
             VoiceIntent.DELETE_SETTLEMENT -> parseSettlementDelete(normalized, friends)
 
+            // Transactions
             VoiceIntent.EDIT_TRANSACTION -> parseTransactionEdit(normalized, friends, categories)
             VoiceIntent.DELETE_TRANSACTION -> parseTransactionDelete(normalized)
+            VoiceIntent.SEARCH_TRANSACTION,
 
+            // Queries
             VoiceIntent.QUERY_FRIEND_BALANCE,
             VoiceIntent.QUERY_ALL_BALANCES,
             VoiceIntent.QUERY_GROUP_BALANCE,
@@ -39,9 +65,11 @@ object VoiceCommandParser {
             VoiceIntent.QUERY_MONTHLY_SPENDING,
             VoiceIntent.QUERY_CATEGORY_SPENDING,
             VoiceIntent.QUERY_PAYMENT_METHOD_SPENDING,
+            VoiceIntent.QUERY_HIGHEST_EXPENSE,
             VoiceIntent.QUERY_TRANSACTION_DETAILS,
             VoiceIntent.QUERY_SETTLEMENT_HISTORY -> parseQuery(normalized, intent, friends, groups, categories)
 
+            // Transaction creation
             VoiceIntent.CREATE_INCOME -> parseTransactionCreation(normalized, TransactionType.INCOME, friends, groups, categories)
             VoiceIntent.CREATE_REFUND -> parseTransactionCreation(normalized, TransactionType.REFUND, friends, groups, categories)
             VoiceIntent.CREATE_TRANSFER -> parseTransactionCreation(normalized, TransactionType.TRANSFER, friends, groups, categories)
@@ -56,8 +84,277 @@ object VoiceCommandParser {
                     VoiceCommand.Unknown(text)
                 }
             }
-            else -> VoiceCommand.Unknown(text)
         }
+    }
+
+    private fun parseFriendCreate(normalized: String, rawText: String): VoiceCommand.CreateFriend {
+        // Extract 10-digit phone number if present
+        val phoneRegex = Regex("""\b[6-9]\d{9}\b""")
+        val phoneMatch = phoneRegex.find(rawText) ?: phoneRegex.find(normalized)
+        val phoneNumber = phoneMatch?.value
+
+        // Strip phone number from text
+        var nameText = if (phoneNumber != null) {
+            normalized.replace(phoneNumber, " ")
+        } else {
+            normalized
+        }
+
+        // Strip phone related words
+        val phoneKeywords = listOf(
+            "with phone number", "with phone no", "with mobile number", "with mobile no", "with phone", "with number", "with mobile", "with",
+            "phone number", "phone no", "mobile number", "mobile no", "number", "phone", "mobile",
+            "sathe", "ke sath", "સાથે", "के साथ",
+            "ફોન નંબર", "ફોન નો", "મોબાઈલ નંબર", "મોબાઇલ", "ફોન", "નંબર",
+            "फोन नंबर", "मोबाइल नंबर", "फोन", "नंबर",
+            "save karo", "save kar do", "save kar", "save", "સેવ કરો", "सेव करो", "rakho", "રાખો", "रखो"
+        ).sortedByDescending { it.length }
+
+        for (kw in phoneKeywords) {
+            nameText = nameText.replace(kw, " ")
+        }
+
+        // Strip friend creation prefixes and trigger phrases (sorted by descending length)
+        val triggerPhrases = listOf(
+            "add a friend named", "add friend named", "create friend named", "create a friend named",
+            "add new friend", "create new friend", "add friend", "create friend", "a new friend", "new friend",
+            "naam ka naya dost jodo", "naam ka naya dost", "naam ka dost jodo", "naam ka dost",
+            "ko naya dost jodo", "ko dost jodo", "naya dost jodo", "dost jodo",
+            "dost ke roop me jodo", "dost ke roop mein jodo", "dost ke roop me", "dost ke roop mein",
+            "naya dost banao", "dost banao", "naya dost",
+            "namno navo mitra umero", "namno navo mitra", "namno mitra umero", "namno mitra",
+            "navo mitra umero", "navo mitra", "mitra umero", "dost umero", "dost jodo", "mitra banavo",
+            "tarike add karo", "tarike umero", "tarike jodo", "tarike",
+            "નામનો નવો મિત્ર ઉમેરો", "નામનો મિત્ર ઉમેરો", "નવો મિત્ર ઉમેરો", "મિત્ર ઉમેરો",
+            "દોસ્ત ઉમેરો", "દોસ્ત બનાવો", "દોસ્ત જોડો", "નવો મિત્ર", "નામનો મિત્ર",
+            "નામનો", "નામની", "નામનું",
+            "नाम का नया दोस्त जोड़ो", "नया दोस्त जोड़ो", "दोस्त जोड़ो", "दोस्त बनाओ", "नया दोस्त", "नाम का दोस्त",
+            "नाम का", "नाम की", "नाम के",
+            "named", "called", "naam ka", "naam ki", "naam ke", "naamno", "namno"
+        ).sortedByDescending { it.length }
+
+        for (phrase in triggerPhrases) {
+            nameText = nameText.replace(phrase, " ")
+        }
+
+        // Clean suffixes and particles while preserving Indic matras and marks
+        nameText = nameText.replace(Regex("""\b(?:ka|ki|ke|ko|ne|no|ni|nu|e|thi|se|મા|માં|મેં|કો|કા|કી|કે)\b"""), " ")
+            .replace(Regex("""[^\p{L}\p{M}\s]"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+
+        val genitiveSuffixes = listOf("નો", "ની", "નું", "કા", "કી", "કે", "का", "की", "के", "'s")
+        val cleanedTokens = nameText.split(" ").map { token ->
+            var t = token.trim()
+            for (suf in genitiveSuffixes) {
+                if (t.endsWith(suf) && t.length > suf.length) {
+                    t = t.substring(0, t.length - suf.length)
+                }
+            }
+            t
+        }.filter { it.isNotBlank() && !genitiveSuffixes.contains(it) }
+        nameText = cleanedTokens.joinToString(" ")
+
+        // Capitalize friend name
+        val friendName = if (nameText.isNotBlank()) {
+            nameText.split(" ").joinToString(" ") { word ->
+                word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+            }
+        } else {
+            ""
+        }
+
+        return VoiceCommand.CreateFriend(
+            name = friendName,
+            phoneNumber = phoneNumber,
+            rawInput = rawText
+        )
+    }
+
+    private fun parseFriendDelete(normalized: String, rawText: String, friends: List<Friend>): VoiceCommand.DeleteFriend {
+        val referencedFriends = VoiceEntityResolver.findReferencedFriends(normalized, friends)
+        val target = referencedFriends.firstOrNull()
+
+        var name = target?.name
+        if (name == null) {
+            // Strip delete words and keywords
+            var clean = normalized.replace(Regex("""\b(?:delete|remove|friend|dost|mitra|hatao|kaadho|nikalo|દોસ્ત|મિત્ર|હટાવો|કાઢો|કાઢી નાખો|हटाओ|डिलीट)\b"""), " ")
+                .replace(Regex("\\s+"), " ")
+                .trim()
+            name = clean.ifBlank { "" }
+        }
+
+        return VoiceCommand.DeleteFriend(
+            friendId = target?.id,
+            friendName = name,
+            rawInput = rawText
+        )
+    }
+
+    private fun parseFriendUpdate(normalized: String, rawText: String, friends: List<Friend>): VoiceCommand.UpdateFriend {
+        val referencedFriends = VoiceEntityResolver.findReferencedFriends(normalized, friends)
+        val target = referencedFriends.firstOrNull()
+
+        val phoneRegex = Regex("""\b[6-9]\d{9}\b""")
+        val phoneMatch = phoneRegex.find(rawText) ?: phoneRegex.find(normalized)
+        val newPhoneNumber = phoneMatch?.value
+
+        return VoiceCommand.UpdateFriend(
+            friendId = target?.id,
+            friendName = target?.name,
+            newPhoneNumber = newPhoneNumber,
+            rawInput = rawText
+        )
+    }
+
+    private fun parseFriendSearch(normalized: String, rawText: String): VoiceCommand.SearchFriend {
+        var clean = normalized.replace(Regex("""\b(?:search|find|friend|dost|mitra|shodh|dhoondo|શોધો|દોસ્ત|મિત્ર|ढूंढो|खोजो)\b"""), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+        return VoiceCommand.SearchFriend(query = clean, rawInput = rawText)
+    }
+
+    private fun parseGroupCreate(normalized: String, rawText: String, friends: List<Friend>): VoiceCommand.CreateGroup {
+        // Find if initial members are referenced
+        val referencedMembers = VoiceEntityResolver.findReferencedFriends(normalized, friends)
+        val memberNames = referencedMembers.map { it.name }
+
+        // Extract group name
+        var groupName = normalized
+        for (m in referencedMembers) {
+            groupName = groupName.replace(m.name.lowercase(), " ")
+        }
+
+        val triggerPhrases = listOf(
+            "create a group called", "create group called", "new group called",
+            "create a group named", "create group named", "create a group", "create group", "new group",
+            "group called", "ka group banao", "naam ka group banao", "group banao", "mandali banao",
+            "namnu group banavo", "nu group banavo", "group banavo",
+            "નામનું ગ્રૂપ બનાવો", "નામનું ગ્રુપ બનાવો", "ગ્રૂપ બનાવો", "ગ્રુપ બનાવો", "નું ગ્રૂપ", "નું ગ્રુપ",
+            "કા ગ્રુપ બનાવો", "કા ગ્રૂપ બનાવો", "નામનું", "નું",
+            "का ग्रुप बनाओ", "ग्रुप बनाओ", "का ग्रुप", "ग्रुप", "ગ્રૂપ", "ગ્રુપ", "group"
+        ).sortedByDescending { it.length }
+
+        for (phrase in triggerPhrases) {
+            groupName = groupName.replace(phrase, " ")
+        }
+
+        groupName = groupName.replace(Regex("""\b(?:with|and|aur|sathe|ke sath|સાથે|કે સાથ|और|અને)\b"""), " ")
+            .replace(Regex("""[^\p{L}\p{M}\s]"""), " ")
+            .replace(Regex("""\s+"""), " ")
+            .trim()
+
+        val formattedGroupName = if (groupName.isNotBlank()) {
+            groupName.split(" ").joinToString(" ") { word ->
+                word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+            }
+        } else {
+            ""
+        }
+
+        return VoiceCommand.CreateGroup(
+            name = formattedGroupName,
+            initialMemberNames = memberNames,
+            rawInput = rawText
+        )
+    }
+
+    private fun parseGroupAddMember(
+        normalized: String,
+        rawText: String,
+        friends: List<Friend>,
+        groups: List<FriendGroup>
+    ): VoiceCommand.AddGroupMember {
+        val targetGroup = VoiceEntityResolver.findReferencedGroup(normalized, groups)
+        val referencedFriends = VoiceEntityResolver.findReferencedFriends(normalized, friends)
+
+        return VoiceCommand.AddGroupMember(
+            groupId = targetGroup?.id,
+            groupName = targetGroup?.name,
+            friendNames = referencedFriends.map { it.name },
+            friendIds = referencedFriends.map { it.id },
+            rawInput = rawText
+        )
+    }
+
+    private fun parseGroupRemoveMember(
+        normalized: String,
+        rawText: String,
+        friends: List<Friend>,
+        groups: List<FriendGroup>
+    ): VoiceCommand.RemoveGroupMember {
+        val targetGroup = VoiceEntityResolver.findReferencedGroup(normalized, groups)
+        val referencedFriends = VoiceEntityResolver.findReferencedFriends(normalized, friends)
+        val targetFriend = referencedFriends.firstOrNull()
+
+        return VoiceCommand.RemoveGroupMember(
+            groupId = targetGroup?.id,
+            groupName = targetGroup?.name,
+            friendName = targetFriend?.name,
+            friendId = targetFriend?.id,
+            rawInput = rawText
+        )
+    }
+
+    private fun parseGroupUpdate(
+        normalized: String,
+        rawText: String,
+        groups: List<FriendGroup>
+    ): VoiceCommand.UpdateGroup {
+        val targetGroup = VoiceEntityResolver.findReferencedGroup(normalized, groups)
+        var newName = normalized.replace(Regex("""\b(?:rename|change|group|name|to|into|badlo|naam|નામ બદલો|नाम बदलो)\b"""), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+        return VoiceCommand.UpdateGroup(
+            groupId = targetGroup?.id,
+            groupName = targetGroup?.name,
+            newName = newName.ifBlank { null },
+            rawInput = rawText
+        )
+    }
+
+    private fun parseGroupDelete(
+        normalized: String,
+        rawText: String,
+        groups: List<FriendGroup>
+    ): VoiceCommand.DeleteGroup {
+        val targetGroup = VoiceEntityResolver.findReferencedGroup(normalized, groups)
+
+        var groupName = targetGroup?.name
+        if (groupName == null) {
+            val clean = normalized.replace(Regex("""\b(?:delete|remove|group|hatao|kaadho|nikalo|ગ્રૂપ|ગ્રુપ|ડિલીટ|हटाओ|हटा दो|डिलीट)\b"""), " ")
+                .replace(Regex("\\s+"), " ")
+                .trim()
+            groupName = clean.ifBlank { "" }
+        }
+
+        return VoiceCommand.DeleteGroup(
+            groupId = targetGroup?.id,
+            groupName = groupName,
+            rawInput = rawText
+        )
+    }
+
+    private fun parseNavigation(normalized: String, rawText: String): VoiceCommand.Navigate {
+        val (screen, title) = when {
+            normalized.contains("friend") || normalized.contains("dost") || normalized.contains("mitra") || normalized.contains("મિત્રો") || normalized.contains("દોસ્ત") ->
+                "friends" to "Friends"
+            normalized.contains("analytic") || normalized.contains("insight") || normalized.contains("report") || normalized.contains("chart") || normalized.contains("એનાલિટિક્સ") ->
+                "analytics" to "Analytics"
+            normalized.contains("transaction") || normalized.contains("history") || normalized.contains("list") || normalized.contains("લેવડદેવડ") || normalized.contains("ઇતિહાસ") ->
+                "transactions" to "Transactions"
+            normalized.contains("setting") || normalized.contains("preference") || normalized.contains("સેટિંગ્સ") || normalized.contains("सेटिंग्स") ->
+                "settings" to "Settings"
+            else ->
+                "dashboard" to "Dashboard"
+        }
+
+        return VoiceCommand.Navigate(
+            destination = screen,
+            destinationTitle = title,
+            rawInput = rawText
+        )
     }
 
     private fun parseTransactionCreation(
@@ -159,52 +456,38 @@ object VoiceCommandParser {
 
     private fun parseSettlementCreation(text: String, friends: List<Friend>): VoiceCommand {
         val amount = VoiceNumberParser.parseAmountPaise(text) ?: 0L
-        val paymentMethod = VoiceEntityResolver.resolvePaymentMethod(text)
         val date = VoiceDateParser.parseTransactionDate(text)
-
+        val paymentMethod = VoiceEntityResolver.resolvePaymentMethod(text)
         val referencedFriends = VoiceEntityResolver.findReferencedFriends(text, friends)
         val targetFriend = referencedFriends.firstOrNull()
 
-        // Direction:
-        // Did I pay the friend, or did the friend pay me?
-        val friendPaidMe = text.contains("returned") ||
-                text.contains("received") ||
-                text.contains("malya") ||
-                text.contains("paasethi") ||
-                text.contains("se mile") ||
-                text.contains("lautaye") ||
-                text.contains("મળ્યા") ||
-                text.contains("પાસેથી") ||
-                text.contains("मिले") ||
-                text.contains("लौटाए")
+        // Direction: did I pay friend, or did friend pay me?
+        val receivedKeywords = listOf("from", "received", "mila", "mile", "malya", "paasethi", "પાસેથી", "से मिला", "સે મળ્યા", "returned")
+        val isReceived = receivedKeywords.any { text.contains(it) }
 
-        val (payerId, receiverId) = if (friendPaidMe) {
-            Pair(targetFriend?.id, null) // Friend paid ME
-        } else {
-            Pair(null, targetFriend?.id) // ME paid Friend
-        }
+        val payerId = if (isReceived) targetFriend?.id else null
+        val receiverId = if (isReceived) null else targetFriend?.id
 
         return VoiceCommand.CreateSettlement(
             amountPaise = amount,
             payerId = payerId,
             receiverId = receiverId,
-            friendName = targetFriend?.name ?: "",
+            friendName = targetFriend?.name ?: "Friend",
             paymentMethod = paymentMethod,
             date = date,
-            notes = "Recorded via Voice Assistant",
             rawInput = text
         )
     }
 
     private fun parseSettlementEdit(text: String, friends: List<Friend>): VoiceCommand {
         val newAmount = VoiceNumberParser.parseAmountPaise(text)
-        val newPaymentMethod = if (text.contains("cash") || text.contains("upi") || text.contains("card")) {
+        val targetFriend = VoiceEntityResolver.findReferencedFriends(text, friends).firstOrNull()
+        val newPaymentMethod = if (text.contains("cash") || text.contains("upi") || text.contains("card") || text.contains("net banking")) {
             VoiceEntityResolver.resolvePaymentMethod(text)
         } else null
-        val referencedFriends = VoiceEntityResolver.findReferencedFriends(text, friends)
 
         return VoiceCommand.EditSettlement(
-            friendName = referencedFriends.firstOrNull()?.name,
+            friendName = targetFriend?.name,
             newAmountPaise = newAmount,
             newPaymentMethod = newPaymentMethod,
             rawInput = text
@@ -212,17 +495,17 @@ object VoiceCommandParser {
     }
 
     private fun parseSettlementReverse(text: String, friends: List<Friend>): VoiceCommand {
-        val referencedFriends = VoiceEntityResolver.findReferencedFriends(text, friends)
+        val targetFriend = VoiceEntityResolver.findReferencedFriends(text, friends).firstOrNull()
         return VoiceCommand.ReverseSettlement(
-            friendName = referencedFriends.firstOrNull()?.name,
+            friendName = targetFriend?.name,
             rawInput = text
         )
     }
 
     private fun parseSettlementDelete(text: String, friends: List<Friend>): VoiceCommand {
-        val referencedFriends = VoiceEntityResolver.findReferencedFriends(text, friends)
+        val targetFriend = VoiceEntityResolver.findReferencedFriends(text, friends).firstOrNull()
         return VoiceCommand.DeleteSettlement(
-            friendName = referencedFriends.firstOrNull()?.name,
+            friendName = targetFriend?.name,
             rawInput = text
         )
     }
@@ -232,9 +515,6 @@ object VoiceCommandParser {
         friends: List<Friend>,
         categories: List<Category>
     ): VoiceCommand {
-        // e.g. "Change my train ticket expense to 350"
-        // e.g. "Change the payment method to UPI"
-        // e.g. "Change Jay's share to 200"
         val newAmount = VoiceNumberParser.parseAmountPaise(text)
         val newPaymentMethod = if (text.contains("cash") || text.contains("upi") || text.contains("card") || text.contains("net banking")) {
             VoiceEntityResolver.resolvePaymentMethod(text)
@@ -255,7 +535,6 @@ object VoiceCommandParser {
     }
 
     private fun parseTransactionDelete(text: String): VoiceCommand {
-        // e.g. "Delete the 300 rupee auto transaction"
         val amount = VoiceNumberParser.parseAmountPaise(text)
         val descriptionKeywords = listOf("train", "ticket", "dinner", "lunch", "auto", "movie", "grocery", "food", "hotel", "rent")
         val desc = descriptionKeywords.firstOrNull { text.contains(it) }
@@ -305,15 +584,13 @@ object VoiceCommandParser {
     }
 
     private fun extractTransactionTitle(text: String, defaultCategoryName: String): String {
-        // Strip common command and currency words
         val clean = text.replace(Regex("""(?:\b|₹)\s*\d+(?:\.\d+)?\s*(?:k|thousand|hazar|lakh|crore)?(?:\s*(?:rupees|रुपये|રૂપિયા|rs))?\b"""), " ")
             .replace(Regex("""\b(?:add|create|record|spent|expense|jodo|likho|umero|for|ke liye|maate|માટે|के लिए|paid by|split with|divide|equally)\b"""), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
 
         if (clean.length >= 3) {
-            // Capitalize first letter
-            return clean.replaceFirstChar { it.uppercase() }
+            return clean.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
         }
         return defaultCategoryName
     }

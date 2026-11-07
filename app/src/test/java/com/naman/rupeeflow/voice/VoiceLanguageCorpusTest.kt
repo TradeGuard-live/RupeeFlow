@@ -418,4 +418,203 @@ class VoiceLanguageCorpusTest {
         assertTrue(kal <= today)
         assertTrue(gaiKaale < today)
     }
+
+    // =========================================================================
+    // 6. PHASE 1 BUG REGRESSION & FRIEND MANAGEMENT TESTS
+    // =========================================================================
+
+    @Test
+    fun test_Phase1Bug_AddFriend_MustNeverBeExpense() {
+        // Core bug report: "Add friend" was erroneously classified as an expense titled "A new friend sukrut"
+        val intent1 = VoiceIntentClassifier.classify("Add friend")
+        assertEquals(VoiceIntent.FRIEND_CREATE, intent1)
+        assertNotEquals(VoiceIntent.CREATE_EXPENSE, intent1)
+
+        val intent2 = VoiceIntentClassifier.classify("Add friend Sukrut")
+        assertEquals(VoiceIntent.FRIEND_CREATE, intent2)
+        assertNotEquals(VoiceIntent.CREATE_EXPENSE, intent2)
+
+        val intent3 = VoiceIntentClassifier.classify("A new friend sukrut")
+        assertEquals(VoiceIntent.FRIEND_CREATE, intent3)
+        assertNotEquals(VoiceIntent.CREATE_EXPENSE, intent3)
+
+        val intent4 = VoiceIntentClassifier.classify("Create friend Pratik with phone number 9876543210")
+        assertEquals(VoiceIntent.FRIEND_CREATE, intent4)
+        assertNotEquals(VoiceIntent.CREATE_EXPENSE, intent4)
+    }
+
+    @Test
+    fun test_FriendCreation_EntityExtraction() {
+        val cmd1 = VoiceCommandParser.parse("Add friend Sukrut", friends, groups, categories)
+        assertTrue(cmd1 is VoiceCommand.CreateFriend)
+        val f1 = cmd1 as VoiceCommand.CreateFriend
+        assertEquals("Sukrut", f1.name)
+        assertNull(f1.phoneNumber)
+
+        val cmd2 = VoiceCommandParser.parse("Create friend Pratik with phone number 9876543210", friends, groups, categories)
+        assertTrue(cmd2 is VoiceCommand.CreateFriend)
+        val f2 = cmd2 as VoiceCommand.CreateFriend
+        assertEquals("Pratik", f2.name)
+        assertEquals("9876543210", f2.phoneNumber)
+
+        val cmd3 = VoiceCommandParser.parse("Add a friend named Jay", friends, groups, categories)
+        assertTrue(cmd3 is VoiceCommand.CreateFriend)
+        val f3 = cmd3 as VoiceCommand.CreateFriend
+        assertEquals("Jay", f3.name)
+    }
+
+    @Test
+    fun test_Gujarati_FriendCreation() {
+        val intent = VoiceIntentClassifier.classify("જય નામનો મિત્ર ઉમેરો")
+        assertEquals(VoiceIntent.FRIEND_CREATE, intent)
+
+        val cmd = VoiceCommandParser.parse("જય નામનો મિત્ર ઉમેરો", friends, groups, categories, VoiceLanguage.GUJARATI)
+        assertTrue(cmd is VoiceCommand.CreateFriend)
+        val f = cmd as VoiceCommand.CreateFriend
+        assertEquals("જય", f.name)
+
+        val cmdPhone = VoiceCommandParser.parse("પ્રતિકનો ફોન નંબર 9876543210 સેવ કરો", friends, groups, categories, VoiceLanguage.GUJARATI)
+        assertTrue(cmdPhone is VoiceCommand.CreateFriend)
+        val fPhone = cmdPhone as VoiceCommand.CreateFriend
+        assertEquals("પ્રતિક", fPhone.name)
+        assertEquals("9876543210", fPhone.phoneNumber)
+    }
+
+    @Test
+    fun test_Hindi_FriendCreation() {
+        val intent = VoiceIntentClassifier.classify("जय नाम का नया दोस्त जोड़ो")
+        assertEquals(VoiceIntent.FRIEND_CREATE, intent)
+
+        val cmd = VoiceCommandParser.parse("जय नाम का नया दोस्त जोड़ो", friends, groups, categories, VoiceLanguage.HINDI)
+        assertTrue(cmd is VoiceCommand.CreateFriend)
+        val f = cmd as VoiceCommand.CreateFriend
+        assertEquals("जय", f.name)
+
+        val cmdPhone = VoiceCommandParser.parse("प्रतिक का नंबर 9876543210 सेव करो", friends, groups, categories, VoiceLanguage.HINDI)
+        assertTrue(cmdPhone is VoiceCommand.CreateFriend)
+        val fPhone = cmdPhone as VoiceCommand.CreateFriend
+        assertEquals("प्रतिक", fPhone.name)
+        assertEquals("9876543210", fPhone.phoneNumber)
+    }
+
+    @Test
+    fun test_Friend_Deletion_And_Search() {
+        val deleteCmd = VoiceCommandParser.parse("Delete friend Jay", friends, groups, categories)
+        assertTrue(deleteCmd is VoiceCommand.DeleteFriend)
+        val d = deleteCmd as VoiceCommand.DeleteFriend
+        assertEquals(101L, d.friendId)
+        assertEquals("Jay", d.friendName)
+
+        val gujDelete = VoiceCommandParser.parse("જયને ફ્રેન્ડ લિસ્ટમાંથી કાઢી નાખો", friends, groups, categories, VoiceLanguage.GUJARATI)
+        assertTrue(gujDelete is VoiceCommand.DeleteFriend)
+
+        val searchCmd = VoiceCommandParser.parse("Search friend Jay", friends, groups, categories)
+        assertTrue(searchCmd is VoiceCommand.SearchFriend)
+        val s = searchCmd as VoiceCommand.SearchFriend
+        assertEquals("jay", s.query.lowercase())
+    }
+
+    // =========================================================================
+    // 7. GROUP MANAGEMENT TESTS
+    // =========================================================================
+
+    @Test
+    fun test_GroupCreation_English_Hindi_Gujarati() {
+        val cmdEn = VoiceCommandParser.parse("Create a group called Hostel Friends", friends, groups, categories)
+        assertTrue(cmdEn is VoiceCommand.CreateGroup)
+        val gEn = cmdEn as VoiceCommand.CreateGroup
+        assertEquals("Hostel Friends", gEn.name)
+
+        val cmdGu = VoiceCommandParser.parse("હોસ્ટેલ ફ્રેન્ડ્સ નામનું ગ્રુપ બનાવો", friends, groups, categories, VoiceLanguage.GUJARATI)
+        assertTrue(cmdGu is VoiceCommand.CreateGroup)
+        val gGu = cmdGu as VoiceCommand.CreateGroup
+        assertEquals("હોસ્ટેલ ફ્રેન્ડ્સ", gGu.name)
+
+        val cmdHi = VoiceCommandParser.parse("Hostel friends ka group banao", friends, groups, categories, VoiceLanguage.HINGLISH)
+        assertTrue(cmdHi is VoiceCommand.CreateGroup)
+        val gHi = cmdHi as VoiceCommand.CreateGroup
+        assertEquals("Hostel Friends", gHi.name)
+    }
+
+    @Test
+    fun test_Group_AddAndRemoveMember() {
+        val addCmd = VoiceCommandParser.parse("Add Jay to College Trip", friends, groups, categories)
+        assertTrue(addCmd is VoiceCommand.AddGroupMember)
+        val a = addCmd as VoiceCommand.AddGroupMember
+        assertEquals(1L, a.groupId)
+        assertEquals("College Trip", a.groupName)
+        assertTrue(a.friendNames.contains("Jay"))
+
+        val removeCmd = VoiceCommandParser.parse("Remove Jay from College Trip", friends, groups, categories)
+        assertTrue(removeCmd is VoiceCommand.RemoveGroupMember)
+        val r = removeCmd as VoiceCommand.RemoveGroupMember
+        assertEquals(1L, r.groupId)
+        assertEquals("Jay", r.friendName)
+    }
+
+    @Test
+    fun test_Group_Delete_And_List() {
+        val delCmd = VoiceCommandParser.parse("Delete College Trip group", friends, groups, categories)
+        assertTrue(delCmd is VoiceCommand.DeleteGroup)
+        val d = delCmd as VoiceCommand.DeleteGroup
+        assertEquals(1L, d.groupId)
+
+        val listCmd = VoiceCommandParser.parse("Show all groups", friends, groups, categories)
+        assertTrue(listCmd is VoiceCommand.ListGroups)
+    }
+
+    // =========================================================================
+    // 8. HIGHEST EXPENSE & QUERY EXTENSIONS
+    // =========================================================================
+
+    @Test
+    fun test_HighestExpenseQuery() {
+        val intent1 = VoiceIntentClassifier.classify("Show my highest expense")
+        assertEquals(VoiceIntent.QUERY_HIGHEST_EXPENSE, intent1)
+
+        val intent2 = VoiceIntentClassifier.classify("Sabse bada kharch dikhao")
+        assertEquals(VoiceIntent.QUERY_HIGHEST_EXPENSE, intent2)
+
+        val intent3 = VoiceIntentClassifier.classify("સૌથી મોટો ખર્ચ બતાવો")
+        assertEquals(VoiceIntent.QUERY_HIGHEST_EXPENSE, intent3)
+    }
+
+    // =========================================================================
+    // 9. AUTOMATIC LANGUAGE DETECTION TESTS (PHASE 3)
+    // =========================================================================
+
+    @Test
+    fun test_AutomaticLanguageDetection_NativeScripts() {
+        // Native Gujarati
+        assertEquals(VoiceLanguage.GUJARATI, VoiceLanguageDetector.detect("મિત્ર ઉમેરો"))
+        assertEquals(VoiceLanguage.GUJARATI, VoiceLanguageDetector.detect("ત્રણસો રૂપિયાનો ખર્ચ ઉમેરો"))
+        assertEquals(VoiceLanguage.GUJARATI, VoiceLanguageDetector.detect("જયને મેં પચાસ રૂપિયા આપ્યા"))
+        assertEquals(VoiceLanguage.GUJARATI, VoiceLanguageDetector.detect("મારા હોસ્ટેલના મિત્રોનું ગ્રુપ બનાવો"))
+
+        // Native Hindi
+        assertEquals(VoiceLanguage.HINDI, VoiceLanguageDetector.detect("एक नया दोस्त जोड़ो"))
+        assertEquals(VoiceLanguage.HINDI, VoiceLanguageDetector.detect("तीन सौ रुपये का खर्च जोड़ो"))
+        assertEquals(VoiceLanguage.HINDI, VoiceLanguageDetector.detect("जय को मैंने पचास रुपये दिए"))
+        assertEquals(VoiceLanguage.HINDI, VoiceLanguageDetector.detect("मेरे दोस्तों का ग्रुप बनाओ"))
+    }
+
+    @Test
+    fun test_AutomaticLanguageDetection_EnglishAndMixed() {
+        // Standard English
+        assertEquals(VoiceLanguage.ENGLISH, VoiceLanguageDetector.detect("Add a friend named Jay"))
+        assertEquals(VoiceLanguage.ENGLISH, VoiceLanguageDetector.detect("I spent 250 on food using cash"))
+        assertEquals(VoiceLanguage.ENGLISH, VoiceLanguageDetector.detect("Create group Hostel Friends"))
+
+        // Hinglish (Romanized Hindi)
+        assertEquals(VoiceLanguage.HINGLISH, VoiceLanguageDetector.detect("Jay ko 500 diye"))
+        assertEquals(VoiceLanguage.HINGLISH, VoiceLanguageDetector.detect("Hostel friends ka group banao"))
+        assertEquals(VoiceLanguage.HINGLISH, VoiceLanguageDetector.detect("Is mahine kitna kharch hua"))
+        assertEquals(VoiceLanguage.HINGLISH, VoiceLanguageDetector.detect("Add 500 rupees expense, cash se pay kiya"))
+
+        // Code-switched Gujarati + English
+        assertEquals(VoiceLanguage.GUJARATI, VoiceLanguageDetector.detect("મને 300 rupees નો expense add કરવો છે"))
+        assertEquals(VoiceLanguage.GUJARATI, VoiceLanguageDetector.detect("Mara hostel group ma Jay ne add karo"))
+        assertEquals(VoiceLanguage.GUJARATI, VoiceLanguageDetector.detect("500 rupees no kharch umero, Jay e pay karyo"))
+    }
 }
+

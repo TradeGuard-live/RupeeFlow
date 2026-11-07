@@ -1,5 +1,7 @@
 package com.naman.rupeeflow.voice
 
+import com.naman.rupeeflow.data.repository.FriendGroupRepository
+import com.naman.rupeeflow.data.repository.FriendRepository
 import com.naman.rupeeflow.data.repository.SettlementRepository
 import com.naman.rupeeflow.data.repository.TransactionRepository
 import com.naman.rupeeflow.domain.ledger.LedgerCalculator
@@ -27,7 +29,9 @@ class VoiceFinancialSafetyTest {
             Friend(id = 102L, name = "Manav"),
             Friend(id = 103L, name = "Priya")
         )
-        groups = emptyList()
+        groups = listOf(
+            FriendGroup(id = 1L, name = "Flatmates", memberFriendIds = listOf(101L, 102L))
+        )
         categories = listOf(
             Category(id = 1L, name = "Food", iconName = "food", colorHex = "#EF4444")
         )
@@ -103,6 +107,44 @@ class VoiceFinancialSafetyTest {
     }
 
     @Test
+    fun test_MissingFriendName_RequiresClarification() {
+        val cmd = VoiceCommand.CreateFriend(name = "")
+        val result = VoiceCommandValidator.validateAndBuildPreview(cmd, friends, groups, categories)
+        assertTrue(result is VoiceCommandResult.ClarificationRequired)
+        val clarification = result as VoiceCommandResult.ClarificationRequired
+        assertEquals(VoiceClarificationType.MISSING_FRIEND_NAME, clarification.prompt.type)
+    }
+
+    @Test
+    fun test_MissingGroupName_RequiresClarification() {
+        val cmd = VoiceCommand.CreateGroup(name = "")
+        val result = VoiceCommandValidator.validateAndBuildPreview(cmd, friends, groups, categories)
+        assertTrue(result is VoiceCommandResult.ClarificationRequired)
+        val clarification = result as VoiceCommandResult.ClarificationRequired
+        assertEquals(VoiceClarificationType.MISSING_GROUP_NAME, clarification.prompt.type)
+    }
+
+    @Test
+    fun test_FriendDeletion_MarkedAsDestructive() {
+        val cmd = VoiceCommand.DeleteFriend(friendId = 101L, friendName = "Jay")
+        val result = VoiceCommandValidator.validateAndBuildPreview(cmd, friends, groups, categories)
+        assertTrue(result is VoiceCommandResult.PreviewReady)
+        val preview = (result as VoiceCommandResult.PreviewReady).preview as VoiceActionPreview.FriendPreview
+        assertTrue(preview.isDelete)
+        assertEquals("Jay", preview.friend.name)
+    }
+
+    @Test
+    fun test_GroupDeletion_MarkedAsDestructive() {
+        val cmd = VoiceCommand.DeleteGroup(groupId = 1L, groupName = "Flatmates")
+        val result = VoiceCommandValidator.validateAndBuildPreview(cmd, friends, groups, categories)
+        assertTrue(result is VoiceCommandResult.PreviewReady)
+        val preview = (result as VoiceCommandResult.PreviewReady).preview as VoiceActionPreview.GroupPreview
+        assertTrue(preview.isDelete)
+        assertEquals("Flatmates", preview.group.name)
+    }
+
+    @Test
     fun test_IdempotentExecution_PreventsDuplicateSaves() = runBlocking {
         var saveCallCount = 0
 
@@ -140,7 +182,41 @@ class VoiceFinancialSafetyTest {
             override suspend fun deleteSettlement(settlement: Settlement) {}
         }
 
-        val executor = VoiceActionExecutor(fakeTxnRepo, fakeSettlementRepo)
+        val fakeFriendRepo = object : FriendRepository {
+            override fun getActiveFriends() = flowOf(emptyList<Friend>())
+            override fun getAllFriends() = flowOf(emptyList<Friend>())
+            override suspend fun getAllFriendsList() = emptyList<Friend>()
+            override suspend fun getFriendById(id: Long): Friend? = null
+            override fun getFriendByIdFlow(id: Long) = flowOf(null)
+            override suspend fun addFriend(friend: Friend): Long = 101L
+            override suspend fun updateFriend(friend: Friend) {}
+            override suspend fun deleteFriend(friend: Friend) {}
+            override suspend fun archiveFriend(id: Long) {}
+            override suspend fun unarchiveFriend(id: Long) {}
+            override suspend fun isFriendReferenced(friendId: Long) = false
+        }
+
+        val fakeGroupRepo = object : FriendGroupRepository {
+            override fun getAllGroups() = flowOf(emptyList<FriendGroup>())
+            override suspend fun getAllGroupsList() = emptyList<FriendGroup>()
+            override suspend fun getGroupById(id: Long): FriendGroup? = null
+            override fun getGroupByIdFlow(id: Long) = flowOf(null)
+            override suspend fun createGroup(
+                name: String,
+                iconName: String?,
+                colorHex: String?,
+                friendIds: List<Long>,
+                groupImagePath: String?
+            ): Long = 1L
+            override suspend fun updateGroup(group: FriendGroup, friendIds: List<Long>?) {}
+            override suspend fun deleteGroup(groupId: Long) {}
+            override suspend fun addFriendToGroup(groupId: Long, friendId: Long) {}
+            override suspend fun removeFriendFromGroup(groupId: Long, friendId: Long) {}
+            override suspend fun setGroupMembers(groupId: Long, friendIds: List<Long>) {}
+            override fun getGroupsForFriend(friendId: Long) = flowOf(emptyList<FriendGroup>())
+        }
+
+        val executor = VoiceActionExecutor(fakeTxnRepo, fakeSettlementRepo, fakeFriendRepo, fakeGroupRepo)
         val preview = VoiceActionPreview.TransactionPreview(
             transaction = Transaction(title = "Coffee", amountPaise = 15000L)
         )
@@ -159,3 +235,4 @@ class VoiceFinancialSafetyTest {
         assertEquals(1, saveCallCount)
     }
 }
+

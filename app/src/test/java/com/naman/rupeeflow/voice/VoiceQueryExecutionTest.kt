@@ -170,3 +170,4 @@ class VoiceQueryExecutionTest {
         assertEquals(1, populatedResult.details.size)
     }
 }
+

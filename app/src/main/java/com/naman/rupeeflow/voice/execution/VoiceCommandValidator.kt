@@ -18,6 +18,32 @@ object VoiceCommandValidator {
         language: VoiceLanguage = VoiceLanguage.ENGLISH
     ): VoiceCommandResult {
         return when (command) {
+            is VoiceCommand.CreateFriend -> validateCreateFriend(command, friends, language)
+            is VoiceCommand.UpdateFriend -> validateUpdateFriend(command, friends, language)
+            is VoiceCommand.DeleteFriend -> validateDeleteFriend(command, friends, language)
+            is VoiceCommand.SearchFriend -> validateSearchFriend(command, friends, language)
+
+            is VoiceCommand.CreateGroup -> validateCreateGroup(command, groups, language)
+            is VoiceCommand.UpdateGroup -> validateUpdateGroup(command, groups, language)
+            is VoiceCommand.DeleteGroup -> validateDeleteGroup(command, groups, language)
+            is VoiceCommand.AddGroupMember -> validateAddGroupMember(command, friends, groups, language)
+            is VoiceCommand.RemoveGroupMember -> validateRemoveGroupMember(command, friends, groups, language)
+            is VoiceCommand.ListGroups -> VoiceCommandResult.Success("List groups", "Listing groups", "QUERY")
+
+            is VoiceCommand.Navigate -> validateNavigate(command, language)
+            is VoiceCommand.CreateBackup -> VoiceCommandResult.PreviewReady(
+                preview = VoiceActionPreview.BackupPreview(isRestore = false, summaryNote = "Create local backup"),
+                pendingCommand = command,
+                confirmationPrompt = "Create local backup now?",
+                spokenPrompt = "Create local backup now?"
+            )
+            is VoiceCommand.RestoreBackup -> VoiceCommandResult.PreviewReady(
+                preview = VoiceActionPreview.BackupPreview(isRestore = true, summaryNote = "Restore backup data"),
+                pendingCommand = command,
+                confirmationPrompt = "Restore data from latest backup? This will replace current records.",
+                spokenPrompt = "Restore data from backup?"
+            )
+
             is VoiceCommand.CreateTransaction -> validateCreateTransaction(command, friends, groups, categories, language)
             is VoiceCommand.CreateSettlement -> validateCreateSettlement(command, friends, language)
             is VoiceCommand.EditTransaction -> validateEditTransaction(command, language)
@@ -30,7 +56,7 @@ object VoiceCommandValidator {
             is VoiceCommand.Cancel -> VoiceCommandResult.Cancelled
             is VoiceCommand.Help -> VoiceCommandResult.Success("Help", "Help", "HELP")
             is VoiceCommand.Unknown -> VoiceCommandResult.Error(
-                errorMessage = "I didn't understand that command. Try saying 'Add 300 for dinner' or 'How much does Jay owe me?'",
+                errorMessage = "I didn't understand that command. Try saying 'Add friend Jay' or 'Add 300 for dinner'.",
                 spokenErrorMessage = "I didn't understand that command."
             )
             else -> VoiceCommandResult.Error("Unsupported action", "Unsupported action")
@@ -286,6 +312,315 @@ object VoiceCommandValidator {
             pendingCommand = cmd,
             confirmationPrompt = "Delete this settlement permanently?",
             spokenPrompt = "Delete this settlement?"
+        )
+    }
+
+    private fun validateCreateFriend(
+        cmd: VoiceCommand.CreateFriend,
+        friends: List<Friend>,
+        language: VoiceLanguage
+    ): VoiceCommandResult {
+        if (cmd.name.isBlank()) {
+            val (qText, qSpoken) = VoiceResponseGenerator.missingFriendNamePrompt(language)
+            return VoiceCommandResult.ClarificationRequired(
+                prompt = VoiceClarificationPrompt(
+                    type = VoiceClarificationType.MISSING_FRIEND_NAME,
+                    question = qText,
+                    spokenQuestion = qSpoken
+                ),
+                partialCommand = cmd
+            )
+        }
+
+        val friend = Friend(
+            name = cmd.name,
+            phoneNumber = cmd.phoneNumber,
+            email = cmd.email
+        )
+
+        val (confirmText, confirmSpoken) = VoiceResponseGenerator.friendConfirmationPrompt(friend, isDelete = false, language)
+        return VoiceCommandResult.PreviewReady(
+            preview = VoiceActionPreview.FriendPreview(
+                friend = friend,
+                summaryNote = "Add to Friends"
+            ),
+            pendingCommand = cmd,
+            confirmationPrompt = confirmText,
+            spokenPrompt = confirmSpoken
+        )
+    }
+
+    private fun validateDeleteFriend(
+        cmd: VoiceCommand.DeleteFriend,
+        friends: List<Friend>,
+        language: VoiceLanguage
+    ): VoiceCommandResult {
+        val target = if (cmd.friendId != null) {
+            friends.firstOrNull { it.id == cmd.friendId }
+        } else if (!cmd.friendName.isNullOrBlank()) {
+            val q = cmd.friendName.trim().lowercase()
+            friends.firstOrNull { it.name.trim().lowercase() == q }
+                ?: friends.firstOrNull { it.name.trim().lowercase().contains(q) }
+        } else null
+
+        if (target == null) {
+            return VoiceCommandResult.Error(
+                errorMessage = "Could not find friend \"${cmd.friendName ?: ""}\".",
+                spokenErrorMessage = "Friend not found."
+            )
+        }
+
+        val (confirmText, confirmSpoken) = VoiceResponseGenerator.friendConfirmationPrompt(target, isDelete = true, language)
+        return VoiceCommandResult.PreviewReady(
+            preview = VoiceActionPreview.FriendPreview(
+                friend = target,
+                isDelete = true,
+                summaryNote = "Delete friend ${target.name}"
+            ),
+            pendingCommand = cmd,
+            confirmationPrompt = confirmText,
+            spokenPrompt = confirmSpoken
+        )
+    }
+
+    private fun validateUpdateFriend(
+        cmd: VoiceCommand.UpdateFriend,
+        friends: List<Friend>,
+        language: VoiceLanguage
+    ): VoiceCommandResult {
+        val target = if (cmd.friendId != null) {
+            friends.firstOrNull { it.id == cmd.friendId }
+        } else if (!cmd.friendName.isNullOrBlank()) {
+            val q = cmd.friendName.trim().lowercase()
+            friends.firstOrNull { it.name.trim().lowercase() == q }
+        } else null
+
+        if (target == null) {
+            return VoiceCommandResult.Error("Friend not found to update.", "Friend not found.")
+        }
+
+        val updated = target.copy(
+            phoneNumber = cmd.newPhoneNumber ?: target.phoneNumber,
+            name = cmd.newName ?: target.name
+        )
+
+        return VoiceCommandResult.PreviewReady(
+            preview = VoiceActionPreview.FriendPreview(friend = updated, isEdit = true, summaryNote = "Update Friend"),
+            pendingCommand = cmd,
+            confirmationPrompt = "Update ${target.name}'s details?",
+            spokenPrompt = "Update friend details?"
+        )
+    }
+
+    private fun validateSearchFriend(
+        cmd: VoiceCommand.SearchFriend,
+        friends: List<Friend>,
+        language: VoiceLanguage
+    ): VoiceCommandResult {
+        val q = cmd.query.trim().lowercase()
+        val match = friends.firstOrNull { it.name.trim().lowercase().contains(q) }
+            ?: Friend(name = cmd.query)
+        return VoiceCommandResult.PreviewReady(
+            preview = VoiceActionPreview.FriendPreview(friend = match, isSearch = true),
+            pendingCommand = cmd,
+            confirmationPrompt = "Found friend: ${match.name}",
+            spokenPrompt = "Found friend ${match.name}"
+        )
+    }
+
+    private fun validateCreateGroup(
+        cmd: VoiceCommand.CreateGroup,
+        groups: List<FriendGroup>,
+        language: VoiceLanguage
+    ): VoiceCommandResult {
+        if (cmd.name.isBlank()) {
+            val (qText, qSpoken) = VoiceResponseGenerator.missingGroupNamePrompt(language)
+            return VoiceCommandResult.ClarificationRequired(
+                prompt = VoiceClarificationPrompt(
+                    type = VoiceClarificationType.MISSING_GROUP_NAME,
+                    question = qText,
+                    spokenQuestion = qSpoken
+                ),
+                partialCommand = cmd
+            )
+        }
+
+        val group = FriendGroup(name = cmd.name)
+        val (cText, cSpoken) = VoiceResponseGenerator.groupConfirmationPrompt(
+            groupName = group.name,
+            isDelete = false,
+            isAddMember = false,
+            isRemoveMember = false,
+            targetMembers = cmd.initialMemberNames,
+            language = language
+        )
+
+        return VoiceCommandResult.PreviewReady(
+            preview = VoiceActionPreview.GroupPreview(
+                group = group,
+                addedMemberNames = cmd.initialMemberNames,
+                summaryNote = "Create Group"
+            ),
+            pendingCommand = cmd,
+            confirmationPrompt = cText,
+            spokenPrompt = cSpoken
+        )
+    }
+
+    private fun validateAddGroupMember(
+        cmd: VoiceCommand.AddGroupMember,
+        friends: List<Friend>,
+        groups: List<FriendGroup>,
+        language: VoiceLanguage
+    ): VoiceCommandResult {
+        val targetGroup = if (cmd.groupId != null) {
+            groups.firstOrNull { it.id == cmd.groupId }
+        } else if (!cmd.groupName.isNullOrBlank()) {
+            val q = cmd.groupName.trim().lowercase()
+            groups.firstOrNull { it.name.trim().lowercase() == q }
+                ?: groups.firstOrNull { it.name.trim().lowercase().contains(q) }
+        } else groups.firstOrNull()
+
+        if (targetGroup == null) {
+            return VoiceCommandResult.Error("Group not found.", "Group not found.")
+        }
+
+        val (cText, cSpoken) = VoiceResponseGenerator.groupConfirmationPrompt(
+            groupName = targetGroup.name,
+            isDelete = false,
+            isAddMember = true,
+            isRemoveMember = false,
+            targetMembers = cmd.friendNames,
+            language = language
+        )
+
+        return VoiceCommandResult.PreviewReady(
+            preview = VoiceActionPreview.GroupPreview(
+                group = targetGroup,
+                addedMemberNames = cmd.friendNames,
+                isAddMember = true,
+                summaryNote = "Add to ${targetGroup.name}"
+            ),
+            pendingCommand = cmd,
+            confirmationPrompt = cText,
+            spokenPrompt = cSpoken
+        )
+    }
+
+    private fun validateRemoveGroupMember(
+        cmd: VoiceCommand.RemoveGroupMember,
+        friends: List<Friend>,
+        groups: List<FriendGroup>,
+        language: VoiceLanguage
+    ): VoiceCommandResult {
+        val targetGroup = if (cmd.groupId != null) {
+            groups.firstOrNull { it.id == cmd.groupId }
+        } else if (!cmd.groupName.isNullOrBlank()) {
+            val q = cmd.groupName.trim().lowercase()
+            groups.firstOrNull { it.name.trim().lowercase() == q }
+                ?: groups.firstOrNull { it.name.trim().lowercase().contains(q) }
+        } else groups.firstOrNull()
+
+        if (targetGroup == null) {
+            return VoiceCommandResult.Error("Group not found.", "Group not found.")
+        }
+
+        val targetName = cmd.friendName ?: "Friend"
+        val (cText, cSpoken) = VoiceResponseGenerator.groupConfirmationPrompt(
+            groupName = targetGroup.name,
+            isDelete = false,
+            isAddMember = false,
+            isRemoveMember = true,
+            targetMembers = listOf(targetName),
+            language = language
+        )
+
+        return VoiceCommandResult.PreviewReady(
+            preview = VoiceActionPreview.GroupPreview(
+                group = targetGroup,
+                removedMemberName = targetName,
+                isRemoveMember = true,
+                summaryNote = "Remove from ${targetGroup.name}"
+            ),
+            pendingCommand = cmd,
+            confirmationPrompt = cText,
+            spokenPrompt = cSpoken
+        )
+    }
+
+    private fun validateUpdateGroup(
+        cmd: VoiceCommand.UpdateGroup,
+        groups: List<FriendGroup>,
+        language: VoiceLanguage
+    ): VoiceCommandResult {
+        val targetGroup = if (cmd.groupId != null) {
+            groups.firstOrNull { it.id == cmd.groupId }
+        } else if (!cmd.groupName.isNullOrBlank()) {
+            val q = cmd.groupName.trim().lowercase()
+            groups.firstOrNull { it.name.trim().lowercase() == q }
+        } else null
+
+        if (targetGroup == null) {
+            return VoiceCommandResult.Error("Group not found.", "Group not found.")
+        }
+
+        val updated = targetGroup.copy(name = cmd.newName ?: targetGroup.name)
+        return VoiceCommandResult.PreviewReady(
+            preview = VoiceActionPreview.GroupPreview(group = updated, isEdit = true, summaryNote = "Rename Group"),
+            pendingCommand = cmd,
+            confirmationPrompt = "Rename group to ${updated.name}?",
+            spokenPrompt = "Rename group?"
+        )
+    }
+
+    private fun validateDeleteGroup(
+        cmd: VoiceCommand.DeleteGroup,
+        groups: List<FriendGroup>,
+        language: VoiceLanguage
+    ): VoiceCommandResult {
+        val targetGroup = if (cmd.groupId != null) {
+            groups.firstOrNull { it.id == cmd.groupId }
+        } else if (!cmd.groupName.isNullOrBlank()) {
+            val q = cmd.groupName.trim().lowercase()
+            groups.firstOrNull { it.name.trim().lowercase() == q }
+                ?: groups.firstOrNull { it.name.trim().lowercase().contains(q) }
+        } else null
+
+        if (targetGroup == null) {
+            return VoiceCommandResult.Error("Group not found.", "Group not found.")
+        }
+
+        val (cText, cSpoken) = VoiceResponseGenerator.groupConfirmationPrompt(
+            groupName = targetGroup.name,
+            isDelete = true,
+            isAddMember = false,
+            isRemoveMember = false,
+            targetMembers = emptyList(),
+            language = language
+        )
+
+        return VoiceCommandResult.PreviewReady(
+            preview = VoiceActionPreview.GroupPreview(
+                group = targetGroup,
+                isDelete = true,
+                summaryNote = "Delete group ${targetGroup.name}"
+            ),
+            pendingCommand = cmd,
+            confirmationPrompt = cText,
+            spokenPrompt = cSpoken
+        )
+    }
+
+    private fun validateNavigate(cmd: VoiceCommand.Navigate, language: VoiceLanguage): VoiceCommandResult {
+        return VoiceCommandResult.PreviewReady(
+            preview = VoiceActionPreview.NavigationPreview(
+                destinationScreen = cmd.destination,
+                destinationTitle = cmd.destinationTitle,
+                spokenMessage = "Opening ${cmd.destinationTitle}."
+            ),
+            pendingCommand = cmd,
+            confirmationPrompt = "Open ${cmd.destinationTitle}?",
+            spokenPrompt = "Opening ${cmd.destinationTitle}."
         )
     }
 }

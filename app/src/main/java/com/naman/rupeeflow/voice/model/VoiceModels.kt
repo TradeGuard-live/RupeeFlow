@@ -28,6 +28,22 @@ enum class VoiceIntent {
     CREATE_TRANSFER,
     CREATE_SETTLEMENT,
 
+    // Friend operations
+    FRIEND_CREATE,
+    FRIEND_UPDATE,
+    FRIEND_DELETE,
+    FRIEND_SEARCH,
+    FRIEND_ARCHIVE,
+    FRIEND_UNARCHIVE,
+
+    // Group operations
+    GROUP_CREATE,
+    GROUP_UPDATE,
+    GROUP_DELETE,
+    GROUP_ADD_MEMBER,
+    GROUP_REMOVE_MEMBER,
+    GROUP_LIST,
+
     EDIT_TRANSACTION,
     DELETE_TRANSACTION,
     SEARCH_TRANSACTION,
@@ -43,8 +59,14 @@ enum class VoiceIntent {
     QUERY_MONTHLY_SPENDING,
     QUERY_CATEGORY_SPENDING,
     QUERY_PAYMENT_METHOD_SPENDING,
+    QUERY_HIGHEST_EXPENSE,
     QUERY_TRANSACTION_DETAILS,
     QUERY_SETTLEMENT_HISTORY,
+
+    // Navigation & System
+    NAVIGATE_SCREEN,
+    BACKUP_CREATE,
+    BACKUP_RESTORE,
 
     HELP,
     CANCEL,
@@ -148,6 +170,85 @@ sealed class VoiceCommand {
         val selectedTransactionId: Long? = null
     ) : VoiceCommand()
 
+    data class CreateFriend(
+        val name: String,
+        val phoneNumber: String? = null,
+        val email: String? = null,
+        val rawInput: String = ""
+    ) : VoiceCommand()
+
+    data class UpdateFriend(
+        val friendId: Long? = null,
+        val friendName: String? = null,
+        val newPhoneNumber: String? = null,
+        val newName: String? = null,
+        val rawInput: String = ""
+    ) : VoiceCommand()
+
+    data class DeleteFriend(
+        val friendId: Long? = null,
+        val friendName: String? = null,
+        val rawInput: String = ""
+    ) : VoiceCommand()
+
+    data class SearchFriend(
+        val query: String,
+        val rawInput: String = ""
+    ) : VoiceCommand()
+
+    data class CreateGroup(
+        val name: String,
+        val initialMemberNames: List<String> = emptyList(),
+        val rawInput: String = ""
+    ) : VoiceCommand()
+
+    data class UpdateGroup(
+        val groupId: Long? = null,
+        val groupName: String? = null,
+        val newName: String? = null,
+        val rawInput: String = ""
+    ) : VoiceCommand()
+
+    data class AddGroupMember(
+        val groupId: Long? = null,
+        val groupName: String? = null,
+        val friendNames: List<String> = emptyList(),
+        val friendIds: List<Long> = emptyList(),
+        val rawInput: String = ""
+    ) : VoiceCommand()
+
+    data class RemoveGroupMember(
+        val groupId: Long? = null,
+        val groupName: String? = null,
+        val friendName: String? = null,
+        val friendId: Long? = null,
+        val rawInput: String = ""
+    ) : VoiceCommand()
+
+    data class DeleteGroup(
+        val groupId: Long? = null,
+        val groupName: String? = null,
+        val rawInput: String = ""
+    ) : VoiceCommand()
+
+    data class ListGroups(
+        val rawInput: String = ""
+    ) : VoiceCommand()
+
+    data class Navigate(
+        val destination: String,
+        val destinationTitle: String = "",
+        val rawInput: String = ""
+    ) : VoiceCommand()
+
+    data class CreateBackup(
+        val rawInput: String = ""
+    ) : VoiceCommand()
+
+    data class RestoreBackup(
+        val rawInput: String = ""
+    ) : VoiceCommand()
+
     data object Confirm : VoiceCommand()
     data object Cancel : VoiceCommand()
     data object Help : VoiceCommand()
@@ -199,6 +300,46 @@ sealed class VoiceActionPreview {
         val spokenAnswer: String,
         val details: List<String> = emptyList()
     ) : VoiceActionPreview()
+
+    data class FriendPreview(
+        val friend: Friend,
+        val isDelete: Boolean = false,
+        val isEdit: Boolean = false,
+        val isSearch: Boolean = false,
+        val summaryNote: String = ""
+    ) : VoiceActionPreview()
+
+    data class GroupPreview(
+        val group: FriendGroup,
+        val memberFriends: List<Friend> = emptyList(),
+        val addedMemberNames: List<String> = emptyList(),
+        val removedMemberName: String? = null,
+        val isDelete: Boolean = false,
+        val isEdit: Boolean = false,
+        val isAddMember: Boolean = false,
+        val isRemoveMember: Boolean = false,
+        val summaryNote: String = ""
+    ) : VoiceActionPreview()
+
+    data class NavigationPreview(
+        val destinationScreen: String,
+        val destinationTitle: String,
+        val spokenMessage: String = ""
+    ) : VoiceActionPreview()
+
+    data class BackupPreview(
+        val isRestore: Boolean = false,
+        val summaryNote: String = ""
+    ) : VoiceActionPreview()
+}
+
+/**
+ * Risk classification for voice operations.
+ */
+enum class VoiceRiskLevel {
+    LOW,
+    MEDIUM,
+    HIGH
 }
 
 /**
@@ -209,11 +350,15 @@ enum class VoiceClarificationType {
     MISSING_PAYER,
     MISSING_PARTICIPANTS,
     MISSING_SPLIT_METHOD,
+    MISSING_FRIEND_NAME,
+    MISSING_GROUP_NAME,
+    MISSING_TARGET_MEMBER,
     AMBIGUOUS_FRIEND,
     AMBIGUOUS_GROUP,
     AMBIGUOUS_TRANSACTION,
     AMBIGUOUS_SETTLEMENT,
-    CONFIRM_DELETION
+    CONFIRM_DELETION,
+    CONFIRM_HIGH_RISK
 }
 
 data class VoiceClarificationPrompt(
@@ -284,3 +429,4 @@ enum class SpeechRecognitionAvailability {
     SPEECH_RECOGNIZER_UNAVAILABLE,
     PERMISSION_REQUIRED
 }
+

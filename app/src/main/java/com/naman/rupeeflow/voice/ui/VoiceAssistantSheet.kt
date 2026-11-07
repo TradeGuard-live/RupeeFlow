@@ -122,15 +122,38 @@ fun VoiceAssistantSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Language Selector Pills
+            // Auto-Language & Language Selector Pills
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Auto Detect Chip (Recommended / Default)
+                FilterChip(
+                    selected = uiState.isAutoDetect,
+                    onClick = { viewModel.enableAutoDetect() },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = "Auto Language Detection",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    },
+                    label = {
+                        Text(
+                            text = if (uiState.isAutoDetect) "Auto: ${uiState.detectedLanguage.displayName}" else "Auto Detect",
+                            fontWeight = if (uiState.isAutoDetect) FontWeight.Bold else FontWeight.Normal
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = colors.primaryAccentContainer,
+                        selectedLabelColor = colors.primaryAccent
+                    )
+                )
+
                 VoiceLanguage.entries.forEach { lang ->
-                    val isSelected = uiState.selectedLanguage == lang
+                    val isSelected = !uiState.isAutoDetect && uiState.selectedLanguage == lang
                     FilterChip(
                         selected = isSelected,
                         onClick = { viewModel.selectLanguage(lang) },
@@ -531,12 +554,162 @@ fun ActionPreviewCard(
                         color = colors.textPrimary
                     )
                 }
+                is VoiceActionPreview.FriendPreview -> {
+                    val friend = preview.friend
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(colors.primaryAccentContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = friend.name.take(1).uppercase(),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 20.sp,
+                                color = colors.primaryAccent
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = friend.name,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.textPrimary
+                            )
+                            if (!friend.phoneNumber.isNullOrBlank()) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Phone,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = colors.textSecondary
+                                    )
+                                    Text(
+                                        text = friend.phoneNumber,
+                                        fontSize = 14.sp,
+                                        color = colors.textSecondary
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SuggestionChip(
+                        onClick = {},
+                        label = {
+                            Text(
+                                text = if (preview.isDelete) "Delete Friend" else if (preview.isEdit) "Edit Friend" else "New Friend",
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (preview.isDelete) colors.error else colors.success
+                            )
+                        }
+                    )
+                }
+                is VoiceActionPreview.GroupPreview -> {
+                    val group = preview.group
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(colors.primaryAccentContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Group,
+                                contentDescription = null,
+                                tint = colors.primaryAccent,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = group.name,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.textPrimary
+                            )
+                            if (preview.addedMemberNames.isNotEmpty()) {
+                                Text(
+                                    text = "Members: ${preview.addedMemberNames.joinToString(", ")}",
+                                    fontSize = 13.sp,
+                                    color = colors.textSecondary
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    SuggestionChip(
+                        onClick = {},
+                        label = {
+                            Text(
+                                text = if (preview.isDelete) "Delete Group" else if (preview.isAddMember) "Add Members" else if (preview.isRemoveMember) "Remove Member" else "New Group",
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (preview.isDelete) colors.error else colors.success
+                            )
+                        }
+                    )
+                }
+                is VoiceActionPreview.NavigationPreview -> {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Navigation,
+                            contentDescription = null,
+                            tint = colors.primaryAccent
+                        )
+                        Text(
+                            text = "Open ${preview.destinationTitle}",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textPrimary
+                        )
+                    }
+                }
+                is VoiceActionPreview.BackupPreview -> {
+                    Text(
+                        text = if (preview.isRestore) "Restore Backup" else "Create Backup",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textPrimary
+                    )
+                }
                 is VoiceActionPreview.QueryResultPreview -> {
                     Text(text = preview.formattedAnswer, fontSize = 16.sp, color = colors.textPrimary)
+                    if (preview.details.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        preview.details.forEach { d ->
+                            Text(text = "• $d", fontSize = 13.sp, color = colors.textSecondary)
+                        }
+                    }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            val isDestructive = when (preview) {
+                is VoiceActionPreview.FriendPreview -> preview.isDelete
+                is VoiceActionPreview.GroupPreview -> preview.isDelete
+                is VoiceActionPreview.TransactionPreview -> preview.isDelete
+                is VoiceActionPreview.SettlementPreview -> preview.isDelete || preview.isReverse
+                is VoiceActionPreview.BackupPreview -> preview.isRestore
+                else -> false
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -550,10 +723,15 @@ fun ActionPreviewCard(
                 }
                 Button(
                     onClick = onConfirm,
-                    colors = ButtonDefaults.buttonColors(containerColor = colors.success),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isDestructive) colors.error else colors.success
+                    ),
                     modifier = Modifier.weight(1.5f)
                 ) {
-                    Text("Confirm & Save", fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (isDestructive) "Confirm Delete" else "Confirm & Save",
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }

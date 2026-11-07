@@ -33,6 +33,7 @@ object VoiceQueryHandler {
             VoiceIntent.QUERY_GROUP_BALANCE -> handleGroupBalanceQuery(query, transactions, friends, settlements, groups, language)
             VoiceIntent.QUERY_MONTHLY_SPENDING,
             VoiceIntent.QUERY_TOTAL_SPENDING -> handleSpendingQuery(query, transactions, categories, language)
+            VoiceIntent.QUERY_HIGHEST_EXPENSE -> handleHighestExpenseQuery(query, transactions, language)
             VoiceIntent.QUERY_CATEGORY_SPENDING -> handleCategorySpendingQuery(query, transactions, categories, language)
             VoiceIntent.QUERY_PAYMENT_METHOD_SPENDING -> handlePaymentMethodSpendingQuery(query, transactions, language)
             VoiceIntent.QUERY_TRANSACTION_DETAILS -> handleTransactionDetailsQuery(query, transactions, language)
@@ -220,6 +221,46 @@ object VoiceQueryHandler {
 
         return VoiceActionPreview.QueryResultPreview(
             title = "Spending Summary ($scopeTitle)",
+            formattedAnswer = text,
+            spokenAnswer = spoken,
+            details = details
+        )
+    }
+
+    private fun handleHighestExpenseQuery(
+        query: VoiceCommand.Query,
+        transactions: List<Transaction>,
+        language: VoiceLanguage
+    ): VoiceActionPreview.QueryResultPreview {
+        val (startTime, endTime, scopeTitle) = getDateBounds(query.dateRange)
+
+        val activeExpenses = transactions.filter { txn ->
+            txn.transactionStatus == TransactionStatus.ACTIVE &&
+                    txn.transactionType == TransactionType.EXPENSE &&
+                    txn.transactionDate in startTime..endTime
+        }.sortedByDescending { it.amountPaise }
+
+        val highest = activeExpenses.firstOrNull()
+        if (highest == null) {
+            return VoiceActionPreview.QueryResultPreview(
+                title = "Highest Expense",
+                formattedAnswer = "No expenses recorded for this period.",
+                spokenAnswer = "No expenses recorded for this period."
+            )
+        }
+
+        val (text, spoken) = VoiceResponseGenerator.highestExpenseResponse(
+            highest.title,
+            highest.amountPaise,
+            language
+        )
+
+        val details = activeExpenses.take(3).map { txn ->
+            "${txn.title}: ${CurrencyUtils.formatPaiseToRupees(txn.amountPaise)}"
+        }
+
+        return VoiceActionPreview.QueryResultPreview(
+            title = "Highest Expense ($scopeTitle)",
             formattedAnswer = text,
             spokenAnswer = spoken,
             details = details

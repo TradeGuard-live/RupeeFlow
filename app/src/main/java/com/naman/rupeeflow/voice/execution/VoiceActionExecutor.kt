@@ -1,5 +1,7 @@
 package com.naman.rupeeflow.voice.execution
 
+import com.naman.rupeeflow.data.repository.FriendGroupRepository
+import com.naman.rupeeflow.data.repository.FriendRepository
 import com.naman.rupeeflow.data.repository.SettlementRepository
 import com.naman.rupeeflow.data.repository.TransactionRepository
 import com.naman.rupeeflow.voice.model.VoiceActionPreview
@@ -8,14 +10,17 @@ import com.naman.rupeeflow.voice.model.VoiceLanguage
 import java.util.Collections
 
 /**
- * Idempotently executes approved financial voice previews against
- * TransactionRepository and SettlementRepository.
+ * Idempotently executes approved voice previews against
+ * TransactionRepository, SettlementRepository, FriendRepository, and FriendGroupRepository.
+ * Prevents duplicate operations across rapid clicks or recompositions.
  */
 class VoiceActionExecutor(
     private val transactionRepository: TransactionRepository,
-    private val settlementRepository: SettlementRepository
+    private val settlementRepository: SettlementRepository,
+    private val friendRepository: FriendRepository,
+    private val friendGroupRepository: FriendGroupRepository
 ) {
-    // In-memory set of executed token hashes to guarantee idempotency across recompositions or double clicks
+    // In-memory set of executed token hashes to guarantee idempotency
     private val executedTokens = Collections.synchronizedSet(mutableSetOf<String>())
 
     suspend fun executePreview(
@@ -24,7 +29,6 @@ class VoiceActionExecutor(
         executionToken: String
     ): VoiceCommandResult {
         if (!executedTokens.add(executionToken)) {
-            // Already processed this exact execution token
             return VoiceCommandResult.Success(
                 message = "Already processed.",
                 spokenMessage = "Action already processed.",
@@ -108,6 +112,157 @@ class VoiceActionExecutor(
                             entityId = id
                         )
                     }
+                }
+                is VoiceActionPreview.FriendPreview -> {
+                    if (preview.isDelete) {
+                        friendRepository.deleteFriend(preview.friend)
+                        val (text, spoken) = VoiceResponseGenerator.friendDeletedSuccess(
+                            preview.friend.name,
+                            language
+                        )
+                        VoiceCommandResult.Success(
+                            message = text,
+                            spokenMessage = spoken,
+                            actionType = "DELETE_FRIEND",
+                            entityId = preview.friend.id
+                        )
+                    } else if (preview.isEdit) {
+                        friendRepository.updateFriend(preview.friend)
+                        val (text, spoken) = VoiceResponseGenerator.friendSavedSuccess(
+                            preview.friend,
+                            isEdit = true,
+                            language
+                        )
+                        VoiceCommandResult.Success(
+                            message = text,
+                            spokenMessage = spoken,
+                            actionType = "EDIT_FRIEND",
+                            entityId = preview.friend.id
+                        )
+                    } else if (preview.isSearch) {
+                        VoiceCommandResult.Success(
+                            message = "Friend: ${preview.friend.name}",
+                            spokenMessage = "Friend ${preview.friend.name}",
+                            actionType = "SEARCH_FRIEND",
+                            entityId = preview.friend.id
+                        )
+                    } else {
+                        val id = friendRepository.addFriend(preview.friend)
+                        val (text, spoken) = VoiceResponseGenerator.friendSavedSuccess(
+                            preview.friend.copy(id = id),
+                            isEdit = false,
+                            language
+                        )
+                        VoiceCommandResult.Success(
+                            message = text,
+                            spokenMessage = spoken,
+                            actionType = "CREATE_FRIEND",
+                            entityId = id
+                        )
+                    }
+                }
+                is VoiceActionPreview.GroupPreview -> {
+                    if (preview.isDelete) {
+                        friendGroupRepository.deleteGroup(preview.group.id)
+                        val (text, spoken) = VoiceResponseGenerator.groupDeletedSuccess(
+                            preview.group.name,
+                            language
+                        )
+                        VoiceCommandResult.Success(
+                            message = text,
+                            spokenMessage = spoken,
+                            actionType = "DELETE_GROUP",
+                            entityId = preview.group.id
+                        )
+                    } else if (preview.isAddMember) {
+                        val allFriends = friendRepository.getAllFriendsList()
+                        val addedMemberNames = mutableListOf<String>()
+                        for (name in preview.addedMemberNames) {
+                            val existing = allFriends.firstOrNull { it.name.equals(name, ignoreCase = true) }
+                            val fId = if (existing != null) {
+                                existing.id
+                            } else {
+                                friendRepository.addFriend(com.naman.rupeeflow.domain.model.Friend(name = name))
+                            }
+                            friendGroupRepository.addFriendToGroup(preview.group.id, fId)
+                            addedMemberNames.add(name)
+                        }
+                        val (text, spoken) = VoiceResponseGenerator.groupMemberAddedSuccess(
+                            preview.group.name,
+                            addedMemberNames,
+                            language
+                        )
+                        VoiceCommandResult.Success(
+                            message = text,
+                            spokenMessage = spoken,
+                            actionType = "ADD_GROUP_MEMBER",
+                            entityId = preview.group.id
+                        )
+                    } else if (preview.isRemoveMember) {
+                        val allFriends = friendRepository.getAllFriendsList()
+                        val memberToRemove = allFriends.firstOrNull {
+                            it.name.equals(preview.removedMemberName, ignoreCase = true)
+                        }
+                        if (memberToRemove != null) {
+                            friendGroupRepository.removeFriendFromGroup(preview.group.id, memberToRemove.id)
+                        }
+                        val (text, spoken) = VoiceResponseGenerator.groupMemberRemovedSuccess(
+                            preview.group.name,
+                            preview.removedMemberName ?: "Friend",
+                            language
+                        )
+                        VoiceCommandResult.Success(
+                            message = text,
+                            spokenMessage = spoken,
+                            actionType = "REMOVE_GROUP_MEMBER",
+                            entityId = preview.group.id
+                        )
+                    } else if (preview.isEdit) {
+                        friendGroupRepository.updateGroup(preview.group)
+                        VoiceCommandResult.Success(
+                            message = "Group \"${preview.group.name}\" updated.",
+                            spokenMessage = "Group ${preview.group.name} updated.",
+                            actionType = "UPDATE_GROUP",
+                            entityId = preview.group.id
+                        )
+                    } else {
+                        // Create group with initial members
+                        val allFriends = friendRepository.getAllFriendsList()
+                        val memberIds = mutableListOf<Long>()
+                        for (name in preview.addedMemberNames) {
+                            val f = allFriends.firstOrNull { it.name.equals(name, ignoreCase = true) }
+                            val fId = f?.id ?: friendRepository.addFriend(com.naman.rupeeflow.domain.model.Friend(name = name))
+                            memberIds.add(fId)
+                        }
+                        val groupId = friendGroupRepository.createGroup(
+                            name = preview.group.name,
+                            friendIds = memberIds
+                        )
+                        val (text, spoken) = VoiceResponseGenerator.groupSavedSuccess(
+                            preview.group.name,
+                            language
+                        )
+                        VoiceCommandResult.Success(
+                            message = text,
+                            spokenMessage = spoken,
+                            actionType = "CREATE_GROUP",
+                            entityId = groupId
+                        )
+                    }
+                }
+                is VoiceActionPreview.NavigationPreview -> {
+                    VoiceCommandResult.Success(
+                        message = "Navigating to ${preview.destinationTitle}.",
+                        spokenMessage = preview.spokenMessage,
+                        actionType = "NAVIGATE"
+                    )
+                }
+                is VoiceActionPreview.BackupPreview -> {
+                    VoiceCommandResult.Success(
+                        message = if (preview.isRestore) "Backup restored." else "Backup created.",
+                        spokenMessage = if (preview.isRestore) "Backup restored." else "Backup created.",
+                        actionType = if (preview.isRestore) "RESTORE_BACKUP" else "CREATE_BACKUP"
+                    )
                 }
                 is VoiceActionPreview.QueryResultPreview -> {
                     VoiceCommandResult.QueryResult(preview)

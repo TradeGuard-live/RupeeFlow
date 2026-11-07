@@ -3,11 +3,7 @@ package com.naman.rupeeflow.voice.viewmodel
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.naman.rupeeflow.data.repository.CategoryRepository
-import com.naman.rupeeflow.data.repository.FriendGroupRepository
-import com.naman.rupeeflow.data.repository.FriendRepository
-import com.naman.rupeeflow.data.repository.SettlementRepository
-import com.naman.rupeeflow.data.repository.TransactionRepository
+import com.naman.rupeeflow.data.repository.*
 import com.naman.rupeeflow.domain.model.Category
 import com.naman.rupeeflow.domain.model.Friend
 import com.naman.rupeeflow.domain.model.FriendGroup
@@ -15,7 +11,7 @@ import com.naman.rupeeflow.voice.execution.VoiceActionExecutor
 import com.naman.rupeeflow.voice.execution.VoiceCommandValidator
 import com.naman.rupeeflow.voice.execution.VoiceQueryHandler
 import com.naman.rupeeflow.voice.model.*
-import com.naman.rupeeflow.voice.nlp.VoiceCommandParser
+import com.naman.rupeeflow.voice.nlp.*
 import com.naman.rupeeflow.voice.recognition.VoiceRecognitionManager
 import com.naman.rupeeflow.voice.recognition.VoiceTtsManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +24,8 @@ import java.util.UUID
 data class VoiceAssistantUiState(
     val status: VoiceAssistantStatus = VoiceAssistantStatus.IDLE,
     val selectedLanguage: VoiceLanguage = VoiceLanguage.ENGLISH,
+    val detectedLanguage: VoiceLanguage = VoiceLanguage.ENGLISH,
+    val isAutoDetect: Boolean = true,
     val availability: SpeechRecognitionAvailability = SpeechRecognitionAvailability.AVAILABLE_OFFLINE,
     val transcription: String = "",
     val partialTranscription: String = "",
@@ -55,7 +53,12 @@ class VoiceAssistantViewModel(
 
     private val recognitionManager = recognitionManagerOverride ?: VoiceRecognitionManager(context)
     private val ttsManager = ttsManagerOverride ?: VoiceTtsManager(context)
-    private val actionExecutor = VoiceActionExecutor(transactionRepository, settlementRepository)
+    private val actionExecutor = VoiceActionExecutor(
+        transactionRepository = transactionRepository,
+        settlementRepository = settlementRepository,
+        friendRepository = friendRepository,
+        friendGroupRepository = friendGroupRepository
+    )
 
     private val _uiState = MutableStateFlow(VoiceAssistantUiState())
     val uiState: StateFlow<VoiceAssistantUiState> = _uiState.asStateFlow()
@@ -97,13 +100,23 @@ class VoiceAssistantViewModel(
                         _uiState.update { it.copy(status = VoiceAssistantStatus.LISTENING) }
                     }
                     is VoiceRecognitionManager.RecognitionState.PartialResult -> {
-                        _uiState.update { it.copy(partialTranscription = state.text) }
+                        val detected = VoiceLanguageDetector.detect(state.text)
+                        _uiState.update {
+                            it.copy(
+                                partialTranscription = state.text,
+                                detectedLanguage = detected,
+                                selectedLanguage = if (it.isAutoDetect) detected else it.selectedLanguage
+                            )
+                        }
                     }
                     is VoiceRecognitionManager.RecognitionState.FinalResult -> {
+                        val detected = VoiceLanguageDetector.detect(state.text)
                         _uiState.update {
                             it.copy(
                                 transcription = state.text,
                                 partialTranscription = "",
+                                detectedLanguage = detected,
+                                selectedLanguage = if (it.isAutoDetect) detected else it.selectedLanguage,
                                 status = VoiceAssistantStatus.PROCESSING
                             )
                         }
@@ -141,8 +154,12 @@ class VoiceAssistantViewModel(
     }
 
     fun selectLanguage(language: VoiceLanguage) {
-        _uiState.update { it.copy(selectedLanguage = language) }
+        _uiState.update { it.copy(selectedLanguage = language, isAutoDetect = false) }
         refreshAvailability()
+    }
+
+    fun enableAutoDetect() {
+        _uiState.update { it.copy(isAutoDetect = true) }
     }
 
     fun refreshAvailability() {
@@ -191,9 +208,12 @@ class VoiceAssistantViewModel(
     fun submitManualText(text: String) {
         if (text.isBlank()) return
         ttsManager.stop()
+        val detected = VoiceLanguageDetector.detect(text)
         _uiState.update {
             it.copy(
                 transcription = text.trim(),
+                detectedLanguage = detected,
+                selectedLanguage = if (it.isAutoDetect) detected else it.selectedLanguage,
                 status = VoiceAssistantStatus.PROCESSING,
                 errorMessage = null,
                 successMessage = null
@@ -208,6 +228,16 @@ class VoiceAssistantViewModel(
             cachedFriends = friendRepository.getAllFriendsList()
             cachedGroups = friendGroupRepository.getAllGroupsList()
             cachedCategories = categoryRepository.getAllCategoriesList()
+
+            val detectedLanguage = VoiceLanguageDetector.detect(rawText)
+            val effectiveLanguage = if (_uiState.value.isAutoDetect) detectedLanguage else _uiState.value.selectedLanguage
+
+            _uiState.update {
+                it.copy(
+                    detectedLanguage = detectedLanguage,
+                    selectedLanguage = effectiveLanguage
+                )
+            }
 
             // 1. Check if user is answering a pending clarification
             val pending = _uiState.value.pendingCommand
@@ -224,7 +254,7 @@ class VoiceAssistantViewModel(
                 friends = cachedFriends,
                 groups = cachedGroups,
                 categories = cachedCategories,
-                language = _uiState.value.selectedLanguage
+                language = effectiveLanguage
             )
 
             // 3. Handle Confirm / Cancel shortcuts directly
@@ -238,7 +268,7 @@ class VoiceAssistantViewModel(
                     return@launch
                 }
                 is VoiceCommand.Help -> {
-                    val helpText = "You can say:\n• \"Add 300 for dinner with Jay\"\n• \"Jay paid 500 for lunch\"\n• \"How much does Jay owe me?\"\n• \"Total spent this month\"\n• \"Settle 450 with Priya\""
+                    val helpText = "You can say:\n• \"Add friend Sukrut\"\n• \"Create group Hostel Friends\"\n• \"Add 300 for dinner with Jay\"\n• \"How much does Jay owe me?\"\n• \"Show my highest expense\"\n• \"Settle 450 with Priya\""
                     _uiState.update {
                         it.copy(
                             status = VoiceAssistantStatus.SUCCESS,
@@ -246,14 +276,14 @@ class VoiceAssistantViewModel(
                         )
                     }
                     if (_uiState.value.isTtsEnabled) {
-                        ttsManager.speak("You can create transactions, settle balances, or ask financial questions.", _uiState.value.selectedLanguage)
+                        ttsManager.speak("You can add friends, create groups, split transactions, or ask financial questions.", effectiveLanguage)
                     }
                     return@launch
                 }
                 else -> { /* proceed to validation and query handling */ }
             }
 
-            // 4. Handle Read Queries
+            // 4. Handle Read Queries (Low risk - immediate execution)
             if (command is VoiceCommand.Query) {
                 val transactions = transactionRepository.getAllTransactionsList()
                 val settlements = settlementRepository.getAllSettlementsList()
@@ -264,7 +294,7 @@ class VoiceAssistantViewModel(
                     settlements = settlements,
                     groups = cachedGroups,
                     categories = cachedCategories,
-                    language = _uiState.value.selectedLanguage
+                    language = effectiveLanguage
                 )
                 _uiState.update {
                     it.copy(
@@ -274,18 +304,45 @@ class VoiceAssistantViewModel(
                     )
                 }
                 if (_uiState.value.isTtsEnabled) {
-                    ttsManager.speak(preview.spokenAnswer, _uiState.value.selectedLanguage)
+                    ttsManager.speak(preview.spokenAnswer, effectiveLanguage)
                 }
                 return@launch
             }
 
-            // 5. Validate Mutation Commands (Create, Edit, Delete, Settle)
+            if (command is VoiceCommand.ListGroups) {
+                val groups = friendGroupRepository.getAllGroupsList()
+                val groupDetails = groups.map { "${it.name} (${it.memberFriendIds.size} members)" }
+                val (text, spoken) = if (groups.isEmpty()) {
+                    "No friend groups found." to "No friend groups found."
+                } else {
+                    "Found ${groups.size} groups: ${groups.joinToString(", ") { it.name }}." to "You have ${groups.size} groups."
+                }
+                val preview = VoiceActionPreview.QueryResultPreview(
+                    title = "Friend Groups",
+                    formattedAnswer = text,
+                    spokenAnswer = spoken,
+                    details = groupDetails
+                )
+                _uiState.update {
+                    it.copy(
+                        status = VoiceAssistantStatus.SUCCESS,
+                        currentPreview = preview,
+                        successMessage = preview.formattedAnswer
+                    )
+                }
+                if (_uiState.value.isTtsEnabled) {
+                    ttsManager.speak(preview.spokenAnswer, effectiveLanguage)
+                }
+                return@launch
+            }
+
+            // 5. Validate Mutation Commands (Create Friend, Group, Transaction, Settle, Edit, Delete)
             val validationResult = VoiceCommandValidator.validateAndBuildPreview(
                 command = command,
                 friends = cachedFriends,
                 groups = cachedGroups,
                 categories = cachedCategories,
-                language = _uiState.value.selectedLanguage
+                language = effectiveLanguage
             )
 
             when (validationResult) {
@@ -299,7 +356,7 @@ class VoiceAssistantViewModel(
                         )
                     }
                     if (_uiState.value.isTtsEnabled) {
-                        ttsManager.speak(validationResult.spokenPrompt, _uiState.value.selectedLanguage)
+                        ttsManager.speak(validationResult.spokenPrompt, effectiveLanguage)
                     }
                 }
                 is VoiceCommandResult.ClarificationRequired -> {
@@ -311,7 +368,7 @@ class VoiceAssistantViewModel(
                         )
                     }
                     if (_uiState.value.isTtsEnabled) {
-                        ttsManager.speak(validationResult.prompt.spokenQuestion, _uiState.value.selectedLanguage)
+                        ttsManager.speak(validationResult.prompt.spokenQuestion, effectiveLanguage)
                     }
                 }
                 is VoiceCommandResult.Error -> {
@@ -322,7 +379,7 @@ class VoiceAssistantViewModel(
                         )
                     }
                     if (_uiState.value.isTtsEnabled) {
-                        ttsManager.speak(validationResult.spokenErrorMessage, _uiState.value.selectedLanguage)
+                        ttsManager.speak(validationResult.spokenErrorMessage, effectiveLanguage)
                     }
                 }
                 is VoiceCommandResult.Cancelled -> {
@@ -345,13 +402,43 @@ class VoiceAssistantViewModel(
         pending: VoiceCommand,
         prompt: VoiceClarificationPrompt
     ) {
-        val mergedCommand = when (pending) {
+        val mergedCommand: VoiceCommand? = when (pending) {
+            is VoiceCommand.CreateFriend -> {
+                when (prompt.type) {
+                    VoiceClarificationType.MISSING_FRIEND_NAME -> {
+                        val cleaned = answerText.trim().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                        pending.copy(name = cleaned)
+                    }
+                    else -> null
+                }
+            }
+            is VoiceCommand.CreateGroup -> {
+                when (prompt.type) {
+                    VoiceClarificationType.MISSING_GROUP_NAME -> {
+                        val cleaned = answerText.trim().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                        pending.copy(name = cleaned)
+                    }
+                    else -> null
+                }
+            }
             is VoiceCommand.CreateTransaction -> {
                 when (prompt.type) {
                     VoiceClarificationType.MISSING_AMOUNT -> {
-                        val parsedAmt = com.naman.rupeeflow.voice.nlp.VoiceNumberParser.parseAmountPaise(answerText)
+                        val parsedAmt = VoiceNumberParser.parseAmountPaise(answerText)
                         if (parsedAmt != null && parsedAmt > 0L) {
                             pending.copy(amountPaise = parsedAmt)
+                        } else {
+                            null
+                        }
+                    }
+                    VoiceClarificationType.MISSING_PAYER -> {
+                        val (payerId, payerName) = VoiceEntityResolver.resolvePayer(answerText, cachedFriends)
+                        pending.copy(paidByFriendId = payerId, payerName = payerName)
+                    }
+                    VoiceClarificationType.MISSING_PARTICIPANTS -> {
+                        val refs = VoiceEntityResolver.findReferencedFriends(answerText, cachedFriends)
+                        if (refs.isNotEmpty()) {
+                            pending.copy(participantFriendIds = refs.map { it.id })
                         } else {
                             null
                         }
@@ -390,6 +477,17 @@ class VoiceAssistantViewModel(
                 if (_uiState.value.isTtsEnabled) {
                     ttsManager.speak(revalidation.spokenPrompt, _uiState.value.selectedLanguage)
                 }
+            } else if (revalidation is VoiceCommandResult.ClarificationRequired) {
+                _uiState.update {
+                    it.copy(
+                        status = VoiceAssistantStatus.NEEDS_CLARIFICATION,
+                        clarificationPrompt = revalidation.prompt,
+                        pendingCommand = revalidation.partialCommand
+                    )
+                }
+                if (_uiState.value.isTtsEnabled) {
+                    ttsManager.speak(revalidation.prompt.spokenQuestion, _uiState.value.selectedLanguage)
+                }
             }
         } else {
             _uiState.update {
@@ -425,7 +523,8 @@ class VoiceAssistantViewModel(
                             status = VoiceAssistantStatus.SUCCESS,
                             successMessage = result.message,
                             currentPreview = null,
-                            pendingCommand = null
+                            pendingCommand = null,
+                            clarificationPrompt = null
                         )
                     }
                     if (_uiState.value.isTtsEnabled) {
@@ -443,22 +542,24 @@ class VoiceAssistantViewModel(
                         ttsManager.speak(result.spokenErrorMessage, _uiState.value.selectedLanguage)
                     }
                 }
-                else -> {}
+                else -> {
+                    cancelCurrentSession()
+                }
             }
         }
     }
 
     fun cancelCurrentSession() {
         ttsManager.stop()
-        recognitionManager.stopListening()
+        recognitionManager.cancel()
         _uiState.update {
             it.copy(
                 status = VoiceAssistantStatus.IDLE,
+                transcription = "",
+                partialTranscription = "",
                 currentPreview = null,
                 pendingCommand = null,
                 clarificationPrompt = null,
-                transcription = "",
-                partialTranscription = "",
                 errorMessage = null,
                 successMessage = null
             )

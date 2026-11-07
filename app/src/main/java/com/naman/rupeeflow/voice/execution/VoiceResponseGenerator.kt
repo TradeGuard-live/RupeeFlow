@@ -350,4 +350,150 @@ object VoiceResponseGenerator {
 
         return mainText to mainSpoken
     }
+
+    fun friendConfirmationPrompt(
+        friend: Friend,
+        isDelete: Boolean,
+        language: VoiceLanguage
+    ): Pair<String, String> {
+        val name = friend.name
+        val phoneSuffix = if (!friend.phoneNumber.isNullOrBlank()) " (${friend.phoneNumber})" else ""
+        return if (isDelete) {
+            when (language) {
+                VoiceLanguage.ENGLISH -> "Are you sure you want to delete friend $name?" to "Are you sure you want to delete friend $name?"
+                VoiceLanguage.HINDI -> "क्या आप दोस्त $name को हटाना चाहते हैं?" to "Kya aap dost $name ko hatana chahte hain?"
+                VoiceLanguage.GUJARATI -> "શું તમે મિત્ર $name ને યાદીમાંથી કાઢી નાખવા માંગો છો?" to "Shu tame mitra $name ne kaadhi naakhva maango cho?"
+                VoiceLanguage.HINGLISH -> "Kya aap dost $name ko delete karna chahte hain?" to "Kya aap dost $name ko delete karna chahte hain?"
+            }
+        } else {
+            when (language) {
+                VoiceLanguage.ENGLISH -> "Add $name$phoneSuffix to Friends?" to "Add $name to Friends?"
+                VoiceLanguage.HINDI -> "क्या $name$phoneSuffix को दोस्त जोड़ें?" to "Kya $name ko dost ke roop me jodein?"
+                VoiceLanguage.GUJARATI -> "શું $name$phoneSuffix ને મિત્ર તરીકે ઉમેરવા છે?" to "Shu $name ne mitra tarike umerva che?"
+                VoiceLanguage.HINGLISH -> "$name$phoneSuffix ko friend list me add karein?" to "$name ko friend list me add karein?"
+            }
+        }
+    }
+
+    fun friendSavedSuccess(friend: Friend, isEdit: Boolean, language: VoiceLanguage): Pair<String, String> {
+        val name = friend.name
+        return when (language) {
+            VoiceLanguage.ENGLISH -> "Friend $name ${if (isEdit) "updated" else "added"} successfully." to "Friend $name ${if (isEdit) "updated" else "added"} successfully."
+            VoiceLanguage.HINDI -> "दोस्त $name को ${if (isEdit) "अपडेट" else "जोड़"} दिया गया है।" to "Dost $name ko jod diya gaya hai."
+            VoiceLanguage.GUJARATI -> "$name ${if (isEdit) "અપડેટ" else "મિત્ર તરીકે ઉમેરાઈ"} ગયા છે." to "$name mitra tarike umerai gaya che."
+            VoiceLanguage.HINGLISH -> "Friend $name ${if (isEdit) "update" else "add"} ho gaya." to "Friend $name add ho gaya."
+        }
+    }
+
+    fun friendDeletedSuccess(friendName: String, language: VoiceLanguage): Pair<String, String> {
+        return when (language) {
+            VoiceLanguage.ENGLISH -> "Friend $friendName removed." to "Friend $friendName removed."
+            VoiceLanguage.HINDI -> "दोस्त $friendName को हटा दिया गया है।" to "Dost $friendName ko hata diya gaya hai."
+            VoiceLanguage.GUJARATI -> "$friendName ને મિત્રોની યાદીમાંથી કાઢી નાખવામાં આવ્યા છે." to "$friendName ne kaadhi naakhvama aavya che."
+            VoiceLanguage.HINGLISH -> "Friend $friendName delete ho gaya." to "Friend $friendName delete ho gaya."
+        }
+    }
+
+    fun groupConfirmationPrompt(
+        groupName: String,
+        isDelete: Boolean,
+        isAddMember: Boolean,
+        isRemoveMember: Boolean,
+        targetMembers: List<String>,
+        language: VoiceLanguage
+    ): Pair<String, String> {
+        val membersStr = targetMembers.joinToString(", ")
+        return when {
+            isDelete -> when (language) {
+                VoiceLanguage.ENGLISH -> "Are you sure you want to delete group \"$groupName\"?" to "Are you sure you want to delete group $groupName?"
+                VoiceLanguage.HINDI -> "क्या आप \"$groupName\" ग्रुप को हटाना चाहते हैं?" to "Kya aap $groupName group ko hatana chahte hain?"
+                VoiceLanguage.GUJARATI -> "શું તમે \"$groupName\" ગ્રૂપ ડિલીટ કરવા માંગો છો?" to "Shu tame $groupName grup delete karva maango cho?"
+                VoiceLanguage.HINGLISH -> "Kya aap group $groupName ko delete karna chahte hain?" to "Kya aap group $groupName ko delete karna chahte hain?"
+            }
+            isAddMember -> when (language) {
+                VoiceLanguage.ENGLISH -> "Add $membersStr to group \"$groupName\"?" to "Add $membersStr to group $groupName?"
+                VoiceLanguage.HINDI -> "क्या $membersStr को \"$groupName\" ग्रुप में जोड़ें?" to "Kya $membersStr ko $groupName group me jodein?"
+                VoiceLanguage.GUJARATI -> "શું $membersStr ને \"$groupName\" ગ્રૂપમાં ઉમેરવા છે?" to "Shu $membersStr ne $groupName grup ma umerva che?"
+                VoiceLanguage.HINGLISH -> "Kya $membersStr ko group $groupName me add karein?" to "Kya $membersStr ko group $groupName me add karein?"
+            }
+            isRemoveMember -> when (language) {
+                VoiceLanguage.ENGLISH -> "Remove $membersStr from group \"$groupName\"?" to "Remove $membersStr from group $groupName?"
+                VoiceLanguage.HINDI -> "क्या $membersStr को \"$groupName\" ग्रुप से हटाएं?" to "Kya $membersStr ko $groupName group se hatayein?"
+                VoiceLanguage.GUJARATI -> "શું $membersStr ને \"$groupName\" ગ્રૂપમાંથી કાઢવા છે?" to "Shu $membersStr ne $groupName grup mathi kaadhva che?"
+                VoiceLanguage.HINGLISH -> "Kya $membersStr ko group $groupName se remove karein?" to "Kya $membersStr ko group $groupName se remove karein?"
+            }
+            else -> when (language) {
+                VoiceLanguage.ENGLISH -> "Create group \"$groupName\"?" to "Create group $groupName?"
+                VoiceLanguage.HINDI -> "क्या \"$groupName\" नाम का ग्रुप बनाएं?" to "Kya $groupName group banayein?"
+                VoiceLanguage.GUJARATI -> "શું \"$groupName\" ગ્રૂપ બનાવવું છે?" to "Shu $groupName grup banavvu che?"
+                VoiceLanguage.HINGLISH -> "Kya group \"$groupName\" create karein?" to "Kya group $groupName create karein?"
+            }
+        }
+    }
+
+    fun groupSavedSuccess(groupName: String, language: VoiceLanguage): Pair<String, String> {
+        return when (language) {
+            VoiceLanguage.ENGLISH -> "Group \"$groupName\" created successfully." to "Group $groupName created successfully."
+            VoiceLanguage.HINDI -> "\"$groupName\" ग्रुप बन गया है।" to "$groupName group ban gaya hai."
+            VoiceLanguage.GUJARATI -> "\"$groupName\" ગ્રૂપ બની ગયું છે." to "$groupName grup bani gayu che."
+            VoiceLanguage.HINGLISH -> "Group \"$groupName\" create ho gaya." to "Group $groupName create ho gaya."
+        }
+    }
+
+    fun groupMemberAddedSuccess(groupName: String, members: List<String>, language: VoiceLanguage): Pair<String, String> {
+        val mStr = members.joinToString(", ")
+        return when (language) {
+            VoiceLanguage.ENGLISH -> "Added $mStr to $groupName." to "Added $mStr to $groupName."
+            VoiceLanguage.HINDI -> "$mStr को $groupName में जोड़ दिया गया है।" to "$mStr ko $groupName me jod diya gaya hai."
+            VoiceLanguage.GUJARATI -> "$mStr ને $groupName માં ઉમેર્યા છે." to "$mStr ne $groupName ma umerya che."
+            VoiceLanguage.HINGLISH -> "$mStr ko $groupName me add kar diya." to "$mStr ko $groupName me add kar diya."
+        }
+    }
+
+    fun groupMemberRemovedSuccess(groupName: String, memberName: String, language: VoiceLanguage): Pair<String, String> {
+        return when (language) {
+            VoiceLanguage.ENGLISH -> "Removed $memberName from $groupName." to "Removed $memberName from $groupName."
+            VoiceLanguage.HINDI -> "$memberName को $groupName से हटा दिया गया है।" to "$memberName ko $groupName se hata diya gaya hai."
+            VoiceLanguage.GUJARATI -> "$memberName ને $groupName માંથી કાઢી નાખવામાં આવ્યા છે." to "$memberName ne $groupName mathi kaadhi naakhya che."
+            VoiceLanguage.HINGLISH -> "$memberName ko $groupName se remove kar diya." to "$memberName ko $groupName se remove kar diya."
+        }
+    }
+
+    fun groupDeletedSuccess(groupName: String, language: VoiceLanguage): Pair<String, String> {
+        return when (language) {
+            VoiceLanguage.ENGLISH -> "Group \"$groupName\" deleted." to "Group $groupName deleted."
+            VoiceLanguage.HINDI -> "ग्रुप \"$groupName\" हटा दिया गया है।" to "Group $groupName hata diya gaya hai."
+            VoiceLanguage.GUJARATI -> "\"$groupName\" ગ્રૂપ ડિલીટ થઈ ગયું છે." to "$groupName grup delete thai gayu che."
+            VoiceLanguage.HINGLISH -> "Group \"$groupName\" delete ho gaya." to "Group $groupName delete ho gaya."
+        }
+    }
+
+    fun highestExpenseResponse(title: String, amountPaise: Long, language: VoiceLanguage): Pair<String, String> {
+        val amtDisplay = formatCurrencyDisplay(amountPaise)
+        val amtSpoken = formatCurrencySpoken(amountPaise, language)
+        return when (language) {
+            VoiceLanguage.ENGLISH -> "Your highest expense is \"$title\" of $amtDisplay." to "Your highest expense is $title of $amtSpoken."
+            VoiceLanguage.HINDI -> "आपका सबसे बड़ा खर्च \"$title\" है, $amtDisplay का।" to "Aapka sabse bada kharch $title hai, $amtSpoken ka."
+            VoiceLanguage.GUJARATI -> "તમારો સૌથી મોટો ખર્ચ \"$title\" છે, $amtDisplay નો." to "Tamaro sauthi moto kharch $title che, $amtSpoken no."
+            VoiceLanguage.HINGLISH -> "Aapka highest expense \"$title\" hai: $amtDisplay." to "Aapka highest expense $title hai, $amtSpoken ka."
+        }
+    }
+
+    fun missingFriendNamePrompt(language: VoiceLanguage): Pair<String, String> {
+        return when (language) {
+            VoiceLanguage.ENGLISH -> "What is the friend's name?" to "What is the friend's name?"
+            VoiceLanguage.HINDI -> "दोस्त का क्या नाम है?" to "Dost ka kya naam hai?"
+            VoiceLanguage.GUJARATI -> "મિત્રનું નામ શું છે?" to "Mitranu naam shu che?"
+            VoiceLanguage.HINGLISH -> "Friend ka kya naam hai?" to "Friend ka kya naam hai?"
+        }
+    }
+
+    fun missingGroupNamePrompt(language: VoiceLanguage): Pair<String, String> {
+        return when (language) {
+            VoiceLanguage.ENGLISH -> "What should we name the group?" to "What should we name the group?"
+            VoiceLanguage.HINDI -> "ग्रुप का क्या नाम रखना है?" to "Group ka kya naam rakhna hai?"
+            VoiceLanguage.GUJARATI -> "ગ્રૂપનું નામ શું રાખવું છે?" to "Grupnu naam shu rakhvu che?"
+            VoiceLanguage.HINGLISH -> "Group ka kya naam rakhna hai?" to "Group ka kya naam rakhna hai?"
+        }
+    }
 }

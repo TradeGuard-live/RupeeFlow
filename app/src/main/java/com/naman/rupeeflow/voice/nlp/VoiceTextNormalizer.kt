@@ -68,3 +68,4 @@ object VoiceTextNormalizer {
         return normalizedText.split(" ").filter { it.isNotBlank() }
     }
 }
+
