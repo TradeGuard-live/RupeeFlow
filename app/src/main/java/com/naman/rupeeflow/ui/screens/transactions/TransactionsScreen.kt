@@ -23,6 +23,7 @@ import com.naman.rupeeflow.domain.model.PaymentMethod
 import com.naman.rupeeflow.domain.model.Transaction
 import com.naman.rupeeflow.ui.components.*
 import com.naman.rupeeflow.ui.theme.*
+import com.naman.rupeeflow.voice.ui.VoiceAssistantSheet
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,24 +34,42 @@ fun TransactionsScreen(
     val state by viewModel.uiState.collectAsState()
 
     var showFastAddSheet by remember { mutableStateOf(false) }
+    var showVoiceAssistant by remember { mutableStateOf(false) }
     var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
 
     Scaffold(
         containerColor = AppTheme.colors.background,
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showFastAddSheet = true },
-                containerColor = AppTheme.colors.primaryAccent,
-                contentColor = Color.White,
-                shape = CircleShape,
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.padding(bottom = 60.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add Transaction",
-                    modifier = Modifier.size(28.dp)
-                )
+                SmallFloatingActionButton(
+                    onClick = { showVoiceAssistant = true },
+                    containerColor = AppTheme.colors.surfaceElevated,
+                    contentColor = AppTheme.colors.primaryAccent,
+                    shape = CircleShape
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Mic,
+                        contentDescription = "Voice Assistant",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                FloatingActionButton(
+                    onClick = { showFastAddSheet = true },
+                    containerColor = AppTheme.colors.primaryAccent,
+                    contentColor = Color.White,
+                    shape = CircleShape
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add Transaction",
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
         }
     ) { paddingValues ->
@@ -114,9 +133,14 @@ fun TransactionsScreen(
                     Icon(Icons.Default.Search, contentDescription = "Search", tint = AppTheme.colors.textSecondary)
                 },
                 trailingIcon = {
-                    if (state.searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear", tint = AppTheme.colors.textSecondary)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (state.searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.onSearchQueryChanged("") }) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = AppTheme.colors.textSecondary)
+                            }
+                        }
+                        IconButton(onClick = { showVoiceAssistant = true }) {
+                            Icon(Icons.Default.Mic, contentDescription = "Voice Assistant", tint = AppTheme.colors.primaryAccent)
                         }
                     }
                 },
@@ -269,6 +293,13 @@ fun TransactionsScreen(
             onDismiss = { showFastAddSheet = false },
             onSave = { newTxn -> viewModel.saveTransaction(newTxn) },
             onSaveSettlement = { settlement -> viewModel.recordSettlement(settlement) }
+        )
+    }
+
+    // Voice Assistant Sheet
+    if (showVoiceAssistant) {
+        VoiceAssistantSheet(
+            onDismiss = { showVoiceAssistant = false }
         )
     }
 

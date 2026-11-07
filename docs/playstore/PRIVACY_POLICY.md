@@ -62,3 +62,4 @@ If any modifications are made to this policy, the updated policy will be posted 
 For any questions regarding this Privacy Policy, please contact:
 Email: `privacy@rupeeflow.app`
 Repository: `https://github.com/TradeGuard-live/RupeeFlow`
+

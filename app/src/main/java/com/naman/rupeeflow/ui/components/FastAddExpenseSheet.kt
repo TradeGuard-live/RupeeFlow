@@ -12,6 +12,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,6 +27,7 @@ import com.naman.rupeeflow.domain.ledger.LedgerCalculator
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.ui.theme.*
+import com.naman.rupeeflow.voice.ui.VoiceAssistantSheet
 import kotlin.math.abs
 import kotlin.math.roundToLong
 
@@ -94,6 +96,7 @@ fun FastAddExpenseSheet(
     var customRupeeInputs by remember { mutableStateOf(mapOf<Long?, String>()) } // null = Me
     var percentageInputs by remember { mutableStateOf(mapOf<Long?, String>()) } // null = Me
     var billImagePath by remember { mutableStateOf<String?>(null) }
+    var showVoiceSheet by remember { mutableStateOf(false) }
 
     val amountPaise = remember(amountText) { CurrencyUtils.parseInputToPaise(amountText) }
 
@@ -133,8 +136,17 @@ fun FastAddExpenseSheet(
                     style = MaterialTheme.typography.titleLarge,
                     color = AppTheme.colors.textPrimary
                 )
-                IconButton(onClick = onDismiss) {
-                    Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = AppTheme.colors.textSecondary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { showVoiceSheet = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Mic,
+                            contentDescription = "Voice Assistant",
+                            tint = AppTheme.colors.primaryAccent
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = AppTheme.colors.textSecondary)
+                    }
                 }
             }
 
@@ -939,5 +951,9 @@ fun FastAddExpenseSheet(
                 }
             }
         }
+    }
+
+    if (showVoiceSheet) {
+        VoiceAssistantSheet(onDismiss = { showVoiceSheet = false })
     }
 }

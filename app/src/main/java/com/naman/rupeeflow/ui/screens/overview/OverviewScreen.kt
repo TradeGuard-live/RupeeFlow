@@ -25,6 +25,7 @@ import com.naman.rupeeflow.domain.model.Transaction
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.ui.components.*
 import com.naman.rupeeflow.ui.theme.*
+import com.naman.rupeeflow.voice.ui.VoiceAssistantSheet
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -40,6 +41,7 @@ fun OverviewScreen(
     val state by viewModel.uiState.collectAsState()
 
     var showFastAddSheet by remember { mutableStateOf(false) }
+    var showVoiceAssistant by remember { mutableStateOf(false) }
     var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
     var settlingFriend by remember { mutableStateOf<Friend?>(null) }
@@ -52,18 +54,35 @@ fun OverviewScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showFastAddSheet = true },
-                containerColor = AppTheme.colors.primaryAccent,
-                contentColor = Color.White,
-                shape = CircleShape,
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.padding(bottom = 60.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add Expense",
-                    modifier = Modifier.size(28.dp)
-                )
+                SmallFloatingActionButton(
+                    onClick = { showVoiceAssistant = true },
+                    containerColor = AppTheme.colors.surfaceElevated,
+                    contentColor = AppTheme.colors.primaryAccent,
+                    shape = CircleShape
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Mic,
+                        contentDescription = "Voice Assistant",
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                FloatingActionButton(
+                    onClick = { showFastAddSheet = true },
+                    containerColor = AppTheme.colors.primaryAccent,
+                    contentColor = Color.White,
+                    shape = CircleShape
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add Expense",
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
         }
     ) { paddingValues ->
@@ -457,6 +476,13 @@ fun OverviewScreen(
             groups = state.friendGroups,
             onDismiss = { editingTransaction = null },
             onSave = { updated -> viewModel.saveTransaction(updated) }
+        )
+    }
+
+    // Voice Assistant Sheet
+    if (showVoiceAssistant) {
+        VoiceAssistantSheet(
+            onDismiss = { showVoiceAssistant = false }
         )
     }
 

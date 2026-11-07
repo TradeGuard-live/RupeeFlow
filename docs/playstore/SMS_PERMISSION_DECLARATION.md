@@ -28,3 +28,4 @@ RupeeFlow provides automated transaction detection from bank SMS notifications. 
 - **No READ_SMS:** RupeeFlow does not request `android.permission.READ_SMS`. It never scans user inbox history.
 - **Hardware Feature Compatibility:** Declared `<uses-feature android:name="android.hardware.telephony" android:required="false" />` to support non-telephony devices.
 - **Zero Remote Transmission:** RupeeFlow contains no analytics SDKs, no ad SDKs, and no network transmission code. All parsed transactions remain within the application's encrypted local SQLite database.
+

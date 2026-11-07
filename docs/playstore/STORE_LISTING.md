@@ -39,3 +39,4 @@ All / Everyone (PEGI 3, ESRB Everyone). Financial management tool with no user-g
 
 ## Category
 Finance / Personal Finance
+

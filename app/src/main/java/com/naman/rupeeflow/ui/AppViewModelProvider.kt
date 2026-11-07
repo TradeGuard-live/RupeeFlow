@@ -12,6 +12,7 @@ import com.naman.rupeeflow.ui.screens.overview.OverviewViewModel
 import com.naman.rupeeflow.ui.screens.pending.PendingTransactionsViewModel
 import com.naman.rupeeflow.ui.screens.settings.SettingsViewModel
 import com.naman.rupeeflow.ui.screens.transactions.TransactionsViewModel
+import com.naman.rupeeflow.voice.viewmodel.VoiceAssistantViewModel
 
 object AppViewModelProvider {
     val Factory = viewModelFactory {
@@ -72,6 +73,17 @@ object AppViewModelProvider {
                 categoryRepository = app.appContainer.categoryRepository,
                 friendRepository = app.appContainer.friendRepository,
                 settlementRepository = app.appContainer.settlementRepository,
+                friendGroupRepository = app.appContainer.friendGroupRepository
+            )
+        }
+        initializer {
+            val app = rupeeFlowApplication()
+            VoiceAssistantViewModel(
+                context = app.applicationContext,
+                transactionRepository = app.appContainer.transactionRepository,
+                friendRepository = app.appContainer.friendRepository,
+                settlementRepository = app.appContainer.settlementRepository,
+                categoryRepository = app.appContainer.categoryRepository,
                 friendGroupRepository = app.appContainer.friendGroupRepository
             )
         }
