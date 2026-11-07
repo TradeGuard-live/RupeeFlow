@@ -414,6 +414,14 @@ fun ManualTextInputCard(
     onSwitchToMic: () -> Unit
 ) {
     val colors = LocalAppColors.current
+    var textInput by remember { mutableStateOf(uiState.transcription) }
+
+    // Sync with external updates
+    LaunchedEffect(uiState.transcription) {
+        if (uiState.transcription != textInput) {
+            textInput = uiState.transcription
+        }
+    }
 
     Surface(
         shape = RoundedCornerShape(16.dp),
@@ -423,9 +431,12 @@ fun ManualTextInputCard(
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             OutlinedTextField(
-                value = uiState.transcription,
-                onValueChange = onTextChange,
-                placeholder = { Text("e.g. Add 300 for dinner with Jay") },
+                value = textInput,
+                onValueChange = {
+                    textInput = it
+                    onTextChange(it)
+                },
+                placeholder = { Text("e.g. Add friend Sukrut or Add 300 for dinner") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = false,
                 maxLines = 3
@@ -442,8 +453,8 @@ fun ManualTextInputCard(
                     Text("Use Voice")
                 }
                 Button(
-                    onClick = { onSubmit(uiState.transcription) },
-                    enabled = uiState.transcription.isNotBlank()
+                    onClick = { onSubmit(textInput) },
+                    enabled = textInput.isNotBlank()
                 ) {
                     Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
