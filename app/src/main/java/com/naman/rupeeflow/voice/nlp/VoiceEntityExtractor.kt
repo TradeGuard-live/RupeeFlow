@@ -40,10 +40,40 @@ object VoiceEntityExtractor {
         "naya", "navo", "tarike", "roop", "rakho", "save", "karo", "do",
         "દોસ્ત", "દોસ્તો", "મિત્ર", "મિત્રો", "ઉમેરો", "બનાવો", "જોડો", "નવો", "નવી", "નામનો", "નામની", "નામનું",
         "તરીકે", "સાચવો", "રાખો", "સેવ", "કરો",
-        "दोस्त", "दोस्तों", "मित्र", "मित्रों", "जोड़ो", "बनाओ", "नया", "नयी", "नई", "नाम", "का", "की", "के",
+        "दोस्त", "दोस्तों", "मित्र", "मित्रों", "जोड़ो", "बनाओ", "नया", "नयी", "नई", "नाम", "का", "की", "કે", "के",
         "रूप", "में", "सेव", "करो", "कर", "दो", "रखो",
         "ફ્રેન્ડ", "ફ્રેન્ડ્સ", "फ्रेंड", "फ्रेंड्स"
     )
+
+    private val COMMAND_OR_NOISE_TOKENS = setOf(
+        "add", "expense", "expenses", "transaction", "transactions", "record", "create",
+        "spent", "paid", "rupees", "rupaye", "rupya", "inr", "rs", "cash", "upi", "card",
+        "today", "yesterday", "tomorrow", "for", "on", "in", "at", "of", "please",
+        "kharcha", "kharch", "diye", "diya", "kiya", "kare", "karo", "do",
+        "खर्च", "खर्चा", "दिए", "दिया", "किया", "करो", "रुपये", "रुपया",
+        "kharchya", "karyo", "karya", "aapya", "aapo", "chukvya",
+        "ખર્ચ", "ખર્ચ્યા", "કર્યો", "કર્યા", "આપ્યા", "ચૂકવ્યા", "રૂપિયા", "રુપિયા"
+    )
+
+    /**
+     * Determines whether a candidate name is merely a command phrase or fragment.
+     */
+    fun isInvalidFriendName(name: String): Boolean {
+        if (name.isBlank() || name.length < 2) return true
+        val lower = name.lowercase(Locale.ROOT)
+        val forbiddenSubstrings = listOf(
+            "add a friend", "add friend", "create friend", "new friend", "my friend",
+            "dost jodo", "mitra umero", "dost banao", "mitra banavo",
+            "દોસ્ત ઉમેરો", "મિત્ર ઉમેરો", "દોસ્ત બનાવો", "મિત્ર બનાવો", "દોસ્ત જોડો",
+            "दोस्त जोड़ो", "दोस्त बनाओ", "मित्र जोड़ो", "नया दोस्त"
+        )
+        for (sub in forbiddenSubstrings) {
+            if (lower.contains(sub)) return true
+        }
+        val words = lower.split(" ").filter { it.isNotBlank() }
+        if (words.all { FRIEND_COMMAND_TOKENS.contains(it) }) return true
+        return false
+    }
 
     /**
      * Extracts friend name and optional 10-digit Indian mobile number from voice input.
@@ -209,6 +239,14 @@ object VoiceEntityExtractor {
             word.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
         }
 
+        if (isInvalidFriendName(formattedName)) {
+            return FriendExtractionResult(
+                name = "",
+                phoneNumber = phoneNumber,
+                isAmbiguousOrMissing = true
+            )
+        }
+
         return FriendExtractionResult(
             name = formattedName,
             phoneNumber = phoneNumber,
@@ -300,7 +338,7 @@ object VoiceEntityExtractor {
             val regex = if (isAscii) {
                 Regex("""\b${Regex.escape(p)}\b""", RegexOption.IGNORE_CASE)
             } else {
-                Regex("""(?<=^|\s)${Regex.escape(p)}(?=\s|$)""", RegexOption.IGNORE_CASE)
+                Regex("""(?<=^|[\s\p{Punct}])${Regex.escape(p)}(?=[\s\p{Punct}]|$)""", RegexOption.IGNORE_CASE)
             }
             text = text.replace(regex, " ")
         }
@@ -324,7 +362,7 @@ object VoiceEntityExtractor {
             val regex = if (isAscii) {
                 Regex("""\b${Regex.escape(p)}\b""", RegexOption.IGNORE_CASE)
             } else {
-                Regex("""(?<=^|\s)${Regex.escape(p)}(?=\s|$)""", RegexOption.IGNORE_CASE)
+                Regex("""(?<=^|[\s\p{Punct}])${Regex.escape(p)}(?=[\s\p{Punct}]|$)""", RegexOption.IGNORE_CASE)
             }
             text = text.replace(regex, " ")
         }
@@ -340,6 +378,14 @@ object VoiceEntityExtractor {
         }
 
         if (cleaned.isBlank() || cleaned.length < 2) {
+            return ExpenseTitleExtractionResult(
+                title = "",
+                isMissing = true
+            )
+        }
+
+        val tokensList = cleaned.split(" ").filter { it.isNotBlank() }
+        if (tokensList.all { COMMAND_OR_NOISE_TOKENS.contains(it.lowercase(Locale.ROOT)) }) {
             return ExpenseTitleExtractionResult(
                 title = "",
                 isMissing = true

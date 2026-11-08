@@ -70,16 +70,16 @@ object VoiceCommandParser {
             VoiceIntent.QUERY_SETTLEMENT_HISTORY -> parseQuery(normalized, intent, friends, groups, categories)
 
             // Transaction creation
-            VoiceIntent.CREATE_INCOME -> parseTransactionCreation(normalized, TransactionType.INCOME, friends, groups, categories)
-            VoiceIntent.CREATE_REFUND -> parseTransactionCreation(normalized, TransactionType.REFUND, friends, groups, categories)
-            VoiceIntent.CREATE_TRANSFER -> parseTransactionCreation(normalized, TransactionType.TRANSFER, friends, groups, categories)
-            VoiceIntent.CREATE_EXPENSE -> parseTransactionCreation(normalized, TransactionType.EXPENSE, friends, groups, categories)
+            VoiceIntent.CREATE_INCOME -> parseTransactionCreation(normalized, TransactionType.INCOME, friends, groups, categories, language)
+            VoiceIntent.CREATE_REFUND -> parseTransactionCreation(normalized, TransactionType.REFUND, friends, groups, categories, language)
+            VoiceIntent.CREATE_TRANSFER -> parseTransactionCreation(normalized, TransactionType.TRANSFER, friends, groups, categories, language)
+            VoiceIntent.CREATE_EXPENSE -> parseTransactionCreation(normalized, TransactionType.EXPENSE, friends, groups, categories, language)
 
             VoiceIntent.UNKNOWN_INTENT -> {
                 // If there's an amount, try treating as an expense
                 val amount = VoiceNumberParser.parseAmountPaise(normalized)
                 if (amount != null && amount > 0L) {
-                    parseTransactionCreation(normalized, TransactionType.EXPENSE, friends, groups, categories)
+                    parseTransactionCreation(normalized, TransactionType.EXPENSE, friends, groups, categories, language)
                 } else {
                     VoiceCommand.Unknown(text)
                 }
@@ -287,7 +287,8 @@ object VoiceCommandParser {
         type: TransactionType,
         friends: List<Friend>,
         groups: List<FriendGroup>,
-        categories: List<Category>
+        categories: List<Category>,
+        language: VoiceLanguage = VoiceLanguage.ENGLISH
     ): VoiceCommand {
         val amount = VoiceNumberParser.parseAmountPaise(text) ?: 0L
         val date = VoiceDateParser.parseTransactionDate(text)
@@ -359,6 +360,34 @@ object VoiceCommandParser {
             }
         }
 
+        val draft = VoiceTransactionDraft(
+            intent = when (type) {
+                TransactionType.INCOME -> VoiceIntent.CREATE_INCOME
+                TransactionType.REFUND -> VoiceIntent.CREATE_REFUND
+                TransactionType.TRANSFER -> VoiceIntent.CREATE_TRANSFER
+                else -> VoiceIntent.CREATE_EXPENSE
+            },
+            title = description,
+            amountPaise = amount,
+            merchant = null,
+            category = category,
+            categoryName = category.name,
+            paymentMethod = paymentMethod,
+            transactionDate = date,
+            payerId = payerId,
+            payerName = payerName,
+            participantIds = participantIds,
+            groupId = referencedGroup?.id,
+            groupName = referencedGroup?.name,
+            splitMethod = splitMethod,
+            customSharesPaise = customShares,
+            customPercentages = customPercentages,
+            notes = null,
+            confidence = if (description.isNotBlank() && amount > 0L) 1.0 else 0.5,
+            detectedLanguage = language,
+            rawTranscript = text
+        )
+
         return VoiceCommand.CreateTransaction(
             title = description,
             amountPaise = amount,
@@ -375,7 +404,8 @@ object VoiceCommandParser {
             transactionDate = date,
             groupId = referencedGroup?.id,
             groupName = referencedGroup?.name,
-            rawInput = text
+            rawInput = text,
+            draft = draft
         )
     }
 

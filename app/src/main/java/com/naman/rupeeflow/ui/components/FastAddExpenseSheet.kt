@@ -51,7 +51,10 @@ fun FastAddExpenseSheet(
     initialType: TransactionType? = null,
     initialPaymentMethod: PaymentMethod? = null,
     initialPendingId: Long? = null,
-    onPendingResolved: ((Long) -> Unit)? = null
+    onPendingResolved: ((Long) -> Unit)? = null,
+    initialCategory: Category? = null,
+    suggestedFromPrevious: Boolean = false,
+    originalDetectedMerchant: String? = null
 ) {
     // Mode: Expense, Income, or Settlement
     var selectedEntryType by remember {
@@ -72,7 +75,8 @@ fun FastAddExpenseSheet(
             } else ""
         )
     }
-    var selectedCategory by remember { mutableStateOf(categories.firstOrNull()) }
+    var selectedCategory by remember { mutableStateOf(initialCategory ?: categories.firstOrNull()) }
+    var isSuggestedActive by remember { mutableStateOf(suggestedFromPrevious) }
     var selectedPaymentMethod by remember { mutableStateOf(initialPaymentMethod ?: PaymentMethod.UPI) }
     var selectedPayerId by remember { mutableStateOf<Long?>(null) } // null = Me
 
@@ -151,6 +155,47 @@ fun FastAddExpenseSheet(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            if (isSuggestedActive) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = AppTheme.colors.accentContainer,
+                    border = BorderStroke(1.dp, AppTheme.colors.primaryAccent.copy(alpha = 0.5f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Suggested from previous expense",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AppTheme.colors.primaryAccent,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        TextButton(
+                            onClick = {
+                                title = originalDetectedMerchant ?: ""
+                                selectedCategory = categories.firstOrNull()
+                                isSuggestedActive = false
+                            },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        ) {
+                            Text(
+                                text = "Undo",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.primaryAccent
+                            )
+                        }
+                    }
+                }
+            }
 
             // Entry Type Selector Row (Expense | Income | Settlement) - Removed Transfer / Added Settlement
             Row(

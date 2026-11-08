@@ -194,7 +194,8 @@ object VoiceCommandValidator {
         return VoiceCommandResult.PreviewReady(
             preview = VoiceActionPreview.TransactionPreview(
                 transaction = transaction,
-                summaryNote = if (cmd.groupName != null) "Group: ${cmd.groupName}" else ""
+                summaryNote = if (cmd.groupName != null) "Group: ${cmd.groupName}" else "",
+                draft = cmd.draft
             ),
             pendingCommand = cmd,
             confirmationPrompt = confirmationPrompt,
@@ -333,7 +334,7 @@ object VoiceCommandValidator {
         friends: List<Friend>,
         language: VoiceLanguage
     ): VoiceCommandResult {
-        if (cmd.name.isBlank()) {
+        if (cmd.name.isBlank() || com.naman.rupeeflow.voice.nlp.VoiceEntityExtractor.isInvalidFriendName(cmd.name)) {
             val (qText, qSpoken) = VoiceResponseGenerator.missingFriendNamePrompt(language)
             return VoiceCommandResult.ClarificationRequired(
                 prompt = VoiceClarificationPrompt(

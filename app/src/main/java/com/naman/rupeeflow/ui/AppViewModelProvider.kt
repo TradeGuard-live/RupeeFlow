@@ -73,7 +73,9 @@ object AppViewModelProvider {
                 categoryRepository = app.appContainer.categoryRepository,
                 friendRepository = app.appContainer.friendRepository,
                 settlementRepository = app.appContainer.settlementRepository,
-                friendGroupRepository = app.appContainer.friendGroupRepository
+                friendGroupRepository = app.appContainer.friendGroupRepository,
+                merchantPreferenceRepository = app.appContainer.merchantPreferenceRepository,
+                smartTransactionMatcher = app.appContainer.smartTransactionMatcher
             )
         }
         initializer {

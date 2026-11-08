@@ -75,6 +75,33 @@ enum class VoiceIntent {
 }
 
 /**
+ * Strongly typed transaction draft created during voice entity extraction.
+ * Retains complete structured domain schema alongside the original recognized transcript.
+ */
+data class VoiceTransactionDraft(
+    val intent: VoiceIntent = VoiceIntent.CREATE_EXPENSE,
+    val title: String = "",
+    val amountPaise: Long = 0L,
+    val merchant: String? = null,
+    val category: Category? = null,
+    val categoryName: String? = null,
+    val paymentMethod: PaymentMethod = PaymentMethod.UPI,
+    val transactionDate: Long = System.currentTimeMillis(),
+    val payerId: Long? = null,
+    val payerName: String = "Me",
+    val participantIds: List<Long?> = emptyList(),
+    val groupId: Long? = null,
+    val groupName: String? = null,
+    val splitMethod: SplitMethod = SplitMethod.EQUAL,
+    val customSharesPaise: Map<Long?, Long> = emptyMap(),
+    val customPercentages: Map<Long?, Double> = emptyMap(),
+    val notes: String? = null,
+    val confidence: Double = 1.0,
+    val detectedLanguage: VoiceLanguage = VoiceLanguage.ENGLISH,
+    val rawTranscript: String = ""
+)
+
+/**
  * Typed commands produced by VoiceCommandParser.
  */
 sealed class VoiceCommand {
@@ -95,7 +122,8 @@ sealed class VoiceCommand {
         val merchantName: String? = null,
         val groupId: Long? = null,
         val groupName: String? = null,
-        val rawInput: String = ""
+        val rawInput: String = "",
+        val draft: VoiceTransactionDraft? = null
     ) : VoiceCommand()
 
     data class EditTransaction(
@@ -282,7 +310,8 @@ sealed class VoiceActionPreview {
         val originalTransaction: Transaction? = null,
         val isEdit: Boolean = false,
         val isDelete: Boolean = false,
-        val summaryNote: String = ""
+        val summaryNote: String = "",
+        val draft: VoiceTransactionDraft? = null
     ) : VoiceActionPreview()
 
     data class SettlementPreview(

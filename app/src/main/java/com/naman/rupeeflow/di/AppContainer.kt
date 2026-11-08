@@ -18,6 +18,8 @@ interface AppContainer {
     val inputRankingRepository: InputRankingRepository
     val imageStorageManager: ImageStorageManager
     val appLockManager: com.naman.rupeeflow.security.AppLockManager
+    val merchantPreferenceRepository: MerchantPreferenceRepository
+    val smartTransactionMatcher: com.naman.rupeeflow.domain.matching.SmartTransactionMatcher
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -85,5 +87,13 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val appLockManager: com.naman.rupeeflow.security.AppLockManager by lazy {
         com.naman.rupeeflow.security.AppLockManager(userPreferencesRepository)
+    }
+
+    override val merchantPreferenceRepository: MerchantPreferenceRepository by lazy {
+        MerchantPreferenceRepositoryImpl(database.inputUsageDao())
+    }
+
+    override val smartTransactionMatcher: com.naman.rupeeflow.domain.matching.SmartTransactionMatcher by lazy {
+        com.naman.rupeeflow.domain.matching.SmartTransactionMatcher(merchantPreferenceRepository)
     }
 }

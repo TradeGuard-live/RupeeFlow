@@ -550,6 +550,15 @@ fun ActionPreviewCard(
                             )
                         }
                     }
+
+                    if (!preview.draft?.rawTranscript.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Command: \"${preview.draft?.rawTranscript}\"",
+                            fontSize = 11.sp,
+                            color = colors.textMuted
+                        )
+                    }
                 }
                 is VoiceActionPreview.SettlementPreview -> {
                     Text(

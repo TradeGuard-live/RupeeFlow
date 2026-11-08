@@ -5,9 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.naman.rupeeflow.data.repository.CategoryRepository
 import com.naman.rupeeflow.data.repository.FriendGroupRepository
 import com.naman.rupeeflow.data.repository.FriendRepository
+import com.naman.rupeeflow.data.repository.MerchantPreferenceRepository
 import com.naman.rupeeflow.data.repository.PendingTransactionRepository
 import com.naman.rupeeflow.data.repository.SettlementRepository
 import com.naman.rupeeflow.data.repository.TransactionRepository
+import com.naman.rupeeflow.domain.matching.HistoricalCandidateMatch
+import com.naman.rupeeflow.domain.matching.SmartTransactionMatcher
 import com.naman.rupeeflow.domain.model.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -35,8 +38,13 @@ class PendingTransactionsViewModel(
     private val categoryRepository: CategoryRepository,
     private val friendRepository: FriendRepository,
     private val settlementRepository: SettlementRepository,
-    private val friendGroupRepository: FriendGroupRepository? = null
+    private val friendGroupRepository: FriendGroupRepository? = null,
+    private val merchantPreferenceRepository: MerchantPreferenceRepository? = null,
+    smartTransactionMatcher: SmartTransactionMatcher? = null
 ) : ViewModel() {
+
+    private val matcher: SmartTransactionMatcher = smartTransactionMatcher
+        ?: SmartTransactionMatcher(merchantPreferenceRepository)
 
     private val _uiState = MutableStateFlow(PendingUiState())
     val uiState: StateFlow<PendingUiState> = _uiState.asStateFlow()
@@ -64,6 +72,37 @@ class PendingTransactionsViewModel(
             }.collect { state ->
                 _uiState.value = state
             }
+        }
+    }
+
+    suspend fun getSimilarCandidates(detected: PendingTransaction): List<HistoricalCandidateMatch> {
+        return try {
+            val historical = transactionRepository.getAllTransactionsList()
+            matcher.findSimilarTransactions(
+                detected = detected,
+                historicalTransactions = historical,
+                categories = _uiState.value.categories
+            )
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun recordMatchDecision(
+        detected: PendingTransaction,
+        candidate: Transaction,
+        accepted: Boolean
+    ) {
+        viewModelScope.launch {
+            try {
+                val merchant = detected.detectedMerchant ?: detected.detectedBank
+                merchantPreferenceRepository?.recordUserDecision(
+                    rawMerchant = merchant,
+                    categoryId = candidate.categoryId,
+                    title = candidate.title,
+                    accepted = accepted
+                )
+            } catch (_: Exception) {}
         }
     }
 

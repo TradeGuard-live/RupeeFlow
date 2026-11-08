@@ -20,12 +20,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.naman.rupeeflow.domain.matching.HistoricalCandidateMatch
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
 import com.naman.rupeeflow.ui.components.FastAddExpenseSheet
 import com.naman.rupeeflow.ui.components.RupeeFlowCard
 import com.naman.rupeeflow.ui.theme.*
+import kotlinx.coroutines.launch
 
 /**
  * Screen for reviewing detected SMS and notification transactions.
@@ -48,9 +50,28 @@ fun PendingTransactionsScreen(
     onNavigateBack: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
     var selectedDetectedForAdd by remember { mutableStateOf<PendingTransaction?>(null) }
     var selectedDetectedForDetail by remember { mutableStateOf<PendingTransaction?>(null) }
     var selectedFilter by remember { mutableStateOf("PENDING") } // "PENDING", "APPROVED", "IGNORED", "ALL"
+
+    // Intelligent Transaction Matching state
+    var matchDetected by remember { mutableStateOf<PendingTransaction?>(null) }
+    var matchCandidates by remember { mutableStateOf<List<HistoricalCandidateMatch>>(emptyList()) }
+    var selectedMatchDraft by remember { mutableStateOf<HistoricalCandidateMatch?>(null) }
+
+    val handleStartAddExpense: (PendingTransaction) -> Unit = { item ->
+        coroutineScope.launch {
+            val candidates = viewModel.getSimilarCandidates(item)
+            if (candidates.isNotEmpty()) {
+                matchCandidates = candidates
+                matchDetected = item
+            } else {
+                selectedMatchDraft = null
+                selectedDetectedForAdd = item
+            }
+        }
+    }
 
     // Search and filter state for Ignored & All tabs
     var searchQuery by remember { mutableStateOf("") }
@@ -377,7 +398,7 @@ fun PendingTransactionsScreen(
                                                 }
                                                 // Approve Action
                                                 Button(
-                                                    onClick = { selectedDetectedForAdd = item },
+                                                    onClick = { handleStartAddExpense(item) },
                                                     colors = ButtonDefaults.buttonColors(
                                                         containerColor = AppTheme.colors.primaryAccent,
                                                         contentColor = Color.White
@@ -405,7 +426,7 @@ fun PendingTransactionsScreen(
                                             isApproved -> {
                                                 // Re-add Action
                                                 OutlinedButton(
-                                                    onClick = { selectedDetectedForAdd = item },
+                                                    onClick = { handleStartAddExpense(item) },
                                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = AppTheme.colors.textSecondary),
                                                     border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
                                                     shape = RoundedCornerShape(10.dp),
@@ -548,7 +569,7 @@ fun PendingTransactionsScreen(
                     PendingStatus.PENDING -> {
                         Button(
                             onClick = {
-                                selectedDetectedForAdd = item
+                                handleStartAddExpense(item)
                                 selectedDetectedForDetail = null
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent)
@@ -594,29 +615,68 @@ fun PendingTransactionsScreen(
         )
     }
 
+    // Historical Match Suggestion Dialog
+    matchDetected?.let { detectedItem ->
+        if (matchCandidates.isNotEmpty()) {
+            SimilarTransactionDialog(
+                detected = detectedItem,
+                candidates = matchCandidates,
+                onAcceptMatch = { candidate ->
+                    viewModel.recordMatchDecision(detectedItem, candidate.candidateTransaction, accepted = true)
+                    selectedMatchDraft = candidate
+                    selectedDetectedForAdd = detectedItem
+                    matchDetected = null
+                    matchCandidates = emptyList()
+                },
+                onRejectMatch = { candidate ->
+                    if (candidate != null) {
+                        viewModel.recordMatchDecision(detectedItem, candidate.candidateTransaction, accepted = false)
+                    }
+                    selectedMatchDraft = null
+                    selectedDetectedForAdd = detectedItem
+                    matchDetected = null
+                    matchCandidates = emptyList()
+                },
+                onDismiss = {
+                    matchDetected = null
+                    matchCandidates = emptyList()
+                }
+            )
+        }
+    }
+
     // Opens Add Expense Sheet (FastAddExpenseSheet) prefilled with detected data!
     selectedDetectedForAdd?.let { item ->
         FastAddExpenseSheet(
             categories = state.categories,
             friends = state.friends,
             groups = state.friendGroups,
-            onDismiss = { selectedDetectedForAdd = null },
+            onDismiss = {
+                selectedDetectedForAdd = null
+                selectedMatchDraft = null
+            },
             initialAmountPaise = item.detectedAmountPaise,
-            initialTitle = item.detectedMerchant ?: item.detectedBank,
+            initialTitle = selectedMatchDraft?.suggestedTitle ?: (item.detectedMerchant ?: item.detectedBank),
+            initialCategory = selectedMatchDraft?.suggestedCategory,
             initialType = item.detectedType,
-            initialPaymentMethod = PaymentMethod.UPI,
+            initialPaymentMethod = selectedMatchDraft?.suggestedPaymentMethod ?: PaymentMethod.UPI,
             initialPendingId = item.id,
+            suggestedFromPrevious = selectedMatchDraft != null,
+            originalDetectedMerchant = item.detectedMerchant ?: item.detectedBank,
             onSave = { newTxn ->
                 viewModel.saveTransaction(newTxn, item.id)
                 selectedDetectedForAdd = null
+                selectedMatchDraft = null
             },
             onSaveSettlement = { settlement ->
                 viewModel.saveSettlement(settlement, item.id)
                 selectedDetectedForAdd = null
+                selectedMatchDraft = null
             },
             onPendingResolved = { id ->
                 viewModel.resolvePending(id)
                 selectedDetectedForAdd = null
+                selectedMatchDraft = null
             }
         )
     }
