@@ -88,85 +88,10 @@ object VoiceCommandParser {
     }
 
     private fun parseFriendCreate(normalized: String, rawText: String): VoiceCommand.CreateFriend {
-        // Extract 10-digit phone number if present
-        val phoneRegex = Regex("""\b[6-9]\d{9}\b""")
-        val phoneMatch = phoneRegex.find(rawText) ?: phoneRegex.find(normalized)
-        val phoneNumber = phoneMatch?.value
-
-        // Strip phone number from text
-        var nameText = if (phoneNumber != null) {
-            normalized.replace(phoneNumber, " ")
-        } else {
-            normalized
-        }
-
-        // Strip phone related words
-        val phoneKeywords = listOf(
-            "with phone number", "with phone no", "with mobile number", "with mobile no", "with phone", "with number", "with mobile", "with",
-            "phone number", "phone no", "mobile number", "mobile no", "number", "phone", "mobile",
-            "sathe", "ke sath", "સાથે", "के साथ",
-            "ફોન નંબર", "ફોન નો", "મોબાઈલ નંબર", "મોબાઇલ", "ફોન", "નંબર",
-            "फोन नंबर", "मोबाइल नंबर", "फोन", "नंबर",
-            "save karo", "save kar do", "save kar", "save", "સેવ કરો", "सेव करो", "rakho", "રાખો", "रखो"
-        ).sortedByDescending { it.length }
-
-        for (kw in phoneKeywords) {
-            nameText = nameText.replace(kw, " ")
-        }
-
-        // Strip friend creation prefixes and trigger phrases (sorted by descending length)
-        val triggerPhrases = listOf(
-            "add a friend named", "add friend named", "create friend named", "create a friend named",
-            "add new friend", "create new friend", "add friend", "create friend", "a new friend", "new friend",
-            "naam ka naya dost jodo", "naam ka naya dost", "naam ka dost jodo", "naam ka dost",
-            "ko naya dost jodo", "ko dost jodo", "naya dost jodo", "dost jodo",
-            "dost ke roop me jodo", "dost ke roop mein jodo", "dost ke roop me", "dost ke roop mein",
-            "naya dost banao", "dost banao", "naya dost",
-            "namno navo mitra umero", "namno navo mitra", "namno mitra umero", "namno mitra",
-            "navo mitra umero", "navo mitra", "mitra umero", "dost umero", "dost jodo", "mitra banavo",
-            "tarike add karo", "tarike umero", "tarike jodo", "tarike",
-            "નામનો નવો મિત્ર ઉમેરો", "નામનો મિત્ર ઉમેરો", "નવો મિત્ર ઉમેરો", "મિત્ર ઉમેરો",
-            "દોસ્ત ઉમેરો", "દોસ્ત બનાવો", "દોસ્ત જોડો", "નવો મિત્ર", "નામનો મિત્ર",
-            "નામનો", "નામની", "નામનું",
-            "नाम का नया दोस्त जोड़ो", "नया दोस्त जोड़ो", "दोस्त जोड़ो", "दोस्त बनाओ", "नया दोस्त", "नाम का दोस्त",
-            "नाम का", "नाम की", "नाम के",
-            "named", "called", "naam ka", "naam ki", "naam ke", "naamno", "namno"
-        ).sortedByDescending { it.length }
-
-        for (phrase in triggerPhrases) {
-            nameText = nameText.replace(phrase, " ")
-        }
-
-        // Clean suffixes and particles while preserving Indic matras and marks
-        nameText = nameText.replace(Regex("""\b(?:ka|ki|ke|ko|ne|no|ni|nu|e|thi|se|મા|માં|મેં|કો|કા|કી|કે)\b"""), " ")
-            .replace(Regex("""[^\p{L}\p{M}\s]"""), " ")
-            .replace(Regex("""\s+"""), " ")
-            .trim()
-
-        val genitiveSuffixes = listOf("નો", "ની", "નું", "કા", "કી", "કે", "का", "की", "के", "'s")
-        val cleanedTokens = nameText.split(" ").map { token ->
-            var t = token.trim()
-            for (suf in genitiveSuffixes) {
-                if (t.endsWith(suf) && t.length > suf.length) {
-                    t = t.substring(0, t.length - suf.length)
-                }
-            }
-            t
-        }.filter { it.isNotBlank() && !genitiveSuffixes.contains(it) }
-        nameText = cleanedTokens.joinToString(" ")
-
-        // Capitalize friend name
-        val friendName = if (nameText.isNotBlank()) {
-            nameText.split(" ").joinToString(" ") { word ->
-                word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-            }
-        } else {
-            ""
-        }
-
+        val result = VoiceEntityExtractor.extractFriendName(normalized, rawText)
         return VoiceCommand.CreateFriend(
-            name = friendName,
-            phoneNumber = phoneNumber,
+            name = result.name,
+            phoneNumber = result.phoneNumber,
             rawInput = rawText
         )
     }
@@ -584,14 +509,11 @@ object VoiceCommandParser {
     }
 
     private fun extractTransactionTitle(text: String, defaultCategoryName: String): String {
-        val clean = text.replace(Regex("""(?:\b|₹)\s*\d+(?:\.\d+)?\s*(?:k|thousand|hazar|lakh|crore)?(?:\s*(?:rupees|रुपये|રૂપિયા|rs))?\b"""), " ")
-            .replace(Regex("""\b(?:add|create|record|spent|expense|jodo|likho|umero|for|ke liye|maate|માટે|के लिए|paid by|split with|divide|equally)\b"""), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-
-        if (clean.length >= 3) {
-            return clean.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+        val result = VoiceEntityExtractor.extractExpenseTitle(text, text, defaultCategoryName)
+        return if (!result.isMissing && result.title.isNotBlank()) {
+            result.title
+        } else {
+            ""
         }
-        return defaultCategoryName
     }
 }

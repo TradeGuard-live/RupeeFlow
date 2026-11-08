@@ -82,6 +82,19 @@ object VoiceCommandValidator {
             )
         }
 
+        // 2. Check Description / Title
+        if (cmd.title.isBlank()) {
+            val (qText, qSpoken) = VoiceResponseGenerator.missingExpenseTitlePrompt(language)
+            return VoiceCommandResult.ClarificationRequired(
+                prompt = VoiceClarificationPrompt(
+                    type = VoiceClarificationType.MISSING_EXPENSE_TITLE,
+                    question = qText,
+                    spokenQuestion = qSpoken
+                ),
+                partialCommand = cmd
+            )
+        }
+
         // 2. Build Participants with exact paise allocation
         val participantsList = mutableListOf<TransactionParticipant>()
         val participantCount = cmd.participantFriendIds.size

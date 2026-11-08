@@ -448,19 +448,9 @@ fun EditTransactionDialog(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 11. Paid By (Group-First Payer Selection)
-            Text(
-                text = "Paid By",
-                style = MaterialTheme.typography.labelSmall,
-                color = AppTheme.colors.textSecondary
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            GroupFirstFriendSelector(
-                groups = groups,
-                allFriends = friends,
-                selectedGroupId = selectedGroupFilterId,
-                onGroupSelect = { selectedGroupFilterId = it },
-                isMultiSelect = false,
+            // 11. Paid By Dropdown (Preserves existing transaction payer)
+            PayerDropdownSelector(
+                friends = friends,
                 selectedPayerId = selectedPayerId,
                 onPayerSelect = { selectedPayerId = it }
             )

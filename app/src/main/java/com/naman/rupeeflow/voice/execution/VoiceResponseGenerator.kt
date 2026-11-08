@@ -496,4 +496,13 @@ object VoiceResponseGenerator {
             VoiceLanguage.HINGLISH -> "Group ka kya naam rakhna hai?" to "Group ka kya naam rakhna hai?"
         }
     }
+
+    fun missingExpenseTitlePrompt(language: VoiceLanguage): Pair<String, String> {
+        return when (language) {
+            VoiceLanguage.ENGLISH -> "What was this expense for?" to "What was this expense for?"
+            VoiceLanguage.HINDI -> "यह खर्च किस लिए था?" to "Yeh kharch kis liye tha?"
+            VoiceLanguage.GUJARATI -> "આ ખર્ચ શેના માટે હતો?" to "Aa kharch shena maate hato?"
+            VoiceLanguage.HINGLISH -> "Yeh expense kis cheez ka tha?" to "Yeh expense kis cheez ka tha?"
+        }
+    }
 }

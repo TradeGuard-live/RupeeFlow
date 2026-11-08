@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +27,20 @@ import com.naman.rupeeflow.ui.components.FastAddExpenseSheet
 import com.naman.rupeeflow.ui.components.RupeeFlowCard
 import com.naman.rupeeflow.ui.theme.*
 
+/**
+ * Screen for reviewing detected SMS and notification transactions.
+ *
+ * Requirements:
+ * - 4 distinct sections/tabs: Pending, Approved, Ignored, All
+ * - Clear status badges: Pending (Amber), Added (Green), Ignored (Muted/Coral)
+ * - Actions per section:
+ *   - Pending: Approve (Add Expense), Ignore
+ *   - Approved: View Details, Re-add (Duplicate protection)
+ *   - Ignored: Restore to Pending, Search, Filter, View Details, Delete
+ *   - All: Comprehensive history across all states
+ * - Specific empty states for every filter
+ * - Complete detail inspection modal
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PendingTransactionsScreen(
@@ -34,13 +49,36 @@ fun PendingTransactionsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var selectedDetectedForAdd by remember { mutableStateOf<PendingTransaction?>(null) }
-    var selectedFilter by remember { mutableStateOf("ALL") } // "ALL", "PENDING", "ADDED"
+    var selectedDetectedForDetail by remember { mutableStateOf<PendingTransaction?>(null) }
+    var selectedFilter by remember { mutableStateOf("PENDING") } // "PENDING", "APPROVED", "IGNORED", "ALL"
 
-    val displayList = remember(state.allDetectedTransactions, selectedFilter) {
-        when (selectedFilter) {
-            "PENDING" -> state.allDetectedTransactions.filter { it.status == PendingStatus.PENDING }
-            "ADDED" -> state.allDetectedTransactions.filter { it.status == PendingStatus.RESOLVED }
-            else -> state.allDetectedTransactions.filter { it.status != PendingStatus.IGNORED }
+    // Search and filter state for Ignored & All tabs
+    var searchQuery by remember { mutableStateOf("") }
+
+    val pendingCount = state.pendingTransactions.size
+    val approvedCount = state.addedTransactions.size
+    val ignoredCount = state.ignoredTransactions.size
+    val totalCount = state.allDetectedTransactions.size
+
+    val displayList = remember(state.allDetectedTransactions, selectedFilter, searchQuery) {
+        val baseList = when (selectedFilter) {
+            "PENDING" -> state.pendingTransactions
+            "APPROVED" -> state.addedTransactions
+            "IGNORED" -> state.ignoredTransactions
+            else -> state.allDetectedTransactions
+        }
+
+        if (searchQuery.isBlank()) {
+            baseList
+        } else {
+            val q = searchQuery.trim().lowercase()
+            baseList.filter { item ->
+                (item.detectedMerchant?.lowercase()?.contains(q) == true) ||
+                (item.detectedBank?.lowercase()?.contains(q) == true) ||
+                (item.referenceNumber?.lowercase()?.contains(q) == true) ||
+                item.rawContent.lowercase().contains(q) ||
+                CurrencyUtils.formatPaiseToRupees(item.detectedAmountPaise).contains(q)
+            }
         }
     }
 
@@ -50,7 +88,7 @@ fun PendingTransactionsScreen(
                 title = { Text("Detected Transactions", color = AppTheme.colors.textPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTheme.colors.textPrimary)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = AppTheme.colors.textPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -63,10 +101,7 @@ fun PendingTransactionsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Filter Pills (All / Unadded / Added)
-            val pendingCount = state.pendingTransactions.size
-            val addedCount = state.addedTransactions.size
-
+            // 4-Filter Pills Row: Pending, Approved, Ignored, All
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -74,9 +109,10 @@ fun PendingTransactionsScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf(
-                    "ALL" to "All (${state.allDetectedTransactions.count { it.status != PendingStatus.IGNORED }})",
-                    "PENDING" to "Unadded ($pendingCount)",
-                    "ADDED" to "Added ($addedCount)"
+                    "PENDING" to "Pending ($pendingCount)",
+                    "APPROVED" to "Approved ($approvedCount)",
+                    "IGNORED" to "Ignored ($ignoredCount)",
+                    "ALL" to "All ($totalCount)"
                 ).forEach { (key, label) ->
                     val isSelected = selectedFilter == key
                     Surface(
@@ -86,11 +122,15 @@ fun PendingTransactionsScreen(
                             1.dp,
                             if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.cardBorder
                         ),
-                        modifier = Modifier.clickable { selectedFilter = key }
+                        modifier = Modifier.clickable {
+                            selectedFilter = key
+                            searchQuery = ""
+                        }
                     ) {
                         Text(
                             text = label,
                             style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             color = if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary,
                             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
                         )
@@ -98,30 +138,96 @@ fun PendingTransactionsScreen(
                 }
             }
 
+            // Search Bar for Ignored & All tabs (or when searching any list)
+            if (selectedFilter == "IGNORED" || selectedFilter == "ALL" || (searchQuery.isNotBlank())) {
+                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = {
+                            Text(
+                                if (selectedFilter == "IGNORED") "Search ignored transactions..." else "Search by merchant, bank or SMS...",
+                                color = AppTheme.colors.textMuted,
+                                fontSize = 13.sp
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null, tint = AppTheme.colors.textSecondary, modifier = Modifier.size(18.dp))
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotBlank()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = AppTheme.colors.textSecondary, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AppTheme.colors.primaryAccent,
+                            unfocusedBorderColor = AppTheme.colors.cardBorder,
+                            focusedTextColor = AppTheme.colors.textPrimary,
+                            unfocusedTextColor = AppTheme.colors.textPrimary
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                }
+            }
+
+            // Empty States according to selected section
             if (displayList.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(32.dp)
+                    ) {
+                        val emptyIcon = when (selectedFilter) {
+                            "PENDING" -> Icons.Default.CheckCircle
+                            "APPROVED" -> Icons.Default.DoneAll
+                            "IGNORED" -> Icons.Default.VisibilityOff
+                            else -> Icons.Default.Sms
+                        }
+                        val emptyTint = when (selectedFilter) {
+                            "PENDING" -> AppTheme.colors.incomeGreen
+                            "APPROVED" -> AppTheme.colors.primaryAccent
+                            "IGNORED" -> AppTheme.colors.textMuted
+                            else -> AppTheme.colors.primaryAccent
+                        }
+                        val emptyTitle = when (selectedFilter) {
+                            "PENDING" -> "No pending detected transactions."
+                            "APPROVED" -> "No approved transactions yet."
+                            "IGNORED" -> "No ignored transactions."
+                            else -> "No detected transactions yet."
+                        }
+                        val emptySubtitle = when (selectedFilter) {
+                            "PENDING" -> "All detected SMS & notification transactions have been reviewed."
+                            "APPROVED" -> "Transactions approved from SMS detection will appear here."
+                            "IGNORED" -> if (searchQuery.isNotBlank()) "No ignored records matched \"$searchQuery\"." else "Transactions you ignore from review will be preserved here."
+                            else -> "SMS transaction detection will capture incoming bank and UPI alerts automatically."
+                        }
+
                         Icon(
-                            imageVector = Icons.Default.CheckCircle,
+                            imageVector = emptyIcon,
                             contentDescription = null,
-                            tint = AppTheme.colors.incomeGreen,
+                            tint = emptyTint,
                             modifier = Modifier.size(56.dp)
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
                         Text(
-                            text = if (selectedFilter == "PENDING") "All Caught Up!" else "No Transactions Found",
-                            style = MaterialTheme.typography.titleLarge,
+                            text = emptyTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
                             color = AppTheme.colors.textPrimary
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = if (selectedFilter == "PENDING") "No pending SMS transactions awaiting review."
-                            else "No detected transactions in this category.",
+                            text = emptySubtitle,
                             style = MaterialTheme.typography.bodyMedium,
-                            color = AppTheme.colors.textSecondary
+                            color = AppTheme.colors.textSecondary,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
                 }
@@ -132,17 +238,40 @@ fun PendingTransactionsScreen(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     items(displayList, key = { it.id }) { item ->
-                        val isAdded = item.status == PendingStatus.RESOLVED
-                        // If added: subtle green/card styling. If not added: distinct AmberGold/ElectricBlue styling
-                        val cardBorderColor = if (isAdded) AppTheme.colors.incomeGreen.copy(alpha = 0.35f) else AmberGold
-                        val cardBgColor = AppTheme.colors.cardBackground
-                        val iconBgColor = if (isAdded) AppTheme.colors.incomeGreen.copy(alpha = 0.15f) else AmberGold.copy(alpha = 0.2f)
-                        val iconColor = if (isAdded) AppTheme.colors.incomeGreen else AmberGold
+                        val isPending = item.status == PendingStatus.PENDING
+                        val isApproved = item.status == PendingStatus.RESOLVED
+                        val isIgnored = item.status == PendingStatus.IGNORED
+
+                        val cardBorderColor = when {
+                            isPending -> AmberGold
+                            isApproved -> AppTheme.colors.incomeGreen.copy(alpha = 0.35f)
+                            else -> AppTheme.colors.cardBorder
+                        }
+
+                        val iconBgColor = when {
+                            isPending -> AmberGold.copy(alpha = 0.18f)
+                            isApproved -> AppTheme.colors.incomeGreen.copy(alpha = 0.15f)
+                            else -> AppTheme.colors.surfaceSecondary
+                        }
+
+                        val iconColor = when {
+                            isPending -> AmberGold
+                            isApproved -> AppTheme.colors.incomeGreen
+                            else -> AppTheme.colors.textMuted
+                        }
+
+                        val iconVector = when {
+                            isPending -> Icons.Default.Sms
+                            isApproved -> Icons.Default.CheckCircle
+                            else -> Icons.Default.VisibilityOff
+                        }
 
                         RupeeFlowCard(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedDetectedForDetail = item },
                             borderColor = cardBorderColor,
-                            backgroundColor = cardBgColor
+                            backgroundColor = AppTheme.colors.cardBackground
                         ) {
                             Column {
                                 Row(
@@ -157,7 +286,7 @@ fun PendingTransactionsScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = if (isAdded) Icons.Default.CheckCircle else Icons.Default.Sms,
+                                            imageVector = iconVector,
                                             contentDescription = null,
                                             tint = iconColor,
                                             modifier = Modifier.size(22.dp)
@@ -174,37 +303,55 @@ fun PendingTransactionsScreen(
                                             Text(
                                                 text = CurrencyUtils.formatPaiseToRupees(item.detectedAmountPaise),
                                                 style = MaterialTheme.typography.titleLarge,
-                                                color = if (isAdded) AppTheme.colors.textSecondary else AppTheme.colors.textPrimary
+                                                color = if (isApproved || isIgnored) AppTheme.colors.textSecondary else AppTheme.colors.textPrimary
                                             )
 
                                             // Status Badge
-                                            if (isAdded) {
-                                                Surface(
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    color = AppTheme.colors.incomeGreen.copy(alpha = 0.2f)
-                                                ) {
-                                                    Text(
-                                                        text = "Added ✓",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = AppTheme.colors.incomeGreen,
-                                                        fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                        fontSize = 11.sp
-                                                    )
+                                            when {
+                                                isPending -> {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = AmberGold.copy(alpha = 0.2f)
+                                                    ) {
+                                                        Text(
+                                                            text = "Pending",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = AmberGold,
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                            fontSize = 11.sp
+                                                        )
+                                                    }
                                                 }
-                                            } else {
-                                                Surface(
-                                                    shape = RoundedCornerShape(6.dp),
-                                                    color = AmberGold.copy(alpha = 0.2f)
-                                                ) {
-                                                    Text(
-                                                        text = "Not Added",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = AmberGold,
-                                                        fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                        fontSize = 11.sp
-                                                    )
+                                                isApproved -> {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = AppTheme.colors.incomeGreen.copy(alpha = 0.2f)
+                                                    ) {
+                                                        Text(
+                                                            text = "Added ✓",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = AppTheme.colors.incomeGreen,
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                            fontSize = 11.sp
+                                                        )
+                                                    }
+                                                }
+                                                isIgnored -> {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = AppTheme.colors.surfaceSecondary
+                                                    ) {
+                                                        Text(
+                                                            text = "Ignored",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = AppTheme.colors.textSecondary,
+                                                            fontWeight = FontWeight.Medium,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                            fontSize = 11.sp
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
@@ -217,31 +364,55 @@ fun PendingTransactionsScreen(
                                         )
                                     }
 
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        if (!isAdded) {
-                                            IconButton(onClick = { viewModel.ignorePending(item.id) }) {
-                                                Icon(Icons.Default.Close, contentDescription = "Ignore", tint = AppTheme.colors.textMuted)
+                                    // Action Buttons based on Status
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        when {
+                                            isPending -> {
+                                                // Ignore Action
+                                                IconButton(onClick = { viewModel.ignorePending(item.id) }) {
+                                                    Icon(Icons.Default.Close, contentDescription = "Ignore", tint = AppTheme.colors.textMuted)
+                                                }
+                                                // Approve Action
+                                                Button(
+                                                    onClick = { selectedDetectedForAdd = item },
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = AppTheme.colors.primaryAccent,
+                                                        contentColor = Color.White
+                                                    ),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                                ) {
+                                                    Text("Add Expense", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                                                }
                                             }
-                                            Button(
-                                                onClick = { selectedDetectedForAdd = item },
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = AppTheme.colors.primaryAccent,
-                                                    contentColor = Color.White
-                                                ),
-                                                shape = RoundedCornerShape(10.dp),
-                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-                                            ) {
-                                                Text("Add Expense", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                                            isIgnored -> {
+                                                // Restore Action
+                                                OutlinedButton(
+                                                    onClick = { viewModel.restorePending(item.id) },
+                                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AppTheme.colors.primaryAccent),
+                                                    border = BorderStroke(1.dp, AppTheme.colors.primaryAccent.copy(alpha = 0.5f)),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Restore, contentDescription = "Restore", modifier = Modifier.size(16.dp))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Restore", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                                }
                                             }
-                                        } else {
-                                            OutlinedButton(
-                                                onClick = { selectedDetectedForAdd = item },
-                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = AppTheme.colors.textSecondary),
-                                                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
-                                                shape = RoundedCornerShape(10.dp),
-                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                            ) {
-                                                Text("Re-add", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textSecondary)
+                                            isApproved -> {
+                                                // Re-add Action
+                                                OutlinedButton(
+                                                    onClick = { selectedDetectedForAdd = item },
+                                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AppTheme.colors.textSecondary),
+                                                    border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                                ) {
+                                                    Text("Re-add", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textSecondary)
+                                                }
                                             }
                                         }
                                     }
@@ -254,7 +425,7 @@ fun PendingTransactionsScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = AppTheme.colors.textMuted,
                                     maxLines = 2,
-                                    fontSize = 10.sp
+                                    fontSize = 11.sp
                                 )
                             }
                         }
@@ -264,7 +435,166 @@ fun PendingTransactionsScreen(
         }
     }
 
-    // Opens Original Add Expense Page (FastAddExpenseSheet) prefilled with detected data!
+    // Detail Inspection Modal
+    selectedDetectedForDetail?.let { item ->
+        AlertDialog(
+            onDismissRequest = { selectedDetectedForDetail = null },
+            title = {
+                Text(
+                    text = "Detected Transaction Details",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = AppTheme.colors.textPrimary
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Amount:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                        Text(
+                            CurrencyUtils.formatPaiseToRupees(item.detectedAmountPaise),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = AppTheme.colors.textPrimary
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Status:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                        Text(
+                            when (item.status) {
+                                PendingStatus.PENDING -> "Pending Review"
+                                PendingStatus.RESOLVED -> "Approved (Added)"
+                                PendingStatus.IGNORED -> "Ignored"
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = when (item.status) {
+                                PendingStatus.PENDING -> AmberGold
+                                PendingStatus.RESOLVED -> AppTheme.colors.incomeGreen
+                                PendingStatus.IGNORED -> AppTheme.colors.textSecondary
+                            }
+                        )
+                    }
+                    if (!item.detectedMerchant.isNullOrBlank()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Merchant / Entity:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                            Text(item.detectedMerchant, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
+                        }
+                    }
+                    if (!item.detectedBank.isNullOrBlank()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Bank / Institution:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                            Text(item.detectedBank, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
+                        }
+                    }
+                    if (!item.referenceNumber.isNullOrBlank()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Reference / UTR:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                            Text(item.referenceNumber, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Detection Source:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                        Text(item.source.name, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Detected On:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                        Text(DateTimeUtils.formatRelativeDate(item.timestamp), style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Original Message / Notification:", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textSecondary)
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = AppTheme.colors.surfaceSecondary,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = item.rawContent,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AppTheme.colors.textPrimary,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                when (item.status) {
+                    PendingStatus.PENDING -> {
+                        Button(
+                            onClick = {
+                                selectedDetectedForAdd = item
+                                selectedDetectedForDetail = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent)
+                        ) {
+                            Text("Approve & Add")
+                        }
+                    }
+                    PendingStatus.IGNORED -> {
+                        Button(
+                            onClick = {
+                                viewModel.restorePending(item.id)
+                                selectedDetectedForDetail = null
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent)
+                        ) {
+                            Text("Restore to Pending")
+                        }
+                    }
+                    PendingStatus.RESOLVED -> {
+                        TextButton(onClick = { selectedDetectedForDetail = null }) {
+                            Text("Close")
+                        }
+                    }
+                }
+            },
+            dismissButton = {
+                if (item.status == PendingStatus.PENDING) {
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.ignorePending(item.id)
+                            selectedDetectedForDetail = null
+                        }
+                    ) {
+                        Text("Ignore")
+                    }
+                } else {
+                    TextButton(onClick = { selectedDetectedForDetail = null }) {
+                        Text("Close")
+                    }
+                }
+            },
+            containerColor = AppTheme.colors.surfaceElevated
+        )
+    }
+
+    // Opens Add Expense Sheet (FastAddExpenseSheet) prefilled with detected data!
     selectedDetectedForAdd?.let { item ->
         FastAddExpenseSheet(
             categories = state.categories,

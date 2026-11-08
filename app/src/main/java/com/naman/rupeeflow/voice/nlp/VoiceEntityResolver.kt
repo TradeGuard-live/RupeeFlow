@@ -177,7 +177,9 @@ object VoiceEntityResolver {
 
         val foodKeywords = listOf("food", "dining", "dinner", "lunch", "breakfast", "swiggy", "zomato", "restaurant", "cafe", "khana", "jamvanu", "ખાવાનું", "खाना")
         val travelKeywords = listOf("train", "ticket", "travel", "auto", "cab", "uber", "ola", "metro", "bus", "petrol", "fuel", "flight", "taxi", "વાહન", "ટિકિટ", "किराया")
-        val groceryKeywords = listOf("grocery", "groceries", "supermarket", "blinkit", "zepto", "instamart", "kirana", "milk", "vegetables", "sabji", "શાકભાજી", "सब्जी")
+        val groceryKeywords = listOf("grocery", "groceries", "supermarket", "blinkit", "zepto", "instamart", "kirana", "milk", "vegetables", "sabji", "શાકભાજી", "સબ્જી")
+        val utilitiesKeywords = listOf("electricity", "bill", "power", "light bill", "water", "gas", "wifi", "internet", "recharge", "mobile bill", "વીજળી", "બિલ", "बिजली", "बिल")
+        val educationKeywords = listOf("college", "school", "fees", "fee", "tuition", "course", "books", "શિક્ષણ", "કોલેજ", "फीस", "शिक्षा")
         val rentKeywords = listOf("rent", "housing", "flat", "room", "maintenance", "pg", "भाड़ा", "ભાડું")
         val shoppingKeywords = listOf("shopping", "clothes", "amazon", "flipkart", "mall", "shoes", "ખરીદી", "खरीदारी")
         val entertainmentKeywords = listOf("movie", "cinema", "tickets", "netflix", "prime", "hotstar", "game", "ફિલ્મ", "सिनेमा")
@@ -187,10 +189,12 @@ object VoiceEntityResolver {
         }
 
         val matchedName = when {
+            matchesCategory(utilitiesKeywords) -> "Utilities"
+            matchesCategory(educationKeywords) -> "Education"
             matchesCategory(foodKeywords) -> "Food"
-            matchesCategory(travelKeywords) -> "Travel & Transport"
+            matchesCategory(travelKeywords) -> "Travel"
             matchesCategory(groceryKeywords) -> "Groceries"
-            matchesCategory(rentKeywords) -> "Rent & Housing"
+            matchesCategory(rentKeywords) -> "Rent"
             matchesCategory(shoppingKeywords) -> "Shopping"
             matchesCategory(entertainmentKeywords) -> "Entertainment"
             else -> "Other"

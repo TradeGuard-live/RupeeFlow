@@ -24,6 +24,9 @@ data class PendingUiState(
 
     val addedTransactions: List<PendingTransaction>
         get() = allDetectedTransactions.filter { it.status == PendingStatus.RESOLVED }
+
+    val ignoredTransactions: List<PendingTransaction>
+        get() = allDetectedTransactions.filter { it.status == PendingStatus.IGNORED }
 }
 
 class PendingTransactionsViewModel(
@@ -91,6 +94,12 @@ class PendingTransactionsViewModel(
     fun ignorePending(id: Long) {
         viewModelScope.launch {
             pendingTransactionRepository.ignorePendingTransaction(id)
+        }
+    }
+
+    fun restorePending(id: Long) {
+        viewModelScope.launch {
+            pendingTransactionRepository.restorePendingTransaction(id)
         }
     }
 

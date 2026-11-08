@@ -40,6 +40,9 @@ interface PendingTransactionDao {
     @Query("UPDATE pending_transactions SET status = :status WHERE id = :id")
     suspend fun updateStatus(id: Long, status: PendingStatus)
 
+    @Query("UPDATE pending_transactions SET status = 'PENDING' WHERE id = :id")
+    suspend fun restorePending(id: Long)
+
     @Delete
     suspend fun delete(pending: PendingTransactionEntity)
 }

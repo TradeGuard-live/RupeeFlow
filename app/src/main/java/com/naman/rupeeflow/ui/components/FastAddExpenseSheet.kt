@@ -491,27 +491,19 @@ fun FastAddExpenseSheet(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Paid By Selector (Only for Expense)
-                if (selectedEntryType == SheetEntryType.EXPENSE && friends.isNotEmpty()) {
-                    Text(
-                        text = "Paid By",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = AppTheme.colors.textSecondary
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    GroupFirstFriendSelector(
-                        groups = groups,
-                        allFriends = friends,
-                        selectedGroupId = selectedGroupFilterId,
-                        onGroupSelect = { selectedGroupFilterId = it },
-                        isMultiSelect = false,
+                // Paid By Dropdown (Single-selection with default = Me)
+                if (selectedEntryType == SheetEntryType.EXPENSE) {
+                    PayerDropdownSelector(
+                        friends = friends,
                         selectedPayerId = selectedPayerId,
                         onPayerSelect = { selectedPayerId = it }
                     )
 
                     Spacer(modifier = Modifier.height(20.dp))
+                }
 
-                    // Split with Friends Section
+                // Split with Friends Section (Only when friends exist)
+                if (selectedEntryType == SheetEntryType.EXPENSE && friends.isNotEmpty()) {
                     RupeeFlowCard(
                         modifier = Modifier.fillMaxWidth(),
                         borderColor = if (isSplitEnabled) AppTheme.colors.primaryAccent.copy(alpha = 0.5f) else AppTheme.colors.cardBorder

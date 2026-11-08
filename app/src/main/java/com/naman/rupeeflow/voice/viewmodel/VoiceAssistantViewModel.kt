@@ -431,6 +431,12 @@ class VoiceAssistantViewModel(
                             null
                         }
                     }
+                    VoiceClarificationType.MISSING_EXPENSE_TITLE -> {
+                        val cleaned = answerText.trim().replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                        if (cleaned.isNotBlank()) {
+                            pending.copy(title = cleaned)
+                        } else null
+                    }
                     VoiceClarificationType.MISSING_PAYER -> {
                         val (payerId, payerName) = VoiceEntityResolver.resolvePayer(answerText, cachedFriends)
                         pending.copy(paidByFriendId = payerId, payerName = payerName)

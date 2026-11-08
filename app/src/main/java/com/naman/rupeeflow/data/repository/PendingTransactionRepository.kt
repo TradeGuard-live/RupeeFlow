@@ -17,6 +17,7 @@ interface PendingTransactionRepository {
     suspend fun addPendingTransaction(pending: PendingTransaction): Long
     suspend fun resolvePendingTransaction(id: Long)
     suspend fun ignorePendingTransaction(id: Long)
+    suspend fun restorePendingTransaction(id: Long)
     suspend fun deletePendingTransaction(id: Long)
     // Contextual duplicate detection
     suspend fun isDuplicate(
@@ -65,6 +66,10 @@ class PendingTransactionRepositoryImpl(
 
     override suspend fun ignorePendingTransaction(id: Long) {
         pendingDao.updateStatus(id, PendingStatus.IGNORED)
+    }
+
+    override suspend fun restorePendingTransaction(id: Long) {
+        pendingDao.restorePending(id)
     }
 
     override suspend fun deletePendingTransaction(id: Long) {
