@@ -87,6 +87,12 @@ object AppViewModelProvider {
                 friendGroupRepository = app.appContainer.friendGroupRepository
             )
         }
+        initializer {
+            val app = rupeeFlowApplication()
+            com.naman.rupeeflow.ui.screens.lock.AppLockViewModel(
+                appLockManager = app.appContainer.appLockManager
+            )
+        }
     }
 
     fun friendDetailFactory(friendId: Long): ViewModelProvider.Factory = viewModelFactory {

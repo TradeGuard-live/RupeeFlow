@@ -6,19 +6,25 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.*
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.rememberNavController
+import com.naman.rupeeflow.security.AppLockState
+import com.naman.rupeeflow.ui.AppViewModelProvider
 import com.naman.rupeeflow.ui.navigation.RupeeFlowApp
 import com.naman.rupeeflow.ui.navigation.Screen
 import com.naman.rupeeflow.ui.screens.lock.AppLockScreen
+import com.naman.rupeeflow.ui.screens.lock.AppLockViewModel
 import com.naman.rupeeflow.ui.theme.AppTheme
-import com.naman.rupeeflow.ui.theme.MidnightDark
 import com.naman.rupeeflow.ui.theme.RupeeFlowTheme
 
 class MainActivity : FragmentActivity() {
@@ -28,6 +34,8 @@ class MainActivity : FragmentActivity() {
     ) { _ ->
         // Permissions handled gracefully
     }
+
+    private val appLockViewModel: AppLockViewModel by viewModels { AppViewModelProvider.Factory }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,40 +47,45 @@ class MainActivity : FragmentActivity() {
         val userPrefsRepo = app.appContainer.userPreferencesRepository
 
         setContent {
-            val userPrefs by userPrefsRepo.userPreferencesFlow.collectAsState(
-                initial = com.naman.rupeeflow.data.repository.UserPreferences()
+            val userPrefs by userPrefsRepo.userPreferencesFlow.collectAsStateWithLifecycle(
+                initialValue = com.naman.rupeeflow.data.repository.UserPreferences()
             )
 
-            var isAppUnlocked by remember { mutableStateOf(!userPrefs.biometricLockEnabled) }
-
-            // Update unlock state if user turns off biometric lock
-            LaunchedEffect(userPrefs.biometricLockEnabled) {
-                if (!userPrefs.biometricLockEnabled) {
-                    isAppUnlocked = true
-                }
-            }
+            val lockState by appLockViewModel.lockState.collectAsStateWithLifecycle()
+            val isBiometricEnabled by appLockViewModel.isBiometricEnabled.collectAsStateWithLifecycle()
 
             RupeeFlowTheme(themeMode = userPrefs.themeMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = AppTheme.colors.background
                 ) {
-                    if (userPrefs.biometricLockEnabled && !isAppUnlocked) {
-                        AppLockScreen(
-                            onUnlocked = { isAppUnlocked = true }
-                        )
-                    } else {
-                        val navController = rememberNavController()
-
-                        // Handle notification deep link if present
-                        LaunchedEffect(intent) {
-                            val target = intent?.getStringExtra("EXTRA_NAVIGATE_TO")
-                            if (target == "pending_review") {
-                                navController.navigate(Screen.PendingTransactions.route)
-                            }
+                    when {
+                        // Protected state: While locked and biometric is enabled, show lock screen
+                        isBiometricEnabled && lockState == AppLockState.LOCKED -> {
+                            AppLockScreen(viewModel = appLockViewModel)
                         }
+                        // Splash/Init state: while resolving preference on cold launch, keep background clean
+                        lockState == AppLockState.INITIALIZING -> {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(AppTheme.colors.background)
+                            )
+                        }
+                        // Unlocked state: render main application and navigation
+                        else -> {
+                            val navController = rememberNavController()
 
-                        RupeeFlowApp(navController = navController)
+                            // Handle notification deep link if present
+                            LaunchedEffect(intent) {
+                                val target = intent?.getStringExtra("EXTRA_NAVIGATE_TO")
+                                if (target == "pending_review") {
+                                    navController.navigate(Screen.PendingTransactions.route)
+                                }
+                            }
+
+                            RupeeFlowApp(navController = navController)
+                        }
                     }
                 }
             }

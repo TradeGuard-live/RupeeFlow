@@ -1,7 +1,5 @@
 package com.naman.rupeeflow.ui.screens.lock
 
-import androidx.biometric.BiometricManager
-import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -18,51 +16,26 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.naman.rupeeflow.ui.theme.*
 
 @Composable
 fun AppLockScreen(
-    onUnlocked: () -> Unit
+    viewModel: AppLockViewModel,
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
 
-    val triggerBiometric = {
+    LaunchedEffect(Unit) {
         val activity = context as? FragmentActivity
         if (activity != null) {
-            val executor = ContextCompat.getMainExecutor(context)
-            val prompt = BiometricPrompt(
-                activity,
-                executor,
-                object : BiometricPrompt.AuthenticationCallback() {
-                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                        super.onAuthenticationSucceeded(result)
-                        onUnlocked()
-                    }
-                }
-            )
-
-            val promptInfo = BiometricPrompt.PromptInfo.Builder()
-                .setTitle("Unlock RupeeFlow")
-                .setSubtitle("Confirm identity to access financial records")
-                .setAllowedAuthenticators(
-                    BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                            BiometricManager.Authenticators.DEVICE_CREDENTIAL
-                )
-                .build()
-
-            prompt.authenticate(promptInfo)
+            viewModel.triggerBiometricPrompt(activity)
         }
     }
 
-    LaunchedEffect(Unit) {
-        triggerBiometric()
-    }
-
     Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MidnightDark
+        modifier = modifier.fillMaxSize(),
+        color = AppTheme.colors.background
     ) {
         Column(
             modifier = Modifier
@@ -75,13 +48,13 @@ fun AppLockScreen(
                 modifier = Modifier
                     .size(80.dp)
                     .clip(CircleShape)
-                    .background(ElectricBlue.copy(alpha = 0.2f)),
+                    .background(AppTheme.colors.primaryAccent.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Lock,
                     contentDescription = "Locked",
-                    tint = ElectricBlue,
+                    tint = AppTheme.colors.primaryAccent,
                     modifier = Modifier.size(40.dp)
                 )
             }
@@ -91,7 +64,7 @@ fun AppLockScreen(
             Text(
                 text = "RupeeFlow is Locked",
                 style = MaterialTheme.typography.headlineMedium,
-                color = TextPrimary,
+                color = AppTheme.colors.textPrimary,
                 fontWeight = FontWeight.Bold
             )
 
@@ -100,16 +73,21 @@ fun AppLockScreen(
             Text(
                 text = "Biometric security is active to protect your financial data.",
                 style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary
+                color = AppTheme.colors.textSecondary
             )
 
             Spacer(modifier = Modifier.height(32.dp))
 
             Button(
-                onClick = { triggerBiometric() },
+                onClick = {
+                    val activity = context as? FragmentActivity
+                    if (activity != null) {
+                        viewModel.triggerBiometricPrompt(activity)
+                    }
+                },
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = ElectricBlue,
-                    contentColor = MidnightDark
+                    containerColor = AppTheme.colors.primaryAccent,
+                    contentColor = AppTheme.colors.surface
                 ),
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier

@@ -16,6 +16,7 @@ class RupeeFlowApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         appContainer = DefaultAppContainer(this)
+        registerActivityLifecycleCallbacks(appContainer.appLockManager)
 
         TransactionNotificationHelper.createNotificationChannel(this)
 

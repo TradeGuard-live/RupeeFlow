@@ -17,6 +17,7 @@ interface AppContainer {
     val friendGroupRepository: FriendGroupRepository
     val inputRankingRepository: InputRankingRepository
     val imageStorageManager: ImageStorageManager
+    val appLockManager: com.naman.rupeeflow.security.AppLockManager
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -80,5 +81,9 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             friendGroupRepository = friendGroupRepository,
             context = context
         )
+    }
+
+    override val appLockManager: com.naman.rupeeflow.security.AppLockManager by lazy {
+        com.naman.rupeeflow.security.AppLockManager(userPreferencesRepository)
     }
 }
