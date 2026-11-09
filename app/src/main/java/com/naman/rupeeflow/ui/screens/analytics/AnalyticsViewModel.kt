@@ -8,17 +8,29 @@ import com.naman.rupeeflow.data.repository.SettlementRepository
 import com.naman.rupeeflow.data.repository.TransactionRepository
 import com.naman.rupeeflow.domain.ledger.LedgerCalculator
 import com.naman.rupeeflow.domain.model.*
-import com.naman.rupeeflow.domain.util.DateTimeUtils
+import com.naman.rupeeflow.domain.util.DatePeriodHelper
+import com.naman.rupeeflow.domain.util.PeriodRange
+import com.naman.rupeeflow.domain.util.PeriodType
 import com.naman.rupeeflow.domain.util.SafeMath
 import com.naman.rupeeflow.domain.util.safeSumOf
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
+private data class AnalyticsBaseBundle(
+    val txns: List<Transaction>,
+    val categories: List<Category>,
+    val friends: List<Friend>,
+    val settlements: List<Settlement>
+)
+
 data class AnalyticsUiState(
     val isLoading: Boolean = true,
     val selectedPeriod: String = "MONTHLY", // "WEEKLY", "MONTHLY", "YEARLY"
+    val periodOffset: Int = 0,
     val periodInfo: String = "",
+    val canNavigateNext: Boolean = false,
+    val canNavigatePrevious: Boolean = true,
     val analyticsData: AnalyticsData = AnalyticsData(),
     val categories: List<Category> = emptyList(),
     val totalOwedToMe: Long = 0L,
@@ -32,6 +44,9 @@ class AnalyticsViewModel(
     private val settlementRepository: SettlementRepository
 ) : ViewModel() {
 
+    private val selectedPeriodFlow = MutableStateFlow("MONTHLY")
+    private val periodOffsetFlow = MutableStateFlow(0)
+
     private val _uiState = MutableStateFlow(AnalyticsUiState())
     val uiState: StateFlow<AnalyticsUiState> = _uiState.asStateFlow()
 
@@ -41,25 +56,35 @@ class AnalyticsViewModel(
 
     private fun loadAnalytics() {
         viewModelScope.launch {
-            combine(
+            val baseFlow = combine(
                 transactionRepository.getAllTransactions(),
                 categoryRepository.getAllCategories(),
                 friendRepository.getActiveFriends(),
-                settlementRepository.getAllSettlements(),
-                _uiState.map { it.selectedPeriod }.distinctUntilChanged()
-            ) { txns, categories, friends, settlements, period ->
-                val friendsWithLedger = LedgerCalculator.computeFriendLedgers(friends, txns, settlements)
+                settlementRepository.getAllSettlements()
+            ) { txns, categories, friends, settlements ->
+                AnalyticsBaseBundle(txns, categories, friends, settlements)
+            }
+
+            combine(
+                baseFlow,
+                selectedPeriodFlow,
+                periodOffsetFlow
+            ) { bundle, period, offset ->
+                val friendsWithLedger = LedgerCalculator.computeFriendLedgers(bundle.friends, bundle.txns, bundle.settlements)
                 // Overflow-protected aggregations
                 val owedToMe = friendsWithLedger.filter { it.netBalancePaise > 0L }.safeSumOf { it.netBalancePaise }
                 val iOwe = friendsWithLedger.filter { it.netBalancePaise < 0L }.safeSumOf { SafeMath.safeAbs(it.netBalancePaise) }
 
-                val (data, info) = computeAnalyticsForPeriod(txns, categories, period)
+                val (data, info) = computeAnalyticsForPeriod(bundle.txns, bundle.categories, period, offset)
                 AnalyticsUiState(
                     isLoading = false,
                     selectedPeriod = period,
+                    periodOffset = offset,
                     periodInfo = info,
+                    canNavigateNext = offset < 0,
+                    canNavigatePrevious = true,
                     analyticsData = data,
-                    categories = categories,
+                    categories = bundle.categories,
                     totalOwedToMe = owedToMe,
                     totalIOwe = iOwe
                 )
@@ -70,53 +95,46 @@ class AnalyticsViewModel(
     }
 
     fun setPeriod(period: String) {
-        _uiState.update { it.copy(selectedPeriod = period) }
+        selectedPeriodFlow.value = period
+        periodOffsetFlow.value = 0
+    }
+
+    fun previousPeriod() {
+        periodOffsetFlow.update { it - 1 }
+    }
+
+    fun nextPeriod() {
+        periodOffsetFlow.update { (it + 1).coerceAtMost(0) }
+    }
+
+    fun currentPeriod() {
+        periodOffsetFlow.value = 0
     }
 
     private fun computeAnalyticsForPeriod(
         allTxns: List<Transaction>,
         categories: List<Category>,
-        period: String
+        period: String,
+        offset: Int
     ): Pair<AnalyticsData, String> {
-        val now = System.currentTimeMillis()
-        val cal = Calendar.getInstance()
-
-        val (currentStart, previousStart, previousEnd) = when (period) {
-            "WEEKLY" -> {
-                val startWeek = DateTimeUtils.getStartOfWeek(now)
-                val prevStart = startWeek - (7 * 24 * 60 * 60 * 1000L)
-                val prevEnd = startWeek - 1
-                Triple(startWeek, prevStart, prevEnd)
-            }
-            "YEARLY" -> {
-                cal.set(Calendar.DAY_OF_YEAR, 1)
-                cal.set(Calendar.HOUR_OF_DAY, 0)
-                cal.set(Calendar.MINUTE, 0)
-                cal.set(Calendar.SECOND, 0)
-                cal.set(Calendar.MILLISECOND, 0)
-                val startYear = cal.timeInMillis
-
-                val prevCal = Calendar.getInstance().apply {
-                    timeInMillis = startYear
-                    add(Calendar.YEAR, -1)
-                }
-                Triple(startYear, prevCal.timeInMillis, startYear - 1)
-            }
-            else -> { // "MONTHLY"
-                val startMonth = DateTimeUtils.getStartOfMonth(now)
-                val prevMonthCal = Calendar.getInstance().apply {
-                    timeInMillis = startMonth
-                    add(Calendar.MONTH, -1)
-                }
-                Triple(startMonth, prevMonthCal.timeInMillis, startMonth - 1)
-            }
+        val periodType = when (period) {
+            "WEEKLY" -> PeriodType.WEEK
+            "YEARLY" -> PeriodType.YEAR
+            else -> PeriodType.MONTH
         }
+
+        val currentRange: PeriodRange = DatePeriodHelper.getRange(periodType, offset)
+        val previousRange: PeriodRange = DatePeriodHelper.getRange(periodType, offset - 1)
+
+        val currentStart = currentRange.startMillis
+        val currentEnd = currentRange.endMillis
+        val previousStart = previousRange.startMillis
+        val previousEnd = previousRange.endMillis
 
         // Active transactions in current period
         val currentTxns = allTxns.filter {
             it.transactionStatus == TransactionStatus.ACTIVE &&
-                    it.transactionDate >= currentStart &&
-                    it.transactionDate <= now
+                    it.transactionDate in currentStart..currentEnd
         }
 
         // Previous period transactions
@@ -187,26 +205,11 @@ class AnalyticsViewModel(
         // Weekly: Day-wise breakdown ("Mon", "Tue", etc.)
         val (trendPoints, periodInfo) = when (period) {
             "WEEKLY" -> {
-                val calWeek = Calendar.getInstance()
-                val dow = calWeek.get(Calendar.DAY_OF_WEEK)
-                val daysFromMon = if (dow == Calendar.SUNDAY) 6 else dow - Calendar.MONDAY
-                calWeek.add(Calendar.DAY_OF_YEAR, -daysFromMon)
-                calWeek.set(Calendar.HOUR_OF_DAY, 0)
-                calWeek.set(Calendar.MINUTE, 0)
-                calWeek.set(Calendar.SECOND, 0)
-                calWeek.set(Calendar.MILLISECOND, 0)
-
-                val monStart = calWeek.timeInMillis
-                val sunEnd = monStart + (7 * 24 * 60 * 60 * 1000L) - 1
-
-                val df = java.text.SimpleDateFormat("dd MMM yyyy", java.util.Locale.getDefault())
-                val info = "${df.format(java.util.Date(monStart))} - ${df.format(java.util.Date(sunEnd))}"
-
                 val daysList = mutableListOf<DailySpending>()
                 val dayNames = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
                 for (i in 0..6) {
                     val dCal = Calendar.getInstance().apply {
-                        timeInMillis = monStart
+                        timeInMillis = currentStart
                         add(Calendar.DAY_OF_YEAR, i)
                     }
                     val sOfDay = dCal.timeInMillis
@@ -221,18 +224,13 @@ class AnalyticsViewModel(
                         .sumOf { it.userExpensePaise }
                     daysList.add(DailySpending(sOfDay, dayNames[i], total))
                 }
-                Pair(daysList, info)
+                Pair(daysList, currentRange.label)
             }
             "YEARLY" -> {
                 val calYear = Calendar.getInstance().apply {
-                    set(Calendar.DAY_OF_YEAR, 1)
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
+                    timeInMillis = currentStart
                 }
                 val currentYear = calYear.get(Calendar.YEAR)
-                val info = "Year $currentYear"
 
                 val monthList = mutableListOf<DailySpending>()
                 val monthNames = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
@@ -265,19 +263,12 @@ class AnalyticsViewModel(
 
                     monthList.add(DailySpending(mStart, monthNames[m], total))
                 }
-                Pair(monthList, info)
+                Pair(monthList, currentRange.label)
             }
             else -> { // "MONTHLY"
                 val calMonth = Calendar.getInstance().apply {
-                    set(Calendar.DAY_OF_MONTH, 1)
-                    set(Calendar.HOUR_OF_DAY, 0)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
+                    timeInMillis = currentStart
                 }
-                val monthDf = java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.getDefault())
-                val info = monthDf.format(calMonth.time)
-
                 val maxDaysInMonth = calMonth.getActualMaximum(Calendar.DAY_OF_MONTH)
                 val weekList = mutableListOf<DailySpending>()
 
@@ -292,6 +283,7 @@ class AnalyticsViewModel(
 
                 weekRanges.forEachIndexed { idx, (startDay, endDay) ->
                     val wStartCal = Calendar.getInstance().apply {
+                        timeInMillis = currentStart
                         set(Calendar.DAY_OF_MONTH, startDay)
                         set(Calendar.HOUR_OF_DAY, 0)
                         set(Calendar.MINUTE, 0)
@@ -299,6 +291,7 @@ class AnalyticsViewModel(
                         set(Calendar.MILLISECOND, 0)
                     }
                     val wEndCal = Calendar.getInstance().apply {
+                        timeInMillis = currentStart
                         set(Calendar.DAY_OF_MONTH, endDay)
                         set(Calendar.HOUR_OF_DAY, 23)
                         set(Calendar.MINUTE, 59)
@@ -319,11 +312,13 @@ class AnalyticsViewModel(
 
                     weekList.add(DailySpending(wStart, "Week ${idx + 1}", total))
                 }
-                Pair(weekList, info)
+                Pair(weekList, currentRange.label)
             }
         }
 
-        val daysCount = kotlin.math.max(1, ((now - currentStart) / (1000 * 60 * 60 * 24)).toInt() + 1)
+        val now = System.currentTimeMillis()
+        val effectiveEnd = if (currentEnd > now) now else currentEnd
+        val daysCount = kotlin.math.max(1, ((effectiveEnd - currentStart) / (1000 * 60 * 60 * 24)).toInt() + 1)
         val dailyAvg = netSpending / daysCount
 
         val pctChange = if (prevSpent > 0L) {

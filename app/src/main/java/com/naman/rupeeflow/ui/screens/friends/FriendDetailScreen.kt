@@ -53,6 +53,7 @@ fun FriendDetailScreen(
     var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
     var showMenu by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
     var showDeleteConfirmDialog by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -90,6 +91,16 @@ fun FriendDetailScreen(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
+                        DropdownMenuItem(
+                            text = { Text("Edit Friend") },
+                            leadingIcon = {
+                                Icon(Icons.Default.Edit, contentDescription = null, tint = AppTheme.colors.primaryAccent)
+                            },
+                            onClick = {
+                                showMenu = false
+                                showEditDialog = true
+                            }
+                        )
                         if (friend?.isArchived == true) {
                             DropdownMenuItem(
                                 text = { Text("Unarchive Friend") },
@@ -569,6 +580,19 @@ fun FriendDetailScreen(
             groups = state.friendGroups,
             onDismiss = { editingTransaction = null },
             onSave = { updated -> viewModel.saveTransaction(updated) }
+        )
+    }
+
+    // Edit Friend Dialog
+    if (showEditDialog && friend != null) {
+        EditFriendDialog(
+            friend = friend,
+            allFriends = state.allFriends,
+            onDismiss = { showEditDialog = false },
+            onSave = { updated ->
+                viewModel.updateFriend(updated)
+                showEditDialog = false
+            }
         )
     }
 

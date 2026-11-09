@@ -410,7 +410,36 @@ object VoiceCommandValidator {
         } else null
 
         if (target == null) {
-            return VoiceCommandResult.Error("Friend not found to update.", "Friend not found.")
+            return if (friends.isNotEmpty()) {
+                VoiceCommandResult.ClarificationRequired(
+                    prompt = VoiceClarificationPrompt(
+                        type = VoiceClarificationType.AMBIGUOUS_FRIEND,
+                        question = "Which friend would you like to update?",
+                        spokenQuestion = "Which friend would you like to update?",
+                        candidateFriends = friends.filter { !it.isArchived }
+                    ),
+                    partialCommand = cmd
+                )
+            } else {
+                VoiceCommandResult.Error("Friend not found to update.", "Friend not found.")
+            }
+        }
+
+        if (cmd.newPhoneNumber == null && cmd.newName == null) {
+            val promptText = when (language) {
+                VoiceLanguage.GUJARATI -> "${target.name} માટે નવો ફોન નંબર કે નામ શું છે?"
+                VoiceLanguage.HINDI -> "${target.name} के लिए नया फोन नंबर या नाम क्या है?"
+                else -> "What is the new phone number or name for ${target.name}?"
+            }
+            return VoiceCommandResult.ClarificationRequired(
+                prompt = VoiceClarificationPrompt(
+                    type = VoiceClarificationType.MISSING_FRIEND_NAME,
+                    question = promptText,
+                    spokenQuestion = promptText,
+                    candidateFriends = listOf(target)
+                ),
+                partialCommand = cmd
+            )
         }
 
         val updated = target.copy(
@@ -418,11 +447,20 @@ object VoiceCommandValidator {
             name = cmd.newName ?: target.name
         )
 
+        val confirmText = when {
+            cmd.newName != null && cmd.newPhoneNumber != null ->
+                "Rename ${target.name} to ${cmd.newName} and update phone to ${cmd.newPhoneNumber}?"
+            cmd.newName != null ->
+                "Rename ${target.name} to ${cmd.newName}?"
+            else ->
+                "Update ${target.name}'s phone number to ${cmd.newPhoneNumber}?"
+        }
+
         return VoiceCommandResult.PreviewReady(
             preview = VoiceActionPreview.FriendPreview(friend = updated, isEdit = true, summaryNote = "Update Friend"),
             pendingCommand = cmd,
-            confirmationPrompt = "Update ${target.name}'s details?",
-            spokenPrompt = "Update friend details?"
+            confirmationPrompt = confirmText,
+            spokenPrompt = confirmText
         )
     }
 

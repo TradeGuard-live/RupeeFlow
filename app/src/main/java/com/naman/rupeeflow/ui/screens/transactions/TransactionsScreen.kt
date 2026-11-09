@@ -202,6 +202,69 @@ fun TransactionsScreen(
                 }
             }
 
+            // Date Period Filter Row (All, Monthly, Weekly)
+            val dateFilters = listOf(
+                "ALL" to "All Time",
+                "MONTHLY" to "Monthly",
+                "WEEKLY" to "Weekly"
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                dateFilters.forEach { (key, label) ->
+                    val isSelected = state.selectedDateFilter == key
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (isSelected) {
+                            if (isDark) ElectricBlue.copy(alpha = 0.25f) else AppTheme.colors.primaryAccentContainer
+                        } else {
+                            if (isDark) CharcoalCard else AppTheme.colors.surface
+                        },
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isSelected) AppTheme.colors.primaryAccent else (if (isDark) GlassBorder else AppTheme.colors.cardBorder)
+                        ),
+                        modifier = Modifier.clickable { viewModel.onDateFilterSelected(key) }
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSelected) {
+                                if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)
+                            } else {
+                                AppTheme.colors.textSecondary
+                            },
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                        )
+                    }
+                }
+            }
+
+            // Date Period Navigator for Monthly / Weekly filter
+            if (state.selectedDateFilter == "MONTHLY" || state.selectedDateFilter == "WEEKLY") {
+                Spacer(modifier = Modifier.height(8.dp))
+                PeriodNavigator(
+                    label = state.datePeriodLabel,
+                    canNavigatePrevious = state.canNavigatePreviousDate,
+                    canNavigateNext = state.canNavigateNextDate,
+                    onPrevious = { viewModel.previousDatePeriod() },
+                    onNext = { viewModel.nextDatePeriod() },
+                    showCurrentPill = state.datePeriodOffset != 0,
+                    onCurrent = { viewModel.currentDatePeriod() },
+                    currentPillText = if (state.selectedDateFilter == "WEEKLY") "This Week" else "This Month",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    contentDescriptionPrefix = if (state.selectedDateFilter == "WEEKLY") "week" else "month"
+                )
+            }
+
             Spacer(modifier = Modifier.height(10.dp))
 
             // Category & Payment method quick filters

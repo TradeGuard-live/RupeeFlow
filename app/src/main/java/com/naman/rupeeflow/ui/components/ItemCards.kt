@@ -5,12 +5,17 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.CallMade
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -214,6 +219,8 @@ fun FriendItemCard(
     friend: Friend,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
+    onEdit: (() -> Unit)? = null,
+    onToggleArchive: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     val isLight = !AppTheme.isDark
@@ -309,25 +316,72 @@ fun FriendItemCard(
                 }
             }
 
-            if (onDelete != null) {
-                Box {
-                    IconButton(
-                        onClick = { showMenu = true },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "Options",
-                            tint = AppTheme.colors.textTertiary,
-                            modifier = Modifier.size(18.dp)
+            // Overflow Menu
+            Box {
+                IconButton(
+                    onClick = { showMenu = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "Options",
+                        tint = AppTheme.colors.textTertiary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("View Details") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Info, contentDescription = null, tint = AppTheme.colors.primaryAccent)
+                        },
+                        onClick = {
+                            showMenu = false
+                            onClick()
+                        }
+                    )
+                    if (onEdit != null) {
+                        DropdownMenuItem(
+                            text = { Text("Edit Friend") },
+                            leadingIcon = {
+                                Icon(Icons.Default.Edit, contentDescription = null, tint = AppTheme.colors.primaryAccent)
+                            },
+                            onClick = {
+                                showMenu = false
+                                onEdit()
+                            }
                         )
                     }
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
-                    ) {
+                    if (onToggleArchive != null) {
+                        val isArchived = friend.isArchived
+                        DropdownMenuItem(
+                            text = { Text(if (isArchived) "Unarchive Friend" else "Archive Friend") },
+                            leadingIcon = {
+                                Icon(
+                                    if (isArchived) Icons.Default.Unarchive else Icons.Default.Archive,
+                                    contentDescription = null,
+                                    tint = AppTheme.colors.textSecondary
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                onToggleArchive()
+                            }
+                        )
+                    }
+                    if (onDelete != null) {
                         DropdownMenuItem(
                             text = { Text("Delete Friend", color = if (isLight) Color(0xFFDC2626) else CoralRed) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = null,
+                                    tint = if (isLight) Color(0xFFDC2626) else CoralRed
+                                )
+                            },
                             onClick = {
                                 showMenu = false
                                 onDelete()

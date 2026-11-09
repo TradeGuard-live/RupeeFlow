@@ -25,6 +25,7 @@ data class OverviewUiState(
     val weeklySpending: List<DailySpending> = emptyList(),
     val weekRangeLabel: String = "",
     val weekOffset: Int = 0,
+    val canNavigateNextWeek: Boolean = false,
     val recentTransactions: List<Transaction> = emptyList(),
     val friendsWithBalances: List<Friend> = emptyList(),
     val pendingTransactions: List<PendingTransaction> = emptyList(),
@@ -99,6 +100,7 @@ class OverviewViewModel(
                     weeklySpending = weeklySpending,
                     weekRangeLabel = weekLabel,
                     weekOffset = offset,
+                    canNavigateNextWeek = offset < 0,
                     recentTransactions = recent,
                     friendsWithBalances = outstandingFriends,
                     pendingTransactions = bundle.pendingList,
@@ -174,7 +176,7 @@ class OverviewViewModel(
     }
 
     fun nextWeek() {
-        weekOffset.update { it + 1 }
+        weekOffset.update { (it + 1).coerceAtMost(0) }
     }
 
     fun currentWeek() {

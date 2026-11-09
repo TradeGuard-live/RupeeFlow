@@ -333,12 +333,13 @@ fun OverviewScreen(
 
                             IconButton(
                                 onClick = { viewModel.nextWeek() },
-                                modifier = Modifier.size(32.dp)
+                                modifier = Modifier.size(32.dp),
+                                enabled = state.canNavigateNextWeek
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = "Next Week",
-                                    tint = AppTheme.colors.primaryAccent
+                                    tint = if (state.canNavigateNextWeek) AppTheme.colors.primaryAccent else AppTheme.colors.textMuted
                                 )
                             }
                         }

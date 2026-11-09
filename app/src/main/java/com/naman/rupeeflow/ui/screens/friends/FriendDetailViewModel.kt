@@ -122,6 +122,12 @@ class FriendDetailViewModel(
         _uiState.update { it.copy(filterType = filter) }
     }
 
+    fun updateFriend(updatedFriend: Friend) {
+        viewModelScope.launch {
+            friendRepository.updateFriend(updatedFriend)
+        }
+    }
+
     fun updateFriendProfileImage(imagePath: String?) {
         viewModelScope.launch {
             val currentFriend = _uiState.value.friend ?: return@launch

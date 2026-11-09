@@ -50,6 +50,7 @@ fun FriendsScreen(
     var showCreateGroupDialog by remember { mutableStateOf(false) }
     var editingGroup by remember { mutableStateOf<FriendGroup?>(null) }
     var deletingGroup by remember { mutableStateOf<FriendGroup?>(null) }
+    var editingFriend by remember { mutableStateOf<Friend?>(null) }
     var deletingFriend by remember { mutableStateOf<Friend?>(null) }
     var settlingFriend by remember { mutableStateOf<Friend?>(null) }
 
@@ -390,6 +391,8 @@ fun FriendsScreen(
                         FriendItemCard(
                             friend = friend,
                             onClick = { onNavigateToFriendDetail(friend.id) },
+                            onEdit = { editingFriend = friend },
+                            onToggleArchive = { viewModel.toggleArchive(friend) },
                             onDelete = { deletingFriend = friend }
                         )
                     }
@@ -405,6 +408,19 @@ fun FriendsScreen(
             onAdd = { name, phone, email, notes, profileImagePath ->
                 viewModel.addFriend(name, phone, email, notes, profileImagePath)
                 showAddFriendDialog = false
+            }
+        )
+    }
+
+    // Edit Friend Dialog
+    editingFriend?.let { friend ->
+        EditFriendDialog(
+            friend = friend,
+            allFriends = state.friends,
+            onDismiss = { editingFriend = null },
+            onSave = { updated ->
+                viewModel.updateFriend(updated)
+                editingFriend = null
             }
         )
     }

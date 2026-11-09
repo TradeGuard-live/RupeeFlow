@@ -80,6 +80,28 @@ fun AnalyticsScreen(
                 }
             }
 
+            // Period Navigator (Back / Forward navigation with disabled future states)
+            item {
+                PeriodNavigator(
+                    label = state.periodInfo,
+                    canNavigatePrevious = state.canNavigatePrevious,
+                    canNavigateNext = state.canNavigateNext,
+                    onPrevious = { viewModel.previousPeriod() },
+                    onNext = { viewModel.nextPeriod() },
+                    showCurrentPill = state.periodOffset != 0,
+                    onCurrent = { viewModel.currentPeriod() },
+                    currentPillText = when (state.selectedPeriod) {
+                        "WEEKLY" -> "This Week"
+                        "YEARLY" -> "This Year"
+                        else -> "This Month"
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    contentDescriptionPrefix = state.selectedPeriod.lowercase()
+                )
+            }
+
             // Total Spending Card with % change vs previous period
             item {
                 RupeeFlowCard(modifier = Modifier.fillMaxWidth()) {

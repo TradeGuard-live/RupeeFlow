@@ -124,10 +124,68 @@ object VoiceCommandParser {
         val phoneMatch = phoneRegex.find(rawText) ?: phoneRegex.find(normalized)
         val newPhoneNumber = phoneMatch?.value
 
+        // Extract new name if this is a rename / name change command
+        var newName: String? = null
+
+        if (target != null) {
+            val normTarget = VoiceTextNormalizer.normalize(target.name)
+            val firstName = normTarget.split(" ").firstOrNull() ?: normTarget
+
+            // Pattern A: "Change Jay's name to Jay Patel", "Rename Jay to Jay Patel", "Change Jay to Jay Patel"
+            val engPattern = Regex("""(?i)\b(?:change|update|rename)\s+(?:${Regex.escape(target.name)}|${Regex.escape(normTarget)}|${Regex.escape(firstName)})(?:'s|s)?(?:\s+name)?\s+to\s+([^,.]+)""")
+            val engMatch = engPattern.find(rawText) ?: engPattern.find(normalized)
+            if (engMatch != null) {
+                val candidate = engMatch.groupValues[1].trim()
+                if (candidate.isNotBlank() && !candidate.equals(target.name, ignoreCase = true)) {
+                    newName = candidate
+                }
+            }
+
+            // Pattern B: Gujarati "જયનું નામ બદલીને જય પટેલ કરો", "જયનું નામ જય પટેલ કરો"
+            if (newName == null) {
+                val gujPattern = Regex("""(?:${Regex.escape(target.name)}|${Regex.escape(normTarget)}|${Regex.escape(firstName)})(?:નું|નુ|નો)?\s+નામ\s+(?:બદલીને\s+)?([^,.]+?)\s+(?:કરો|રાખો)""")
+                val gujMatch = gujPattern.find(rawText) ?: gujPattern.find(normalized)
+                if (gujMatch != null) {
+                    val candidate = gujMatch.groupValues[1].trim()
+                    if (candidate.isNotBlank() && !candidate.equals(target.name, ignoreCase = true)) {
+                        newName = candidate
+                    }
+                }
+            }
+
+            // Pattern C: Hindi "Jay ka naam badalkar Jay Patel karo"
+            if (newName == null) {
+                val hinPattern = Regex("""(?i)(?:${Regex.escape(target.name)}|${Regex.escape(normTarget)}|${Regex.escape(firstName)})(?:'s|s|ka|ke|का|के)?\s+(?:naam|नाम)\s+(?:badal\s*kar|बदलकर)?\s*([^,.]+?)\s+(?:karo|rakho|करो|रखो)""")
+                val hinMatch = hinPattern.find(rawText) ?: hinPattern.find(normalized)
+                if (hinMatch != null) {
+                    val candidate = hinMatch.groupValues[1].trim()
+                    if (candidate.isNotBlank() && !candidate.equals(target.name, ignoreCase = true)) {
+                        newName = candidate
+                    }
+                }
+            }
+        } else {
+            // Target is not yet matched from existing friends, e.g. "Change Jay's name to Jay Patel"
+            val genericEng = Regex("""(?i)\b(?:change|update|rename)\s+([A-Za-z\u0A80-\u0AFF\u0900-\u097F]+)(?:'s|s)?\s+name\s+to\s+([^,.]+)""")
+            val gMatch = genericEng.find(rawText) ?: genericEng.find(normalized)
+            if (gMatch != null) {
+                val queriedFriend = gMatch.groupValues[1].trim()
+                val candidateNewName = gMatch.groupValues[2].trim()
+                return VoiceCommand.UpdateFriend(
+                    friendId = null,
+                    friendName = queriedFriend,
+                    newPhoneNumber = newPhoneNumber,
+                    newName = candidateNewName.takeIf { it.isNotBlank() },
+                    rawInput = rawText
+                )
+            }
+        }
+
         return VoiceCommand.UpdateFriend(
             friendId = target?.id,
             friendName = target?.name,
             newPhoneNumber = newPhoneNumber,
+            newName = newName,
             rawInput = rawText
         )
     }

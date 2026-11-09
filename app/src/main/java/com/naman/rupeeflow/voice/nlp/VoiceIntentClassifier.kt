@@ -129,7 +129,12 @@ object VoiceIntentClassifier {
         }
 
         // 3. Friend Update / Edit (Phone number change, name change)
-        if (hasFriendWord && containsAny(text, "number badlo", "phone badlo", "update", "change", "નંબર બદલો", "ફોન નંબર બદલો", "नंबर बदलो")) {
+        val hasEditKeyword = containsAny(text, "change", "update", "rename", "edit", "badlo", "badli", "બદલો", "બદલીને", "बदलो", "बदलकर")
+        val hasFieldKeyword = containsAny(text, "name", "naam", "phone", "number", "mobile", "નામ", "નંબર", "ફોન", "नाम", "नंबर", "फोन")
+        val isExplicitFriendUpdate = (hasFriendWord && hasEditKeyword) ||
+                (hasEditKeyword && hasFieldKeyword && !containsAny(text, "transaction", "expense", "settlement", "kharch", "hisaab", "ખર્ચ", "ચુકવણી", "खर्च")) ||
+                (text.contains("rename", ignoreCase = true) && !containsAny(text, "transaction", "expense", "settlement", "group", "category"))
+        if (isExplicitFriendUpdate) {
             return VoiceIntent.FRIEND_UPDATE
         }
 

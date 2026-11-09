@@ -234,6 +234,28 @@ class FriendsViewModel(
         }
     }
 
+    fun archiveFriend(friendId: Long) {
+        viewModelScope.launch {
+            friendRepository.archiveFriend(friendId)
+        }
+    }
+
+    fun unarchiveFriend(friendId: Long) {
+        viewModelScope.launch {
+            friendRepository.unarchiveFriend(friendId)
+        }
+    }
+
+    fun toggleArchive(friend: Friend) {
+        viewModelScope.launch {
+            if (friend.isArchived) {
+                friendRepository.unarchiveFriend(friend.id)
+            } else {
+                friendRepository.archiveFriend(friend.id)
+            }
+        }
+    }
+
     suspend fun isFriendReferenced(friendId: Long): Boolean {
         return friendRepository.isFriendReferenced(friendId)
     }

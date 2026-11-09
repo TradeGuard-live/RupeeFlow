@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.naman.rupeeflow.data.repository.*
 import com.naman.rupeeflow.domain.model.*
+import com.naman.rupeeflow.domain.util.DatePeriodHelper
 import com.naman.rupeeflow.domain.util.DateTimeUtils
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -15,7 +16,11 @@ data class TransactionsUiState(
     val filteredTransactions: List<Transaction> = emptyList(),
     val searchQuery: String = "",
     val selectedTypeFilter: String = "ALL", // "ALL", "EXPENSE", "INCOME", "REFUND", "TRANSFER", "IGNORED"
-    val selectedDateFilter: String = "ALL", // "ALL", "THIS_MONTH", "LAST_MONTH"
+    val selectedDateFilter: String = "ALL", // "ALL", "MONTHLY", "WEEKLY", "THIS_MONTH", "LAST_MONTH"
+    val datePeriodOffset: Int = 0,
+    val datePeriodLabel: String = "",
+    val canNavigateNextDate: Boolean = false,
+    val canNavigatePreviousDate: Boolean = true,
     val selectedPaymentMethodFilter: PaymentMethod? = null,
     val selectedCategoryFilter: Category? = null,
     val categories: List<Category> = emptyList(),
@@ -56,6 +61,7 @@ class TransactionsViewModel(
                         query = current.searchQuery,
                         typeFilter = current.selectedTypeFilter,
                         dateFilter = current.selectedDateFilter,
+                        dateOffset = current.datePeriodOffset,
                         methodFilter = current.selectedPaymentMethodFilter,
                         categoryFilter = current.selectedCategoryFilter
                     )
@@ -90,6 +96,7 @@ class TransactionsViewModel(
                 query = query,
                 typeFilter = current.selectedTypeFilter,
                 dateFilter = current.selectedDateFilter,
+                dateOffset = current.datePeriodOffset,
                 methodFilter = current.selectedPaymentMethodFilter,
                 categoryFilter = current.selectedCategoryFilter
             )
@@ -104,6 +111,7 @@ class TransactionsViewModel(
                 query = current.searchQuery,
                 typeFilter = filter,
                 dateFilter = current.selectedDateFilter,
+                dateOffset = current.datePeriodOffset,
                 methodFilter = current.selectedPaymentMethodFilter,
                 categoryFilter = current.selectedCategoryFilter
             )
@@ -118,6 +126,7 @@ class TransactionsViewModel(
                 query = current.searchQuery,
                 typeFilter = current.selectedTypeFilter,
                 dateFilter = current.selectedDateFilter,
+                dateOffset = current.datePeriodOffset,
                 methodFilter = method,
                 categoryFilter = current.selectedCategoryFilter
             )
@@ -132,6 +141,7 @@ class TransactionsViewModel(
                 query = current.searchQuery,
                 typeFilter = current.selectedTypeFilter,
                 dateFilter = current.selectedDateFilter,
+                dateOffset = current.datePeriodOffset,
                 methodFilter = current.selectedPaymentMethodFilter,
                 categoryFilter = category
             )
@@ -141,15 +151,98 @@ class TransactionsViewModel(
 
     fun onDateFilterSelected(filter: String) {
         _uiState.update { current ->
+            val newOffset = 0
+            val label = getDatePeriodLabel(filter, newOffset)
             val filtered = applyFilters(
                 txns = current.allTransactions,
                 query = current.searchQuery,
                 typeFilter = current.selectedTypeFilter,
                 dateFilter = filter,
+                dateOffset = newOffset,
                 methodFilter = current.selectedPaymentMethodFilter,
                 categoryFilter = current.selectedCategoryFilter
             )
-            current.copy(selectedDateFilter = filter, filteredTransactions = filtered)
+            current.copy(
+                selectedDateFilter = filter,
+                datePeriodOffset = newOffset,
+                datePeriodLabel = label,
+                canNavigateNextDate = false,
+                filteredTransactions = filtered
+            )
+        }
+    }
+
+    fun previousDatePeriod() {
+        _uiState.update { current ->
+            val newOffset = current.datePeriodOffset - 1
+            val label = getDatePeriodLabel(current.selectedDateFilter, newOffset)
+            val filtered = applyFilters(
+                txns = current.allTransactions,
+                query = current.searchQuery,
+                typeFilter = current.selectedTypeFilter,
+                dateFilter = current.selectedDateFilter,
+                dateOffset = newOffset,
+                methodFilter = current.selectedPaymentMethodFilter,
+                categoryFilter = current.selectedCategoryFilter
+            )
+            current.copy(
+                datePeriodOffset = newOffset,
+                datePeriodLabel = label,
+                canNavigateNextDate = newOffset < 0,
+                filteredTransactions = filtered
+            )
+        }
+    }
+
+    fun nextDatePeriod() {
+        _uiState.update { current ->
+            val newOffset = (current.datePeriodOffset + 1).coerceAtMost(0)
+            val label = getDatePeriodLabel(current.selectedDateFilter, newOffset)
+            val filtered = applyFilters(
+                txns = current.allTransactions,
+                query = current.searchQuery,
+                typeFilter = current.selectedTypeFilter,
+                dateFilter = current.selectedDateFilter,
+                dateOffset = newOffset,
+                methodFilter = current.selectedPaymentMethodFilter,
+                categoryFilter = current.selectedCategoryFilter
+            )
+            current.copy(
+                datePeriodOffset = newOffset,
+                datePeriodLabel = label,
+                canNavigateNextDate = newOffset < 0,
+                filteredTransactions = filtered
+            )
+        }
+    }
+
+    fun currentDatePeriod() {
+        _uiState.update { current ->
+            val newOffset = 0
+            val label = getDatePeriodLabel(current.selectedDateFilter, newOffset)
+            val filtered = applyFilters(
+                txns = current.allTransactions,
+                query = current.searchQuery,
+                typeFilter = current.selectedTypeFilter,
+                dateFilter = current.selectedDateFilter,
+                dateOffset = newOffset,
+                methodFilter = current.selectedPaymentMethodFilter,
+                categoryFilter = current.selectedCategoryFilter
+            )
+            current.copy(
+                datePeriodOffset = newOffset,
+                datePeriodLabel = label,
+                canNavigateNextDate = false,
+                filteredTransactions = filtered
+            )
+        }
+    }
+
+    private fun getDatePeriodLabel(filter: String, offset: Int): String {
+        return when (filter) {
+            "MONTHLY" -> DatePeriodHelper.getMonthRange(offset).label
+            "WEEKLY" -> DatePeriodHelper.getWeekRange(offset).label
+            else -> ""
         }
     }
 
@@ -158,6 +251,7 @@ class TransactionsViewModel(
         query: String,
         typeFilter: String,
         dateFilter: String = "ALL",
+        dateOffset: Int = 0,
         methodFilter: PaymentMethod?,
         categoryFilter: Category?
     ): List<Transaction> {
@@ -182,14 +276,18 @@ class TransactionsViewModel(
 
             // Date period filter
             val matchesDate = when (dateFilter) {
+                "MONTHLY" -> {
+                    val range = DatePeriodHelper.getMonthRange(dateOffset)
+                    txn.transactionDate in range.startMillis..range.endMillis
+                }
+                "WEEKLY" -> {
+                    val range = DatePeriodHelper.getWeekRange(dateOffset)
+                    txn.transactionDate in range.startMillis..range.endMillis
+                }
                 "THIS_MONTH" -> txn.transactionDate >= DateTimeUtils.getStartOfMonth()
                 "LAST_MONTH" -> {
-                    val startThisMonth = DateTimeUtils.getStartOfMonth()
-                    val cal = Calendar.getInstance().apply {
-                        timeInMillis = startThisMonth
-                        add(Calendar.MONTH, -1)
-                    }
-                    txn.transactionDate in cal.timeInMillis until startThisMonth
+                    val range = DatePeriodHelper.getMonthRange(-1)
+                    txn.transactionDate in range.startMillis..range.endMillis
                 }
                 else -> true
             }
