@@ -50,18 +50,58 @@ class BackupRestoreRepository(
 ) {
 
     companion object {
-        const val CURRENT_BACKUP_VERSION = 3
+        const val CURRENT_BACKUP_VERSION = 4
         const val BACKUP_APP_NAME = "RupeeFlow"
         const val MAX_BACKUP_FILE_BYTES = 50 * 1024 * 1024 // 50MB protection limit
-        const val MIN_PASSWORD_LENGTH = 6
+        const val MIN_PASSWORD_LENGTH = 12
+        const val LEGACY_MIN_PASSWORD_LENGTH = 6
         const val MIN_PBKDF2_ITERATIONS = 10_000
-        const val MAX_PBKDF2_ITERATIONS = 500_000
-        const val DEFAULT_PBKDF2_ITERATIONS = 65_536
+        const val MAX_PBKDF2_ITERATIONS = 2_000_000
+        const val DEFAULT_PBKDF2_ITERATIONS = 600_000
         const val KDF_ALGORITHM = "PBKDF2WithHmacSHA256"
         const val CIPHER_ALGORITHM = "AES/GCM/NoPadding"
         const val GCM_TAG_LENGTH = 128
         const val SALT_LENGTH = 16
         const val IV_LENGTH = 12
+        const val MAX_ATTACHMENT_FILENAME_LENGTH = 128
+        const val MAX_IMAGE_FILE_BYTES = 10 * 1024 * 1024 // 10MB per image limit
+    }
+
+    /**
+     * Strict validator for imported backup attachment keys and image filenames.
+     * Prevents path traversal, directory breakouts, database/preferences overwrite,
+     * null-byte injection, and execution of unsafe file types.
+     */
+    object AttachmentFilenameValidator {
+        private val ALLOWED_FILENAME_REGEX = Regex("^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
+        private val VALID_IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "bin")
+
+        fun isValidFilename(name: String?): Boolean {
+            if (name.isNullOrBlank()) return false
+            if (name.length > MAX_ATTACHMENT_FILENAME_LENGTH) return false
+            if (name.contains('\u0000') || name.any { it.isISOControl() }) return false
+            if (name.contains('/') || name.contains('\\')) return false
+            if (name.contains("..")) return false
+            if (name.startsWith(".")) return false
+            if (!ALLOWED_FILENAME_REGEX.matches(name)) return false
+
+            val ext = name.substringAfterLast('.', "").lowercase()
+            if (ext.isNotEmpty() && ext !in VALID_IMAGE_EXTENSIONS) return false
+            return true
+        }
+
+        fun isContainedWithin(destFile: File, allowedDir: File): Boolean {
+            return try {
+                val canonicalDest = destFile.canonicalFile
+                val canonicalAllowed = allowedDir.canonicalFile
+                val destPath = canonicalDest.toPath().normalize()
+                val allowedPath = canonicalAllowed.toPath().normalize()
+
+                destPath.startsWith(allowedPath) && !java.nio.file.Files.isSymbolicLink(canonicalDest.toPath())
+            } catch (_: Exception) {
+                false
+            }
+        }
     }
 
     /**
@@ -252,7 +292,7 @@ class BackupRestoreRepository(
      */
     suspend fun exportEncryptedBackup(password: String): String = withContext(Dispatchers.IO) {
         require(password.length >= MIN_PASSWORD_LENGTH) {
-            "Password must be at least $MIN_PASSWORD_LENGTH characters for strong encryption"
+            "Backup password must be at least $MIN_PASSWORD_LENGTH characters for strong encryption (provided: ${password.length})"
         }
         val plainJson = exportToJson()
 
@@ -260,10 +300,11 @@ class BackupRestoreRepository(
         val iv = ByteArray(IV_LENGTH).also { SecureRandom().nextBytes(it) }
 
         val passwordChars = password.toCharArray()
+        var keyBytes: ByteArray? = null
         try {
             val keySpec = PBEKeySpec(passwordChars, salt, DEFAULT_PBKDF2_ITERATIONS, 256)
             val secretKeyFactory = SecretKeyFactory.getInstance(KDF_ALGORITHM)
-            val keyBytes = secretKeyFactory.generateSecret(keySpec).encoded
+            keyBytes = secretKeyFactory.generateSecret(keySpec).encoded
             keySpec.clearPassword()
             val secretKey = SecretKeySpec(keyBytes, "AES")
 
@@ -286,37 +327,68 @@ class BackupRestoreRepository(
             envelope.toString(2)
         } finally {
             passwordChars.fill('\u0000')
+            keyBytes?.fill(0)
         }
     }
 
     /**
      * Decrypts an authenticated encrypted backup envelope using user password.
-     * Enforces strict iteration bounds, salt length, and IV length.
+     * Enforces strict iteration bounds [10,000 .. 2,000,000], salt length (16 bytes),
+     * IV length (12 bytes), and pre-validates Base64 encoding to prevent DoS.
+     * Preserves backward compatibility with legacy backups (65,536 iterations).
      */
     fun decryptBackup(envelopeJson: String, password: String): String {
-        require(envelopeJson.length <= MAX_BACKUP_FILE_BYTES) { "Backup exceeds maximum supported file size" }
-        val root = JSONObject(envelopeJson)
+        require(envelopeJson.length <= MAX_BACKUP_FILE_BYTES) { "Backup exceeds maximum supported file size (50MB)" }
+        val root: JSONObject
+        try {
+            root = JSONObject(envelopeJson)
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Malformed encrypted backup payload: invalid JSON", e)
+        }
         require(root.optBoolean("encrypted", false)) { "Not an encrypted backup file" }
 
+        val kdf = root.optString("kdf", KDF_ALGORITHM)
+        require(kdf == KDF_ALGORITHM) { "Unsupported KDF algorithm: $kdf. Expected: $KDF_ALGORITHM" }
+
         val iterations = root.optInt("iterations", DEFAULT_PBKDF2_ITERATIONS)
-        require(iterations in MIN_PBKDF2_ITERATIONS..MAX_PBKDF2_ITERATIONS) {
-            "Unsupported or dangerous PBKDF2 iteration count: $iterations"
+        require(iterations >= MIN_PBKDF2_ITERATIONS) {
+            "PBKDF2 iteration count too low ($iterations). Minimum required: $MIN_PBKDF2_ITERATIONS"
+        }
+        require(iterations <= MAX_PBKDF2_ITERATIONS) {
+            "Excessively large PBKDF2 iteration count ($iterations). Maximum allowed: $MAX_PBKDF2_ITERATIONS"
         }
 
-        val salt = Base64.getDecoder().decode(root.getString("salt"))
-        require(salt.size == SALT_LENGTH) { "Invalid salt length: ${salt.size}" }
+        require(root.has("salt")) { "Missing salt in encrypted backup envelope" }
+        require(root.has("iv")) { "Missing IV in encrypted backup envelope" }
+        require(root.has("ciphertext")) { "Missing ciphertext in encrypted backup envelope" }
 
-        val iv = Base64.getDecoder().decode(root.getString("iv"))
-        require(iv.size == IV_LENGTH) { "Invalid IV length: ${iv.size}" }
+        val salt = try {
+            Base64.getDecoder().decode(root.getString("salt"))
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Invalid Base64 encoding in salt", e)
+        }
+        require(salt.size == SALT_LENGTH) { "Invalid salt length: ${salt.size} bytes (expected $SALT_LENGTH)" }
 
-        val ciphertext = Base64.getDecoder().decode(root.getString("ciphertext"))
+        val iv = try {
+            Base64.getDecoder().decode(root.getString("iv"))
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Invalid Base64 encoding in IV", e)
+        }
+        require(iv.size == IV_LENGTH) { "Invalid IV length: ${iv.size} bytes (expected $IV_LENGTH)" }
+
+        val ciphertext = try {
+            Base64.getDecoder().decode(root.getString("ciphertext"))
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Invalid Base64 encoding in ciphertext", e)
+        }
         require(ciphertext.isNotEmpty()) { "Empty ciphertext payload" }
 
         val passwordChars = password.toCharArray()
+        var keyBytes: ByteArray? = null
         try {
             val keySpec = PBEKeySpec(passwordChars, salt, iterations, 256)
             val secretKeyFactory = SecretKeyFactory.getInstance(KDF_ALGORITHM)
-            val keyBytes = secretKeyFactory.generateSecret(keySpec).encoded
+            keyBytes = secretKeyFactory.generateSecret(keySpec).encoded
             keySpec.clearPassword()
             val secretKey = SecretKeySpec(keyBytes, "AES")
 
@@ -327,6 +399,7 @@ class BackupRestoreRepository(
             return String(decryptedBytes, Charsets.UTF_8)
         } finally {
             passwordChars.fill('\u0000')
+            keyBytes?.fill(0)
         }
     }
 
@@ -405,35 +478,80 @@ class BackupRestoreRepository(
     suspend fun restoreFromJson(jsonString: String): Boolean = withContext(Dispatchers.IO) {
         if (jsonString.length > MAX_BACKUP_FILE_BYTES) return@withContext false
 
+        val root: JSONObject
         try {
-            val root = JSONObject(jsonString)
+            root = JSONObject(jsonString)
             if (!root.has("appName") || root.getString("appName") != BACKUP_APP_NAME) {
                 return@withContext false
             }
+        } catch (_: Exception) {
+            return@withContext false
+        }
 
-            // Restore portable images to disk if available
-            val restoredImagePaths = mutableMapOf<String, String>() // portableKey -> localAbsolutePath
-            if (root.has("images") && context != null) {
+        // 1. Temporary Staging Directory for atomic extraction
+        val stagingDir = if (context != null) {
+            File(context.filesDir, "staging_restore_${System.currentTimeMillis()}_${SecureRandom().nextInt(100000)}").apply {
+                mkdirs()
+            }
+        } else null
+
+        val stagedImageMap = mutableMapOf<String, File>() // key -> stagedFile
+        val targetDestinationMap = mutableMapOf<String, File>() // key -> finalDestFile
+        val restoredImagePaths = mutableMapOf<String, String>() // key -> finalAbsolutePath
+
+        try {
+            if (root.has("images") && context != null && stagingDir != null) {
                 val imagesObj = root.getJSONObject("images")
-                val filesDir = context.filesDir
+                val filesDir = context.filesDir.canonicalFile
+                val dbDir = context.getDatabasePath("rupeeflow.db").parentFile?.canonicalFile
+
                 val keys = imagesObj.keys()
                 while (keys.hasNext()) {
                     val key = keys.next()
-                    val b64 = imagesObj.getString(key)
-                    try {
-                        val bytes = Base64.getDecoder().decode(b64)
-                        val subDirName = when {
-                            key.startsWith("bill_") -> "receipts"
-                            key.startsWith("group_") -> "groups"
-                            else -> "profiles"
-                        }
-                        val destDir = File(filesDir, subDirName).apply { if (!exists()) mkdirs() }
-                        val destFile = File(destDir, key)
-                        FileOutputStream(destFile).use { it.write(bytes) }
-                        restoredImagePaths[key] = destFile.absolutePath
-                    } catch (_: Exception) {
-                        // Non-fatal image write failure
+                    // Strict filename validation: Reject traversal, separators, control chars, dangerous extensions
+                    if (!AttachmentFilenameValidator.isValidFilename(key)) {
+                        continue
                     }
+
+                    val b64 = imagesObj.optString(key)
+                    if (b64.isBlank()) continue
+
+                    val bytes = try {
+                        val decoded = Base64.getDecoder().decode(b64)
+                        if (decoded.size > MAX_IMAGE_FILE_BYTES) continue
+                        decoded
+                    } catch (_: Exception) {
+                        continue
+                    }
+
+                    val subDirName = when {
+                        key.startsWith("bill_") -> "receipts"
+                        key.startsWith("group_") -> "groups"
+                        else -> "profiles"
+                    }
+
+                    val destDir = File(filesDir, subDirName).canonicalFile
+                    // Verify directory remains inside application files directory
+                    if (!destDir.toPath().normalize().startsWith(filesDir.toPath().normalize())) {
+                        continue
+                    }
+                    if (dbDir != null && destDir.toPath().normalize().startsWith(dbDir.toPath().normalize())) {
+                        continue
+                    }
+
+                    val destFile = File(destDir, key).canonicalFile
+                    // Verify file canonical path remains strictly inside destDir and is not a symlink
+                    if (!AttachmentFilenameValidator.isContainedWithin(destFile, destDir)) {
+                        continue
+                    }
+
+                    // Write into temporary staging directory first
+                    val stagedFile = File(stagingDir, "${System.currentTimeMillis()}_$key")
+                    FileOutputStream(stagedFile).use { it.write(bytes) }
+
+                    stagedImageMap[key] = stagedFile
+                    targetDestinationMap[key] = destFile
+                    restoredImagePaths[key] = destFile.absolutePath
                 }
             }
 
@@ -630,9 +748,34 @@ class BackupRestoreRepository(
                 }
             }
 
+            // 3. Finalize Staged Files (Only after DB transaction commits successfully!)
+            for ((key, stagedFile) in stagedImageMap) {
+                val finalFile = targetDestinationMap[key] ?: continue
+                finalFile.parentFile?.mkdirs()
+                try {
+                    java.nio.file.Files.move(
+                        stagedFile.toPath(),
+                        finalFile.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                        java.nio.file.StandardCopyOption.ATOMIC_MOVE
+                    )
+                } catch (_: Exception) {
+                    java.nio.file.Files.copy(
+                        stagedFile.toPath(),
+                        finalFile.toPath(),
+                        java.nio.file.StandardCopyOption.REPLACE_EXISTING
+                    )
+                    stagedFile.delete()
+                }
+            }
+
             true
         } catch (_: Exception) {
+            // DB transaction failed or corrupted: rollback!
             false
+        } finally {
+            // Guarantee cleanup of staging directory on all exit paths
+            stagingDir?.deleteRecursively()
         }
     }
 

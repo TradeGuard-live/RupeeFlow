@@ -184,7 +184,7 @@ class BackupSerializationTest {
         // 3. Inspect backup preview
         val preview = backupRepo.inspectBackup(exportedJson)
         assertTrue(preview.isValid)
-        assertEquals(3, preview.version)
+        assertEquals(BackupRestoreRepository.CURRENT_BACKUP_VERSION, preview.version)
         assertEquals(2, preview.friendsCount)
         assertEquals(1, preview.groupsCount)
         assertEquals(1, preview.transactionsCount)

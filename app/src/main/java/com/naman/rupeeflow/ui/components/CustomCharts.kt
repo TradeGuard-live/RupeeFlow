@@ -231,15 +231,6 @@ fun CustomBarChart(
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                         fontSize = 11.sp
                     )
-                    if (item.dateRangeLabel.isNotBlank()) {
-                        Text(
-                            text = item.dateRangeLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isSelected) (if (isDark) activeBarColor else Color(0xFF2563EB)) else AppTheme.colors.textSecondary.copy(alpha = 0.7f),
-                            fontSize = 8.5.sp,
-                            maxLines = 1
-                        )
-                    }
                 }
             }
         }
@@ -436,15 +427,6 @@ fun CustomLineChart(
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                         fontSize = 11.sp
                     )
-                    if (item.dateRangeLabel.isNotBlank()) {
-                        Text(
-                            text = item.dateRangeLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isSelected) lineColor else AppTheme.colors.textSecondary.copy(alpha = 0.7f),
-                            fontSize = 8.5.sp,
-                            maxLines = 1
-                        )
-                    }
                 }
             }
         }

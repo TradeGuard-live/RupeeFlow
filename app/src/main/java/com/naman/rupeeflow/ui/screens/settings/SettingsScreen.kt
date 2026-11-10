@@ -52,6 +52,7 @@ fun SettingsScreen(
     var showSmsTesterDialog by remember { mutableStateOf(false) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
     var showRestoreDialog by remember { mutableStateOf(false) }
+    var showExportEncryptedDialog by remember { mutableStateOf(false) }
     var showResetConfirmDialog by remember { mutableStateOf(false) }
     var showSmsDisclosureDialog by remember { mutableStateOf(false) }
     var showNotificationDisclosureDialog by remember { mutableStateOf(false) }
@@ -296,6 +297,16 @@ fun SettingsScreen(
 
                     HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 10.dp))
 
+                    // Export Encrypted Backup (AES-256)
+                    SettingsActionRow(
+                        title = "Export Encrypted Backup (AES-256)",
+                        subtitle = "Password-protected with 600,000 PBKDF2 iterations",
+                        icon = Icons.Default.Lock,
+                        onClick = { showExportEncryptedDialog = true }
+                    )
+
+                    HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 10.dp))
+
                     // Restore JSON Backup
                     SettingsActionRow(
                         title = "Restore from JSON Backup",
@@ -459,6 +470,17 @@ fun SettingsScreen(
             onRestoreSuccess = {
                 Toast.makeText(context, "Database restored successfully!", Toast.LENGTH_LONG).show()
                 showRestoreDialog = false
+            }
+        )
+    }
+
+    // Export Encrypted Backup Dialog
+    if (showExportEncryptedDialog) {
+        ExportEncryptedBackupDialog(
+            viewModel = viewModel,
+            onDismiss = { showExportEncryptedDialog = false },
+            onExportSuccess = {
+                showExportEncryptedDialog = false
             }
         )
     }
@@ -953,6 +975,12 @@ fun RestoreBackupDialog(
                         shape = RoundedCornerShape(12.dp),
                         singleLine = true
                     )
+                    Text(
+                        text = "Password required to decrypt (minimum 12 characters for v4 backups; legacy backups also supported).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.textTertiary,
+                        modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+                    )
                 }
 
                 if (preview != null && preview.isValid && (!preview.isEncrypted || password.isNotBlank())) {
@@ -1069,5 +1097,166 @@ private fun DetailRow(label: String, value: String) {
     ) {
         Text(text = label, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
         Text(text = value, style = MaterialTheme.typography.titleSmall, color = AppTheme.colors.textPrimary)
+    }
+}
+
+
+@Composable
+fun ExportEncryptedBackupDialog(
+    viewModel: SettingsViewModel,
+    onDismiss: () -> Unit,
+    onExportSuccess: () -> Unit
+) {
+    val context = LocalContext.current
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var isExporting by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val isLengthValid = password.length >= 12
+    val isMatch = password.isNotEmpty() && password == confirmPassword
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = AppTheme.colors.surfaceElevated,
+            border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = "Export Encrypted Backup",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = AppTheme.colors.textPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Protect your financial data with AES-256-GCM authenticated encryption and 600,000 PBKDF2 rounds. Requires a password of at least 12 characters.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AppTheme.colors.textSecondary
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = {
+                        password = it
+                        errorMessage = null
+                    },
+                    label = { Text("Backup Password", color = AppTheme.colors.textSecondary) },
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = rupeeFlowTextFieldColors(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+
+                if (password.isNotEmpty() && !isLengthValid) {
+                    Text(
+                        text = "Password must be at least 12 characters (currently: ${password.length})",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.error,
+                        modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedTextField(
+                    value = confirmPassword,
+                    onValueChange = {
+                        confirmPassword = it
+                        errorMessage = null
+                    },
+                    label = { Text("Confirm Password", color = AppTheme.colors.textSecondary) },
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = rupeeFlowTextFieldColors(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true
+                )
+
+                if (confirmPassword.isNotEmpty() && !isMatch) {
+                    Text(
+                        text = "Passwords do not match",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.error,
+                        modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+                    )
+                }
+
+                if (errorMessage != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = errorMessage ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.error
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AppTheme.colors.textPrimary)
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    Button(
+                        onClick = {
+                            if (!isLengthValid) {
+                                errorMessage = "Password must be at least 12 characters long"
+                                return@Button
+                            }
+                            if (!isMatch) {
+                                errorMessage = "Passwords do not match"
+                                return@Button
+                            }
+                            isExporting = true
+                            viewModel.exportEncryptedBackup(password) { encrypted ->
+                                isExporting = false
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                val clip = ClipData.newPlainText("RupeeFlow Encrypted Backup", encrypted)
+                                clipboard.setPrimaryClip(clip)
+                                Toast.makeText(context, "Encrypted backup copied to clipboard!", Toast.LENGTH_LONG).show()
+                                onExportSuccess()
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppTheme.colors.primaryAccent,
+                            contentColor = Color.White
+                        ),
+                        enabled = isLengthValid && isMatch && !isExporting
+                    ) {
+                        if (isExporting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Export")
+                        }
+                    }
+                }
+            }
+        }
     }
 }
