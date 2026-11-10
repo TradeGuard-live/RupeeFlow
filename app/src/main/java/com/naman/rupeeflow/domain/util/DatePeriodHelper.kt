@@ -1,7 +1,9 @@
 package com.naman.rupeeflow.domain.util
 
 import java.text.SimpleDateFormat
-import java.util.Calendar
+import java.time.*
+import java.time.format.DateTimeFormatter
+import java.time.temporal.TemporalAdjusters
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
@@ -19,7 +21,18 @@ data class PeriodRange(
     val endMillis: Long,
     val label: String,
     val canNavigateNext: Boolean,
-    val canNavigatePrevious: Boolean = true
+    val canNavigatePrevious: Boolean = true,
+    val endMillisExclusive: Long = endMillis + 1L
+)
+
+data class MonthWeekBucket(
+    val weekIndex: Int,
+    val weekLabel: String,
+    val calendarWeekStart: LocalDate,
+    val calendarWeekEnd: LocalDate,
+    val calendarWeekStartMillis: Long,
+    val calendarWeekEndMillisExclusive: Long,
+    val dateRangeLabel: String
 )
 
 /**
@@ -42,27 +55,17 @@ object DatePeriodHelper {
         locale: Locale = Locale.getDefault()
     ): PeriodRange {
         val clampedOffset = offset.coerceAtMost(0)
-        val cal = Calendar.getInstance(timeZone, locale).apply {
-            timeInMillis = referenceTime
-            val dayOfWeek = get(Calendar.DAY_OF_WEEK)
-            val daysFromMonday = if (dayOfWeek == Calendar.SUNDAY) 6 else dayOfWeek - Calendar.MONDAY
-            add(Calendar.DAY_OF_YEAR, -daysFromMonday + (clampedOffset * 7))
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        val startMillis = cal.timeInMillis
+        val zoneId = timeZone.toZoneId()
+        val refDate = Instant.ofEpochMilli(referenceTime).atZone(zoneId).toLocalDate()
 
-        val endCal = Calendar.getInstance(timeZone, locale).apply {
-            timeInMillis = startMillis
-            add(Calendar.DAY_OF_YEAR, 6)
-            set(Calendar.HOUR_OF_DAY, 23)
-            set(Calendar.MINUTE, 59)
-            set(Calendar.SECOND, 59)
-            set(Calendar.MILLISECOND, 999)
-        }
-        val endMillis = endCal.timeInMillis
+        val currentMonday = refDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        val targetMonday = currentMonday.plusWeeks(clampedOffset.toLong())
+        val targetSunday = targetMonday.plusDays(6)
+
+        val startMillis = targetMonday.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val nextMonday = targetMonday.plusWeeks(1)
+        val endMillisExclusive = nextMonday.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val endMillis = endMillisExclusive - 1L
 
         val sdf = SimpleDateFormat("dd MMM yyyy", locale).apply { this.timeZone = timeZone }
         val label = "${sdf.format(Date(startMillis))} – ${sdf.format(Date(endMillis))}"
@@ -74,7 +77,8 @@ object DatePeriodHelper {
             endMillis = endMillis,
             label = label,
             canNavigateNext = clampedOffset < 0,
-            canNavigatePrevious = true
+            canNavigatePrevious = true,
+            endMillisExclusive = endMillisExclusive
         )
     }
 
@@ -90,27 +94,17 @@ object DatePeriodHelper {
         locale: Locale = Locale.getDefault()
     ): PeriodRange {
         val clampedOffset = offset.coerceAtMost(0)
-        val cal = Calendar.getInstance(timeZone, locale).apply {
-            timeInMillis = referenceTime
-            set(Calendar.DAY_OF_MONTH, 1)
-            add(Calendar.MONTH, clampedOffset)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        val startMillis = cal.timeInMillis
+        val zoneId = timeZone.toZoneId()
+        val refDate = Instant.ofEpochMilli(referenceTime).atZone(zoneId).toLocalDate()
+        val baseYearMonth = YearMonth.from(refDate)
+        val targetYearMonth = baseYearMonth.plusMonths(clampedOffset.toLong())
 
-        val maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-        val endCal = Calendar.getInstance(timeZone, locale).apply {
-            timeInMillis = startMillis
-            set(Calendar.DAY_OF_MONTH, maxDay)
-            set(Calendar.HOUR_OF_DAY, 23)
-            set(Calendar.MINUTE, 59)
-            set(Calendar.SECOND, 59)
-            set(Calendar.MILLISECOND, 999)
-        }
-        val endMillis = endCal.timeInMillis
+        val startLocalDate = targetYearMonth.atDay(1)
+        val nextMonthLocalDate = targetYearMonth.plusMonths(1).atDay(1)
+
+        val startMillis = startLocalDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val endMillisExclusive = nextMonthLocalDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val endMillis = endMillisExclusive - 1L
 
         val sdf = SimpleDateFormat("MMMM yyyy", locale).apply { this.timeZone = timeZone }
         val label = sdf.format(Date(startMillis))
@@ -122,7 +116,8 @@ object DatePeriodHelper {
             endMillis = endMillis,
             label = label,
             canNavigateNext = clampedOffset < 0,
-            canNavigatePrevious = true
+            canNavigatePrevious = true,
+            endMillisExclusive = endMillisExclusive
         )
     }
 
@@ -136,27 +131,16 @@ object DatePeriodHelper {
         locale: Locale = Locale.getDefault()
     ): PeriodRange {
         val clampedOffset = offset.coerceAtMost(0)
-        val cal = Calendar.getInstance(timeZone, locale).apply {
-            timeInMillis = referenceTime
-            set(Calendar.DAY_OF_YEAR, 1)
-            add(Calendar.YEAR, clampedOffset)
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }
-        val startMillis = cal.timeInMillis
+        val zoneId = timeZone.toZoneId()
+        val refDate = Instant.ofEpochMilli(referenceTime).atZone(zoneId).toLocalDate()
+        val targetYear = refDate.year + clampedOffset
 
-        val maxDayOfYear = cal.getActualMaximum(Calendar.DAY_OF_YEAR)
-        val endCal = Calendar.getInstance(timeZone, locale).apply {
-            timeInMillis = startMillis
-            set(Calendar.DAY_OF_YEAR, maxDayOfYear)
-            set(Calendar.HOUR_OF_DAY, 23)
-            set(Calendar.MINUTE, 59)
-            set(Calendar.SECOND, 59)
-            set(Calendar.MILLISECOND, 999)
-        }
-        val endMillis = endCal.timeInMillis
+        val startLocalDate = LocalDate.of(targetYear, 1, 1)
+        val nextYearLocalDate = LocalDate.of(targetYear + 1, 1, 1)
+
+        val startMillis = startLocalDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val endMillisExclusive = nextYearLocalDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val endMillis = endMillisExclusive - 1L
 
         val sdf = SimpleDateFormat("yyyy", locale).apply { this.timeZone = timeZone }
         val label = "Year ${sdf.format(Date(startMillis))}"
@@ -168,7 +152,8 @@ object DatePeriodHelper {
             endMillis = endMillis,
             label = label,
             canNavigateNext = clampedOffset < 0,
-            canNavigatePrevious = true
+            canNavigatePrevious = true,
+            endMillisExclusive = endMillisExclusive
         )
     }
 
@@ -185,5 +170,59 @@ object DatePeriodHelper {
             PeriodType.YEAR -> getYearRange(offset, referenceTime, timeZone, locale)
         }
     }
-}
 
+    /**
+     * Calculates Monday-to-Sunday weekly buckets for a calendar month.
+     * Week 1 starts on the Monday containing the 1st of the month.
+     * The last week starts on the Monday containing or preceding the last day of the month,
+     * ending on the following Sunday.
+     */
+    fun getMonthlyWeeks(
+        yearMonth: YearMonth,
+        timeZone: TimeZone = TimeZone.getDefault(),
+        locale: Locale = Locale.getDefault()
+    ): List<MonthWeekBucket> {
+        val zoneId = timeZone.toZoneId()
+        val firstDay = yearMonth.atDay(1)
+        val lastDay = yearMonth.atEndOfMonth()
+
+        val firstMonday = firstDay.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+
+        val buckets = mutableListOf<MonthWeekBucket>()
+        var currentMonday = firstMonday
+        var weekIndex = 1
+
+        val shortMonthFormatter = DateTimeFormatter.ofPattern("MMM", locale)
+        val dayWithYearFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", locale)
+
+        while (!currentMonday.isAfter(lastDay)) {
+            val currentSunday = currentMonday.plusDays(6)
+            val startMillis = currentMonday.atStartOfDay(zoneId).toInstant().toEpochMilli()
+            val nextMonday = currentMonday.plusWeeks(1)
+            val endMillisExclusive = nextMonday.atStartOfDay(zoneId).toInstant().toEpochMilli()
+
+            val dateRangeLabel = if (currentMonday.year != currentSunday.year) {
+                "${currentMonday.dayOfMonth} ${currentMonday.format(shortMonthFormatter)} ${currentMonday.year} – ${currentSunday.dayOfMonth} ${currentSunday.format(shortMonthFormatter)} ${currentSunday.year}"
+            } else {
+                "${currentMonday.dayOfMonth} ${currentMonday.format(shortMonthFormatter)} – ${currentSunday.dayOfMonth} ${currentSunday.format(shortMonthFormatter)}"
+            }
+
+            buckets.add(
+                MonthWeekBucket(
+                    weekIndex = weekIndex,
+                    weekLabel = "Week $weekIndex",
+                    calendarWeekStart = currentMonday,
+                    calendarWeekEnd = currentSunday,
+                    calendarWeekStartMillis = startMillis,
+                    calendarWeekEndMillisExclusive = endMillisExclusive,
+                    dateRangeLabel = dateRangeLabel
+                )
+            )
+
+            currentMonday = nextMonday
+            weekIndex++
+        }
+
+        return buckets
+    }
+}

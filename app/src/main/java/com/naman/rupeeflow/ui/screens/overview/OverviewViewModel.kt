@@ -165,7 +165,9 @@ class OverviewViewModel(
                 }
                 .safeSumOf { it.userExpensePaise }
 
-            days.add(DailySpending(startOfDay, dayNames[i], dayTotal))
+            val dayLabel = dayNames[i]
+            val dateLabel = dateFormat.format(java.util.Date(startOfDay))
+            days.add(DailySpending(startOfDay, dayLabel, dayTotal, dateLabel))
         }
 
         return Pair(days, rangeLabel)

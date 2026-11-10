@@ -248,146 +248,222 @@ fun FriendItemCard(
 
     var showMenu by remember { mutableStateOf(false) }
 
+    val menuContent: @Composable () -> Unit = {
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text("View Details") },
+                leadingIcon = {
+                    Icon(Icons.Default.Info, contentDescription = null, tint = AppTheme.colors.primaryAccent)
+                },
+                onClick = {
+                    showMenu = false
+                    onClick()
+                }
+            )
+            if (onEdit != null) {
+                DropdownMenuItem(
+                    text = { Text("Edit Friend") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Edit, contentDescription = null, tint = AppTheme.colors.primaryAccent)
+                    },
+                    onClick = {
+                        showMenu = false
+                        onEdit()
+                    }
+                )
+            }
+            if (onToggleArchive != null) {
+                val isArchived = friend.isArchived
+                DropdownMenuItem(
+                    text = { Text(if (isArchived) "Unarchive Friend" else "Archive Friend") },
+                    leadingIcon = {
+                        Icon(
+                            if (isArchived) Icons.Default.Unarchive else Icons.Default.Archive,
+                            contentDescription = null,
+                            tint = AppTheme.colors.textSecondary
+                        )
+                    },
+                    onClick = {
+                        showMenu = false
+                        onToggleArchive()
+                    }
+                )
+            }
+            if (onDelete != null) {
+                DropdownMenuItem(
+                    text = { Text("Delete Friend", color = if (isLight) Color(0xFFDC2626) else CoralRed) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = if (isLight) Color(0xFFDC2626) else CoralRed
+                        )
+                    },
+                    onClick = {
+                        showMenu = false
+                        onDelete()
+                    }
+                )
+            }
+        }
+    }
+
+    val statusPill: @Composable () -> Unit = {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = statusBg
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val icon = when (friend.status) {
+                    FriendBalanceStatus.THEY_OWE_ME -> Icons.Default.CallReceived
+                    FriendBalanceStatus.I_OWE_THEM -> Icons.Default.CallMade
+                    FriendBalanceStatus.SETTLED -> Icons.Default.Check
+                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = statusColor,
+                    modifier = Modifier.size(12.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = statusColor,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+
+    val overflowMenuButton: @Composable () -> Unit = {
+        Box {
+            IconButton(
+                onClick = { showMenu = true },
+                modifier = Modifier.size(36.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "More options for ${friend.name}",
+                    tint = AppTheme.colors.textTertiary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            menuContent()
+        }
+    }
+
     RupeeFlowCard(
         modifier = modifier.fillMaxWidth(),
         cornerRadius = 16.dp,
         onClick = onClick
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Friend Avatar
-            FriendAvatar(
-                friend = friend,
-                modifier = Modifier.size(46.dp),
-                fallbackColor = AppTheme.colors.primaryAccent
-            )
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val isNarrow = maxWidth < 340.dp
+            if (isNarrow) {
+                // Two-Row Responsive Layout: Prevents vertical letter/digit wrapping
+                // Row 1: Avatar + Name & Phone Column
+                // Row 2: Status Pill + Spacer + Overflow Menu
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        FriendAvatar(
+                            friend = friend,
+                            modifier = Modifier.size(46.dp),
+                            fallbackColor = AppTheme.colors.primaryAccent
+                        )
 
-            Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
 
-            // Friend Name & Phone
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = friend.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = AppTheme.colors.textPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
-                if (!friend.phoneNumber.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = friend.phoneNumber,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = AppTheme.colors.textSecondary
-                    )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = friend.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = AppTheme.colors.textPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (!friend.phoneNumber.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = friend.phoneNumber,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = AppTheme.colors.textSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        statusPill()
+                        overflowMenuButton()
+                    }
                 }
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Status Pill
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = statusBg
-            ) {
+            } else {
+                // Single-Row Layout (For wide screens / full list)
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val icon = when (friend.status) {
-                        FriendBalanceStatus.THEY_OWE_ME -> Icons.Default.CallReceived
-                        FriendBalanceStatus.I_OWE_THEM -> Icons.Default.CallMade
-                        FriendBalanceStatus.SETTLED -> Icons.Default.Check
-                    }
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = statusColor,
-                        modifier = Modifier.size(12.dp)
+                    FriendAvatar(
+                        friend = friend,
+                        modifier = Modifier.size(46.dp),
+                        fallbackColor = AppTheme.colors.primaryAccent
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = statusColor,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
 
-            // Overflow Menu
-            Box {
-                IconButton(
-                    onClick = { showMenu = true },
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "Options",
-                        tint = AppTheme.colors.textTertiary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                DropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("View Details") },
-                        leadingIcon = {
-                            Icon(Icons.Default.Info, contentDescription = null, tint = AppTheme.colors.primaryAccent)
-                        },
-                        onClick = {
-                            showMenu = false
-                            onClick()
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .widthIn(min = 90.dp)
+                    ) {
+                        Text(
+                            text = friend.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = AppTheme.colors.textPrimary,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (!friend.phoneNumber.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = friend.phoneNumber,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = AppTheme.colors.textSecondary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
-                    )
-                    if (onEdit != null) {
-                        DropdownMenuItem(
-                            text = { Text("Edit Friend") },
-                            leadingIcon = {
-                                Icon(Icons.Default.Edit, contentDescription = null, tint = AppTheme.colors.primaryAccent)
-                            },
-                            onClick = {
-                                showMenu = false
-                                onEdit()
-                            }
-                        )
                     }
-                    if (onToggleArchive != null) {
-                        val isArchived = friend.isArchived
-                        DropdownMenuItem(
-                            text = { Text(if (isArchived) "Unarchive Friend" else "Archive Friend") },
-                            leadingIcon = {
-                                Icon(
-                                    if (isArchived) Icons.Default.Unarchive else Icons.Default.Archive,
-                                    contentDescription = null,
-                                    tint = AppTheme.colors.textSecondary
-                                )
-                            },
-                            onClick = {
-                                showMenu = false
-                                onToggleArchive()
-                            }
-                        )
-                    }
-                    if (onDelete != null) {
-                        DropdownMenuItem(
-                            text = { Text("Delete Friend", color = if (isLight) Color(0xFFDC2626) else CoralRed) },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = null,
-                                    tint = if (isLight) Color(0xFFDC2626) else CoralRed
-                                )
-                            },
-                            onClick = {
-                                showMenu = false
-                                onDelete()
-                            }
-                        )
-                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    statusPill()
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    overflowMenuButton()
                 }
             }
         }

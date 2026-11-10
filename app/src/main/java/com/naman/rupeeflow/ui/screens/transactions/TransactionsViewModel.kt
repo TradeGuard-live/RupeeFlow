@@ -278,16 +278,16 @@ class TransactionsViewModel(
             val matchesDate = when (dateFilter) {
                 "MONTHLY" -> {
                     val range = DatePeriodHelper.getMonthRange(dateOffset)
-                    txn.transactionDate in range.startMillis..range.endMillis
+                    txn.transactionDate >= range.startMillis && txn.transactionDate < range.endMillisExclusive
                 }
                 "WEEKLY" -> {
                     val range = DatePeriodHelper.getWeekRange(dateOffset)
-                    txn.transactionDate in range.startMillis..range.endMillis
+                    txn.transactionDate >= range.startMillis && txn.transactionDate < range.endMillisExclusive
                 }
                 "THIS_MONTH" -> txn.transactionDate >= DateTimeUtils.getStartOfMonth()
                 "LAST_MONTH" -> {
                     val range = DatePeriodHelper.getMonthRange(-1)
-                    txn.transactionDate in range.startMillis..range.endMillis
+                    txn.transactionDate >= range.startMillis && txn.transactionDate < range.endMillisExclusive
                 }
                 else -> true
             }

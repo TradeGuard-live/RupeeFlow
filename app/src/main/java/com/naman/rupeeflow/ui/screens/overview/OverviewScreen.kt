@@ -384,13 +384,15 @@ fun OverviewScreen(
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        Spacer(modifier = Modifier.width(4.dp))
                         state.friendsWithBalances.take(5).forEach { friend ->
                             FriendItemCard(
                                 friend = friend,
-                                modifier = Modifier.width(280.dp),
+                                modifier = Modifier.widthIn(min = 260.dp, max = 290.dp),
                                 onClick = { onNavigateToFriendDetail(friend.id) }
                             )
                         }
+                        Spacer(modifier = Modifier.width(4.dp))
                     }
                 }
             }

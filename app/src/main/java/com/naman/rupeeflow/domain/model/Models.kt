@@ -145,7 +145,8 @@ data class CategorySpending(
 data class DailySpending(
     val timestamp: Long,
     val dayLabel: String,
-    val amountPaise: Long
+    val amountPaise: Long,
+    val dateRangeLabel: String = ""
 )
 
 data class AnalyticsData(

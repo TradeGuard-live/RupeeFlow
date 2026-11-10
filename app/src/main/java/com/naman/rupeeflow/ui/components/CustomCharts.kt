@@ -53,9 +53,14 @@ fun CustomBarChart(
 
     val maxAmount = (data.maxOfOrNull { it.amountPaise } ?: 1L).coerceAtLeast(1L)
     val animProgress = remember { Animatable(0f) }
-    var selectedIndex by remember(data) { mutableStateOf<Int?>(null) }
+    var selectedIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(data) {
+        if (data.isNotEmpty()) {
+            selectedIndex = selectedIndex?.coerceIn(0, data.lastIndex)
+        } else {
+            selectedIndex = null
+        }
         animProgress.snapTo(0f)
         animProgress.animateTo(
             targetValue = 1f,
@@ -75,22 +80,41 @@ fun CustomBarChart(
                     .align(Alignment.CenterHorizontally)
                     .padding(bottom = 8.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(if (isDark) activeBarColor else Color(0xFF2563EB))
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (isDark) activeBarColor else Color(0xFF2563EB))
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = selectedItem.dayLabel,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = AppTheme.colors.textPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (selectedItem.dateRangeLabel.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = selectedItem.dateRangeLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AppTheme.colors.textSecondary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "${selectedItem.dayLabel}: ${CurrencyUtils.formatPaiseToRupees(selectedItem.amountPaise)}",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = AppTheme.colors.textPrimary,
-                        fontWeight = FontWeight.Bold
+                        text = "Total Spending: ${CurrencyUtils.formatPaiseToRupees(selectedItem.amountPaise)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isDark) activeBarColor else Color(0xFF2563EB),
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -133,21 +157,32 @@ fun CustomBarChart(
                     )
                 }
 
-                // Draw bars
+                // Draw bars with zero-spending indicator support
                 data.forEachIndexed { index, item ->
                     val x = spacing * (index + 1)
+                    val isZero = item.amountPaise == 0L
+                    val minBarHeightPx = 4.dp.toPx()
                     val normalizedHeight = (item.amountPaise.toFloat() / maxAmount.toFloat()) * chartHeight
-                    val currentHeight = normalizedHeight * animProgress.value
+                    val currentHeight = if (isZero) minBarHeightPx else (normalizedHeight.coerceAtLeast(minBarHeightPx) * animProgress.value)
                     val top = chartHeight - currentHeight
 
                     val isSelected = selectedIndex == index
                     val isMax = item.amountPaise == maxAmount && maxAmount > 0L
-                    val color = if (isSelected) (if (isDark) activeBarColor else Color(0xFF2563EB)) else if (isMax) (if (isDark) activeBarColor.copy(alpha = 0.85f) else Color(0xFF3B82F6)) else (if (isDark) barColor else Color(0xFF60A5FA))
+                    val color = if (isZero) {
+                        if (isSelected) (if (isDark) activeBarColor.copy(alpha = 0.5f) else Color(0xFF93C5FD))
+                        else (if (isDark) Color(0xFF334155).copy(alpha = 0.6f) else Color(0xFFE2E8F0))
+                    } else if (isSelected) {
+                        if (isDark) activeBarColor else Color(0xFF2563EB)
+                    } else if (isMax) {
+                        if (isDark) activeBarColor.copy(alpha = 0.85f) else Color(0xFF3B82F6)
+                    } else {
+                        if (isDark) barColor else Color(0xFF60A5FA)
+                    }
 
                     val brush = Brush.verticalGradient(
                         colors = listOf(
                             color,
-                            color.copy(alpha = if (isSelected) 0.6f else 0.35f)
+                            color.copy(alpha = if (isZero) 0.3f else if (isSelected) 0.6f else 0.35f)
                         ),
                         startY = top,
                         endY = chartHeight
@@ -183,16 +218,29 @@ fun CustomBarChart(
         ) {
             data.forEachIndexed { index, item ->
                 val isSelected = selectedIndex == index
-                Text(
-                    text = item.dayLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (isSelected) (if (isDark) activeBarColor else Color(0xFF2563EB)) else AppTheme.colors.textSecondary,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    fontSize = 11.sp,
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.clickable {
                         selectedIndex = if (selectedIndex == index) null else index
                     }
-                )
+                ) {
+                    Text(
+                        text = item.dayLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isSelected) (if (isDark) activeBarColor else Color(0xFF2563EB)) else AppTheme.colors.textSecondary,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        fontSize = 11.sp
+                    )
+                    if (item.dateRangeLabel.isNotBlank()) {
+                        Text(
+                            text = item.dateRangeLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSelected) (if (isDark) activeBarColor else Color(0xFF2563EB)) else AppTheme.colors.textSecondary.copy(alpha = 0.7f),
+                            fontSize = 8.5.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
             }
         }
     }
@@ -218,9 +266,14 @@ fun CustomLineChart(
 
     val maxAmount = (data.maxOfOrNull { it.amountPaise } ?: 1L).coerceAtLeast(1L)
     val animProgress = remember { Animatable(0f) }
-    var selectedIndex by remember(data) { mutableStateOf<Int?>(null) }
+    var selectedIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(data) {
+        if (data.isNotEmpty()) {
+            selectedIndex = selectedIndex?.coerceIn(0, data.lastIndex)
+        } else {
+            selectedIndex = null
+        }
         animProgress.snapTo(0f)
         animProgress.animateTo(
             targetValue = 1f,
@@ -240,22 +293,41 @@ fun CustomLineChart(
                     .align(Alignment.CenterHorizontally)
                     .padding(bottom = 8.dp)
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(CircleShape)
-                            .background(lineColor)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(lineColor)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = selectedItem.dayLabel,
+                            style = MaterialTheme.typography.titleSmall,
+                            color = AppTheme.colors.textPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (selectedItem.dateRangeLabel.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = selectedItem.dateRangeLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AppTheme.colors.textSecondary
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "${selectedItem.dayLabel}: ${CurrencyUtils.formatPaiseToRupees(selectedItem.amountPaise)}",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = AppTheme.colors.textPrimary,
-                        fontWeight = FontWeight.Bold
+                        text = "Total Spending: ${CurrencyUtils.formatPaiseToRupees(selectedItem.amountPaise)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = lineColor,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -351,16 +423,29 @@ fun CustomLineChart(
         ) {
             data.forEachIndexed { index, item ->
                 val isSelected = selectedIndex == index
-                Text(
-                    text = item.dayLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (isSelected) lineColor else AppTheme.colors.textSecondary,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    fontSize = 11.sp,
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.clickable {
                         selectedIndex = if (selectedIndex == index) null else index
                     }
-                )
+                ) {
+                    Text(
+                        text = item.dayLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isSelected) lineColor else AppTheme.colors.textSecondary,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        fontSize = 11.sp
+                    )
+                    if (item.dateRangeLabel.isNotBlank()) {
+                        Text(
+                            text = item.dateRangeLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isSelected) lineColor else AppTheme.colors.textSecondary.copy(alpha = 0.7f),
+                            fontSize = 8.5.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
             }
         }
     }

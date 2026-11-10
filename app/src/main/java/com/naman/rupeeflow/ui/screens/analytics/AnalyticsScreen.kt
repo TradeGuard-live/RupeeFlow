@@ -9,6 +9,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -18,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.ui.components.*
 import com.naman.rupeeflow.ui.theme.*
@@ -214,21 +217,11 @@ fun AnalyticsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(
-                                text = "Spending Trend",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = AppTheme.colors.textPrimary
-                            )
-                            if (state.periodInfo.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = state.periodInfo,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = AppTheme.colors.primaryAccent
-                                )
-                            }
-                        }
+                        Text(
+                            text = "Spending Trend",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = AppTheme.colors.textPrimary
+                        )
 
                         // Toggle between Line and Bar Chart
                         Row(
@@ -270,7 +263,66 @@ fun AnalyticsScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Month/Period Navigation Row: [ < ] November 2026 [ > ]
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(AppTheme.colors.surfaceSecondary.copy(alpha = 0.5f))
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(
+                            onClick = { viewModel.previousPeriod() },
+                            enabled = state.canNavigatePrevious,
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ChevronLeft,
+                                contentDescription = "Previous ${state.selectedPeriod.lowercase()}",
+                                tint = if (state.canNavigatePrevious) AppTheme.colors.primaryAccent else AppTheme.colors.textTertiary
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = state.periodInfo,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.textPrimary
+                            )
+                            if (state.periodOffset != 0) {
+                                Text(
+                                    text = when (state.selectedPeriod) {
+                                        "WEEKLY" -> "Return to This Week"
+                                        "YEARLY" -> "Return to This Year"
+                                        else -> "Return to This Month"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AppTheme.colors.primaryAccent,
+                                    fontSize = 10.sp,
+                                    modifier = Modifier.clickable { viewModel.currentPeriod() }
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.nextPeriod() },
+                            enabled = state.canNavigateNext,
+                            modifier = Modifier.size(38.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = "Next ${state.selectedPeriod.lowercase()}",
+                                tint = if (state.canNavigateNext) AppTheme.colors.primaryAccent else AppTheme.colors.textTertiary
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
 
                     if (isBarChart) {
                         CustomBarChart(data = data.dailySpendingTrend, modifier = Modifier.fillMaxWidth())

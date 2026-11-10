@@ -153,9 +153,9 @@ fun TransactionsScreen(
                 colors = rupeeFlowTextFieldColors()
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Primary Type Filter Tabs
+            // Group A: Transaction Type Filters (All, Expenses, Income, Refunds, Transfers, Ignored)
             val typeFilters = listOf(
                 "ALL" to "All",
                 "EXPENSE" to "Expenses",
@@ -168,10 +168,10 @@ fun TransactionsScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                Spacer(modifier = Modifier.width(8.dp))
                 typeFilters.forEach { (key, label) ->
                     val isSelected = state.selectedTypeFilter == key
                     Surface(
@@ -200,9 +200,12 @@ fun TransactionsScreen(
                         )
                     }
                 }
+                Spacer(modifier = Modifier.width(8.dp))
             }
 
-            // Date Period Filter Row (All, Monthly, Weekly)
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Group B: Time Period Filters (All Time, Monthly, Weekly)
             val dateFilters = listOf(
                 "ALL" to "All Time",
                 "MONTHLY" to "Monthly",
@@ -212,10 +215,10 @@ fun TransactionsScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                Spacer(modifier = Modifier.width(8.dp))
                 dateFilters.forEach { (key, label) ->
                     val isSelected = state.selectedDateFilter == key
                     Surface(
@@ -244,11 +247,12 @@ fun TransactionsScreen(
                         )
                     }
                 }
+                Spacer(modifier = Modifier.width(8.dp))
             }
 
             // Date Period Navigator for Monthly / Weekly filter
             if (state.selectedDateFilter == "MONTHLY" || state.selectedDateFilter == "WEEKLY") {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 PeriodNavigator(
                     label = state.datePeriodLabel,
                     canNavigatePrevious = state.canNavigatePreviousDate,
@@ -265,17 +269,16 @@ fun TransactionsScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Category & Payment method quick filters
+            // Group C: Payment Method Filters (UPI, Cash, Debit Card, Credit Card)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Payment Method Pill Filter
+                Spacer(modifier = Modifier.width(8.dp))
                 PaymentMethod.values().take(4).forEach { method ->
                     val isSelected = state.selectedPaymentMethodFilter == method
                     Surface(
@@ -310,9 +313,10 @@ fun TransactionsScreen(
                         )
                     }
                 }
+                Spacer(modifier = Modifier.width(8.dp))
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Transactions List
             LazyColumn(
