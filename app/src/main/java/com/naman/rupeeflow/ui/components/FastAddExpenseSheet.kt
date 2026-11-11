@@ -54,7 +54,9 @@ fun FastAddExpenseSheet(
     onPendingResolved: ((Long) -> Unit)? = null,
     initialCategory: Category? = null,
     suggestedFromPrevious: Boolean = false,
-    originalDetectedMerchant: String? = null
+    originalDetectedMerchant: String? = null,
+    initialLocation: TransactionLocation? = null,
+    onSearchMerchantLocation: (suspend (String) -> TransactionLocation?)? = null
 ) {
     // Mode: Expense, Income, or Settlement
     var selectedEntryType by remember {
@@ -79,6 +81,17 @@ fun FastAddExpenseSheet(
     var isSuggestedActive by remember { mutableStateOf(suggestedFromPrevious) }
     var selectedPaymentMethod by remember { mutableStateOf(initialPaymentMethod ?: PaymentMethod.UPI) }
     var selectedPayerId by remember { mutableStateOf<Long?>(null) } // null = Me
+
+    // Location state & merchant location memory
+    var attachedLocation by remember { mutableStateOf<TransactionLocation?>(initialLocation) }
+    var merchantSuggestion by remember { mutableStateOf<TransactionLocation?>(null) }
+
+    LaunchedEffect(title, originalDetectedMerchant) {
+        val merchant = title.trim().ifBlank { originalDetectedMerchant?.trim() ?: "" }
+        if (merchant.isNotBlank() && attachedLocation == null && onSearchMerchantLocation != null) {
+            merchantSuggestion = onSearchMerchantLocation(merchant)
+        }
+    }
 
     // Settlement state
     var selectedSettlementFriend by remember { mutableStateOf<Friend?>(friends.firstOrNull()) }
@@ -850,6 +863,21 @@ fun FastAddExpenseSheet(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Location Picker (Offline GPS, Coordinates, Maps Link, Merchant Memory)
+                TransactionLocationPicker(
+                    location = attachedLocation,
+                    onLocationChanged = { attachedLocation = it },
+                    merchantSuggestion = merchantSuggestion,
+                    merchantName = title.ifBlank { originalDetectedMerchant },
+                    onApplyMerchantSuggestion = {
+                        attachedLocation = merchantSuggestion?.copy(locationSource = LocationSource.HISTORICAL_LOCATION_SUGGESTION)
+                        merchantSuggestion = null
+                    },
+                    onDismissMerchantSuggestion = { merchantSuggestion = null }
+                )
+
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // Validation Check for Split
@@ -944,7 +972,22 @@ fun FastAddExpenseSheet(
                             }
                         }
 
-                        val transactionType = if (selectedEntryType == SheetEntryType.INCOME) TransactionType.INCOME else TransactionType.EXPENSE
+                        val transactionType = when {
+                            initialType == TransactionType.UPI_LITE_TOPUP -> TransactionType.UPI_LITE_TOPUP
+                            initialType == TransactionType.UPI_LITE_PAYMENT -> TransactionType.UPI_LITE_PAYMENT
+                            initialType == TransactionType.UPI_LITE_REFUND -> TransactionType.UPI_LITE_REFUND
+                            initialType == TransactionType.UPI_LITE_REVERSAL -> TransactionType.UPI_LITE_REVERSAL
+                            selectedEntryType == SheetEntryType.INCOME -> TransactionType.INCOME
+                            else -> TransactionType.EXPENSE
+                        }
+
+                        val effectivePaymentMethod = if (transactionType == TransactionType.UPI_LITE_TOPUP ||
+                            transactionType == TransactionType.UPI_LITE_PAYMENT
+                        ) {
+                            PaymentMethod.UPI_LITE
+                        } else {
+                            selectedPaymentMethod
+                        }
 
                         val newTxn = Transaction(
                             title = finalTitle,
@@ -953,7 +996,7 @@ fun FastAddExpenseSheet(
                             categoryId = categoryId,
                             category = selectedCategory,
                             transactionDate = System.currentTimeMillis(),
-                            paymentMethod = selectedPaymentMethod,
+                            paymentMethod = effectivePaymentMethod,
                             paidByFriendId = selectedPayerId,
                             paidByName = if (selectedPayerId == null) "Me" else friends.firstOrNull { it.id == selectedPayerId }?.name ?: "Friend",
                             participants = participants,
@@ -962,7 +1005,14 @@ fun FastAddExpenseSheet(
                             transactionStatus = TransactionStatus.ACTIVE,
                             source = TransactionSource.MANUAL,
                             groupId = selectedGroupFilterId,
-                            billImagePath = billImagePath
+                            billImagePath = billImagePath,
+                            latitude = attachedLocation?.latitude,
+                            longitude = attachedLocation?.longitude,
+                            accuracyMeters = attachedLocation?.accuracyMeters,
+                            locationCapturedAt = attachedLocation?.locationCapturedAt,
+                            locationSource = attachedLocation?.locationSource,
+                            locationLabel = attachedLocation?.locationLabel,
+                            googleMapsUrl = attachedLocation?.googleMapsUrl
                         )
                         onSave(newTxn)
                         if (initialPendingId != null) {

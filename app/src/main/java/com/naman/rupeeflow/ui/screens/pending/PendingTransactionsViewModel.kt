@@ -30,6 +30,9 @@ data class PendingUiState(
 
     val ignoredTransactions: List<PendingTransaction>
         get() = allDetectedTransactions.filter { it.status == PendingStatus.IGNORED }
+
+    val unknownTransactions: List<PendingTransaction>
+        get() = allDetectedTransactions.filter { it.status == PendingStatus.UNKNOWN }
 }
 
 class PendingTransactionsViewModel(
@@ -40,7 +43,8 @@ class PendingTransactionsViewModel(
     private val settlementRepository: SettlementRepository,
     private val friendGroupRepository: FriendGroupRepository? = null,
     private val merchantPreferenceRepository: MerchantPreferenceRepository? = null,
-    smartTransactionMatcher: SmartTransactionMatcher? = null
+    smartTransactionMatcher: SmartTransactionMatcher? = null,
+    private val userPreferencesRepository: com.naman.rupeeflow.data.repository.UserPreferencesRepository? = null
 ) : ViewModel() {
 
     private val matcher: SmartTransactionMatcher = smartTransactionMatcher
@@ -51,6 +55,22 @@ class PendingTransactionsViewModel(
 
     init {
         loadPending()
+    }
+
+    suspend fun getLocationCaptureMode(): LocationCaptureMode {
+        return try {
+            userPreferencesRepository?.userPreferencesFlow?.first()?.locationCaptureMode ?: LocationCaptureMode.OFF
+        } catch (_: Exception) {
+            LocationCaptureMode.OFF
+        }
+    }
+
+    suspend fun getMerchantLatestLocation(merchantName: String): TransactionLocation? {
+        return try {
+            transactionRepository.getLatestLocationByMerchant(merchantName)
+        } catch (_: Exception) {
+            null
+        }
     }
 
     private fun loadPending() {

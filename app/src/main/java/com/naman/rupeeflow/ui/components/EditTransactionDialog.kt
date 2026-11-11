@@ -42,7 +42,8 @@ fun EditTransactionDialog(
     friends: List<Friend>,
     groups: List<FriendGroup> = emptyList(),
     onDismiss: () -> Unit,
-    onSave: (Transaction) -> Unit
+    onSave: (Transaction) -> Unit,
+    onSearchMerchantLocation: (suspend (String) -> TransactionLocation?)? = null
 ) {
     val context = LocalContext.current
 
@@ -120,6 +121,17 @@ fun EditTransactionDialog(
     // 15. Reference number
     var referenceNumber by remember { mutableStateOf(transaction.referenceNumber ?: "") }
 
+    // Location state & merchant memory
+    var attachedLocation by remember { mutableStateOf<TransactionLocation?>(transaction.location) }
+    var merchantSuggestion by remember { mutableStateOf<TransactionLocation?>(null) }
+
+    LaunchedEffect(merchantName, title) {
+        val candidate = merchantName.trim().ifBlank { title.trim() }
+        if (candidate.isNotBlank() && attachedLocation == null && onSearchMerchantLocation != null) {
+            merchantSuggestion = onSearchMerchantLocation(candidate)
+        }
+    }
+
     var isSaving by remember { mutableStateOf(false) }
     var showDiscardConfirm by remember { mutableStateOf(false) }
 
@@ -138,7 +150,7 @@ fun EditTransactionDialog(
         title, description, amountText, selectedCategory, selectedType,
         selectedDateTimeMillis, selectedPaymentMethod, accountSource,
         selectedPayerId, isSplitEnabled, isMeIncluded, selectedFriendIds,
-        splitMethod, merchantName, referenceNumber
+        splitMethod, merchantName, referenceNumber, attachedLocation
     ) {
         title != transaction.title ||
                 description != transaction.description ||
@@ -151,7 +163,8 @@ fun EditTransactionDialog(
                 selectedPayerId != transaction.paidByFriendId ||
                 isSplitEnabled != initialHasParticipants ||
                 merchantName != (transaction.merchantName ?: "") ||
-                referenceNumber != (transaction.referenceNumber ?: "")
+                referenceNumber != (transaction.referenceNumber ?: "") ||
+                attachedLocation != transaction.location
     }
 
     ModalBottomSheet(
@@ -768,6 +781,21 @@ fun EditTransactionDialog(
             }
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Location Picker (Offline GPS, Coordinates, Maps Link, Merchant Memory)
+        TransactionLocationPicker(
+            location = attachedLocation,
+            onLocationChanged = { attachedLocation = it },
+            merchantSuggestion = merchantSuggestion,
+            merchantName = merchantName.ifBlank { title },
+            onApplyMerchantSuggestion = {
+                attachedLocation = merchantSuggestion?.copy(locationSource = LocationSource.HISTORICAL_LOCATION_SUGGESTION)
+                merchantSuggestion = null
+            },
+            onDismissMerchantSuggestion = { merchantSuggestion = null }
+        )
+
         Spacer(modifier = Modifier.height(24.dp))
 
         // Validation Check for Split
@@ -885,6 +913,13 @@ fun EditTransactionDialog(
                     referenceNumber = referenceNumber.trim().takeIf { it.isNotBlank() },
                     groupId = selectedGroupFilterId,
                     billImagePath = billImagePath,
+                    latitude = attachedLocation?.latitude,
+                    longitude = attachedLocation?.longitude,
+                    accuracyMeters = attachedLocation?.accuracyMeters,
+                    locationCapturedAt = attachedLocation?.locationCapturedAt,
+                    locationSource = attachedLocation?.locationSource,
+                    locationLabel = attachedLocation?.locationLabel,
+                    googleMapsUrl = attachedLocation?.googleMapsUrl,
                     updatedAt = System.currentTimeMillis()
                 )
 

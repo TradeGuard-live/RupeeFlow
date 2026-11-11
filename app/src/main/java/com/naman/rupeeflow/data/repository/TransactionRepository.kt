@@ -20,6 +20,8 @@ interface TransactionRepository {
     suspend fun saveTransaction(transaction: Transaction): Long
     suspend fun updateTransactionStatus(id: Long, status: TransactionStatus)
     suspend fun deleteTransaction(id: Long)
+    suspend fun getLatestLocationByMerchant(merchantName: String): TransactionLocation?
+    suspend fun clearAllLocations()
     // Contextual duplicate check: does NOT reject transactions based solely on matching amount
     suspend fun isDuplicate(
         amountPaise: Long,
@@ -107,6 +109,27 @@ class TransactionRepositoryImpl(
 
     override suspend fun deleteTransaction(id: Long) {
         transactionDao.deleteTransactionById(id)
+    }
+
+    override suspend fun getLatestLocationByMerchant(merchantName: String): TransactionLocation? {
+        if (merchantName.isBlank()) return null
+        val match = transactionDao.findLatestLocationByMerchant(merchantName.trim())
+        val txn = match?.transaction ?: return null
+        return if (txn.latitude != null && txn.longitude != null) {
+            TransactionLocation(
+                latitude = txn.latitude,
+                longitude = txn.longitude,
+                accuracyMeters = txn.accuracyMeters,
+                locationCapturedAt = txn.locationCapturedAt ?: txn.createdAt,
+                locationSource = txn.locationSource ?: LocationSource.HISTORICAL_LOCATION_SUGGESTION,
+                locationLabel = txn.locationLabel ?: merchantName,
+                googleMapsUrl = txn.googleMapsUrl
+            )
+        } else null
+    }
+
+    override suspend fun clearAllLocations() {
+        transactionDao.clearAllLocations()
     }
 
     // Context-aware duplicate check: prefers exact reference/UTR and matches merchant or title,
@@ -197,6 +220,13 @@ class TransactionRepositoryImpl(
             referenceNumber = transaction.referenceNumber,
             groupId = transaction.groupId,
             billImagePath = transaction.billImagePath,
+            latitude = transaction.latitude,
+            longitude = transaction.longitude,
+            accuracyMeters = transaction.accuracyMeters,
+            locationCapturedAt = transaction.locationCapturedAt,
+            locationSource = transaction.locationSource,
+            locationLabel = transaction.locationLabel,
+            googleMapsUrl = transaction.googleMapsUrl,
             createdAt = transaction.createdAt,
             updatedAt = transaction.updatedAt
         )
@@ -220,6 +250,13 @@ class TransactionRepositoryImpl(
         referenceNumber = referenceNumber,
         groupId = groupId,
         billImagePath = billImagePath,
+        latitude = latitude,
+        longitude = longitude,
+        accuracyMeters = accuracyMeters,
+        locationCapturedAt = locationCapturedAt,
+        locationSource = locationSource,
+        locationLabel = locationLabel,
+        googleMapsUrl = googleMapsUrl,
         createdAt = createdAt,
         updatedAt = System.currentTimeMillis()
     )

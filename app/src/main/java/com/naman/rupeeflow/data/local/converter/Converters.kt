@@ -45,4 +45,11 @@ class Converters {
     @TypeConverter
     fun toPendingStatus(value: String): PendingStatus =
         runCatching { PendingStatus.valueOf(value) }.getOrDefault(PendingStatus.PENDING)
+
+    @TypeConverter
+    fun fromLocationSource(value: LocationSource?): String? = value?.name
+
+    @TypeConverter
+    fun toLocationSource(value: String?): LocationSource? =
+        value?.let { runCatching { LocationSource.valueOf(it) }.getOrNull() }
 }

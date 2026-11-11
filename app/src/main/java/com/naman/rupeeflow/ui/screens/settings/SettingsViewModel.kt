@@ -6,6 +6,7 @@ import com.naman.rupeeflow.data.repository.*
 import com.naman.rupeeflow.data.sms.ParsedSmsResult
 import com.naman.rupeeflow.data.sms.SmsParser
 import com.naman.rupeeflow.domain.model.Category
+import com.naman.rupeeflow.domain.model.LocationCaptureMode
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -14,6 +15,7 @@ data class SettingsUiState(
     val biometricLockEnabled: Boolean = false,
     val smsDetectionEnabled: Boolean = true,
     val notificationListenerEnabled: Boolean = false,
+    val locationCaptureMode: LocationCaptureMode = LocationCaptureMode.OFF,
     val categories: List<Category> = emptyList(),
     val exportStatusMessage: String? = null,
     val testSmsResult: ParsedSmsResult? = null
@@ -22,7 +24,9 @@ data class SettingsUiState(
 class SettingsViewModel(
     private val userPreferencesRepository: UserPreferencesRepository,
     private val categoryRepository: CategoryRepository,
-    private val backupRestoreRepository: BackupRestoreRepository
+    private val backupRestoreRepository: BackupRestoreRepository,
+    private val transactionRepository: TransactionRepository? = null,
+    private val pendingTransactionRepository: PendingTransactionRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -43,6 +47,7 @@ class SettingsViewModel(
                     biometricLockEnabled = prefs.biometricLockEnabled,
                     smsDetectionEnabled = prefs.smsDetectionEnabled,
                     notificationListenerEnabled = prefs.notificationListenerEnabled,
+                    locationCaptureMode = prefs.locationCaptureMode,
                     categories = categories
                 )
             }.collect { state ->
@@ -77,6 +82,20 @@ class SettingsViewModel(
     fun setNotificationListenerEnabled(enabled: Boolean) {
         viewModelScope.launch {
             userPreferencesRepository.setNotificationListenerEnabled(enabled)
+        }
+    }
+
+    fun setLocationCaptureMode(mode: LocationCaptureMode) {
+        viewModelScope.launch {
+            userPreferencesRepository.setLocationCaptureMode(mode)
+        }
+    }
+
+    fun clearAllLocations() {
+        viewModelScope.launch {
+            transactionRepository?.clearAllLocations()
+            pendingTransactionRepository?.clearAllLocations()
+            _uiState.update { it.copy(exportStatusMessage = "All saved transaction locations have been deleted.") }
         }
     }
 

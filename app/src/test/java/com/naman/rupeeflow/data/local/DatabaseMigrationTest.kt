@@ -614,4 +614,125 @@ class DatabaseMigrationTest {
 
         db.close()
     }
+
+    @Test
+    fun testMigration5To6_AddsLocationColumnsToTransactionsAndPendingTransactions() {
+        val context = RuntimeEnvironment.getApplication()
+        val tempDbFile = File.createTempFile("test_migration_5_6", ".db")
+        tempDbFile.deleteOnExit()
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(tempDbFile.absolutePath)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        createV1Schema(db)
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA foreign_keys = ON;")
+
+        insertTestData(db)
+
+        // Step up to version 5
+        RupeeFlowDatabase.MIGRATION_1_5.migrate(db)
+
+        // Now migrate 5 -> 6
+        RupeeFlowDatabase.MIGRATION_5_6.migrate(db)
+
+        // Verify existing data preserved
+        verifyMigratedData(db)
+
+        // Verify location columns in transactions
+        db.execSQL("""
+            UPDATE transactions 
+            SET latitude = 28.6139, 
+                longitude = 77.2090, 
+                accuracyMeters = 12.5, 
+                locationCapturedAt = 1731302400000, 
+                locationSource = 'DEVICE_CURRENT', 
+                locationLabel = 'Connaught Place', 
+                googleMapsUrl = 'https://maps.google.com/?q=28.6139,77.2090' 
+            WHERE id = 1
+        """.trimIndent())
+
+        val txnCursor = db.query("SELECT latitude, longitude, accuracyMeters, locationSource, locationLabel FROM transactions WHERE id = 1")
+        assertTrue(txnCursor.moveToFirst())
+        assertEquals(28.6139, txnCursor.getDouble(0), 0.0001)
+        assertEquals(77.2090, txnCursor.getDouble(1), 0.0001)
+        assertEquals(12.5f, txnCursor.getFloat(2), 0.01f)
+        assertEquals("DEVICE_CURRENT", txnCursor.getString(3))
+        assertEquals("Connaught Place", txnCursor.getString(4))
+        txnCursor.close()
+
+        // Verify location columns in pending_transactions
+        db.execSQL("""
+            UPDATE pending_transactions 
+            SET latitude = 12.9716, 
+                longitude = 77.5946, 
+                accuracyMeters = 8.0, 
+                locationCapturedAt = 1731302400000, 
+                locationSource = 'DEVICE_AT_DETECTION' 
+            WHERE id = 1
+        """.trimIndent())
+
+        val pendingCursor = db.query("SELECT latitude, longitude, locationSource FROM pending_transactions WHERE id = 1")
+        assertTrue(pendingCursor.moveToFirst())
+        assertEquals(12.9716, pendingCursor.getDouble(0), 0.0001)
+        assertEquals(77.5946, pendingCursor.getDouble(1), 0.0001)
+        assertEquals("DEVICE_AT_DETECTION", pendingCursor.getString(2))
+        pendingCursor.close()
+
+        val fkCursor = db.query("PRAGMA foreign_key_check")
+        assertEquals(0, fkCursor.count)
+        fkCursor.close()
+
+        db.close()
+    }
+
+    @Test
+    fun testMigration1To6_DirectMigrationPreservesAllExistingRecordsAndAddsLocations() {
+        val context = RuntimeEnvironment.getApplication()
+        val tempDbFile = File.createTempFile("test_migration_1_6", ".db")
+        tempDbFile.deleteOnExit()
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(tempDbFile.absolutePath)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        createV1Schema(db)
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA foreign_keys = ON;")
+
+        insertTestData(db)
+
+        // Direct migration from version 1 to 6
+        RupeeFlowDatabase.MIGRATION_1_6.migrate(db)
+
+        verifyMigratedData(db)
+
+        // Verify newly added location columns work cleanly
+        val cursor = db.query("SELECT latitude, longitude FROM transactions WHERE id = 1")
+        assertTrue(cursor.moveToFirst())
+        assertTrue("Newly added latitude must default to null", cursor.isNull(0))
+        assertTrue("Newly added longitude must default to null", cursor.isNull(1))
+        cursor.close()
+
+        val fkCursor = db.query("PRAGMA foreign_key_check")
+        assertEquals(0, fkCursor.count)
+        fkCursor.close()
+
+        db.close()
+    }
 }

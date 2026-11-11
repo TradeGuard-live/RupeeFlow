@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.map
 
 interface PendingTransactionRepository {
     fun getPendingTransactions(): Flow<List<PendingTransaction>>
+    fun getUnknownTransactions(): Flow<List<PendingTransaction>>
     fun getAllDetectedTransactions(): Flow<List<PendingTransaction>>
     suspend fun getPendingTransactionsList(): List<PendingTransaction>
     fun getPendingCount(): Flow<Int>
@@ -19,6 +20,7 @@ interface PendingTransactionRepository {
     suspend fun ignorePendingTransaction(id: Long)
     suspend fun restorePendingTransaction(id: Long)
     suspend fun deletePendingTransaction(id: Long)
+    suspend fun clearAllLocations()
     // Contextual duplicate detection
     suspend fun isDuplicate(
         amountPaise: Long,
@@ -38,6 +40,10 @@ class PendingTransactionRepositoryImpl(
 
     override fun getPendingTransactions(): Flow<List<PendingTransaction>> {
         return pendingDao.getPendingTransactions().map { list -> list.map { it.toDomain() } }
+    }
+
+    override fun getUnknownTransactions(): Flow<List<PendingTransaction>> {
+        return pendingDao.getUnknownTransactions().map { list -> list.map { it.toDomain() } }
     }
 
     override fun getAllDetectedTransactions(): Flow<List<PendingTransaction>> {
@@ -75,6 +81,10 @@ class PendingTransactionRepositoryImpl(
     override suspend fun deletePendingTransaction(id: Long) {
         val item = pendingDao.getById(id)
         if (item != null) pendingDao.delete(item)
+    }
+
+    override suspend fun clearAllLocations() {
+        pendingDao.clearAllLocations()
     }
 
     /**
@@ -161,7 +171,14 @@ class PendingTransactionRepositoryImpl(
         rawContent = rawContent,
         timestamp = timestamp,
         status = status,
-        source = source
+        source = source,
+        latitude = latitude,
+        longitude = longitude,
+        accuracyMeters = accuracyMeters,
+        locationCapturedAt = locationCapturedAt,
+        locationSource = locationSource,
+        locationLabel = locationLabel,
+        googleMapsUrl = googleMapsUrl
     )
 
     private fun PendingTransaction.toEntity() = PendingTransactionEntity(
@@ -175,6 +192,13 @@ class PendingTransactionRepositoryImpl(
         rawContent = rawContent,
         timestamp = timestamp,
         status = status,
-        source = source
+        source = source,
+        latitude = latitude,
+        longitude = longitude,
+        accuracyMeters = accuracyMeters,
+        locationCapturedAt = locationCapturedAt,
+        locationSource = locationSource,
+        locationLabel = locationLabel,
+        googleMapsUrl = googleMapsUrl
     )
 }

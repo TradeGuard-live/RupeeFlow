@@ -81,6 +81,13 @@ data class TransactionEntity(
     val referenceNumber: String? = null,
     val groupId: Long? = null,
     val billImagePath: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val accuracyMeters: Float? = null,
+    val locationCapturedAt: Long? = null,
+    val locationSource: LocationSource? = null,
+    val locationLabel: String? = null,
+    val googleMapsUrl: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )
@@ -164,15 +171,22 @@ data class PendingTransactionEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val detectedAmountPaise: Long,
-    val detectedType: TransactionType,
-    val detectedBank: String?,
-    val detectedAccount: String?,
-    val detectedMerchant: String?,
-    val referenceNumber: String?,
+    val detectedType: TransactionType = TransactionType.EXPENSE,
+    val detectedBank: String? = null,
+    val detectedAccount: String? = null,
+    val detectedMerchant: String? = null,
+    val referenceNumber: String? = null,
     val rawContent: String,
     val timestamp: Long,
     val status: PendingStatus = PendingStatus.PENDING,
-    val source: TransactionSource = TransactionSource.SMS
+    val source: TransactionSource = TransactionSource.SMS,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val accuracyMeters: Float? = null,
+    val locationCapturedAt: Long? = null,
+    val locationSource: LocationSource? = null,
+    val locationLabel: String? = null,
+    val googleMapsUrl: String? = null
 )
 
 // Friend Group entities for organizing friends into custom groups

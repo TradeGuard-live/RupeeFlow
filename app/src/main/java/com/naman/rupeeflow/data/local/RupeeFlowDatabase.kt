@@ -27,7 +27,7 @@ import java.io.File
         FriendGroupMemberEntity::class,
         InputUsageEntity::class
     ],
-    version = 5, // Upgraded to version 5 with smart inputs, photos & group transactions
+    version = 6, // Upgraded to version 6 with offline transaction locations and UPI Lite support
     exportSchema = true // Schema export enabled
 )
 @TypeConverters(Converters::class)
@@ -357,6 +357,57 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 5 to 6: Add offline location fields to transactions and pending_transactions
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Add location fields to transactions
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `latitude` REAL")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `longitude` REAL")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `accuracyMeters` REAL")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `locationCapturedAt` INTEGER")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `locationSource` TEXT")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `locationLabel` TEXT")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `googleMapsUrl` TEXT")
+
+                // 2. Add location fields to pending_transactions
+                db.execSQL("ALTER TABLE `pending_transactions` ADD COLUMN `latitude` REAL")
+                db.execSQL("ALTER TABLE `pending_transactions` ADD COLUMN `longitude` REAL")
+                db.execSQL("ALTER TABLE `pending_transactions` ADD COLUMN `accuracyMeters` REAL")
+                db.execSQL("ALTER TABLE `pending_transactions` ADD COLUMN `locationCapturedAt` INTEGER")
+                db.execSQL("ALTER TABLE `pending_transactions` ADD COLUMN `locationSource` TEXT")
+                db.execSQL("ALTER TABLE `pending_transactions` ADD COLUMN `locationLabel` TEXT")
+                db.execSQL("ALTER TABLE `pending_transactions` ADD COLUMN `googleMapsUrl` TEXT")
+            }
+        }
+
+        val MIGRATION_1_6 = object : Migration(1, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_1_5.migrate(db)
+                MIGRATION_5_6.migrate(db)
+            }
+        }
+
+        val MIGRATION_2_6 = object : Migration(2, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_2_5.migrate(db)
+                MIGRATION_5_6.migrate(db)
+            }
+        }
+
+        val MIGRATION_3_6 = object : Migration(3, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_3_5.migrate(db)
+                MIGRATION_5_6.migrate(db)
+            }
+        }
+
+        val MIGRATION_4_6 = object : Migration(4, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_4_5.migrate(db)
+                MIGRATION_5_6.migrate(db)
+            }
+        }
+
         // Automatic safe pre-migration backup procedure
         fun createPreMigrationBackup(context: Context) {
             try {
@@ -383,7 +434,8 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                     .addMigrations(
                         MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3,
                         MIGRATION_3_4, MIGRATION_1_4, MIGRATION_2_4,
-                        MIGRATION_4_5, MIGRATION_1_5, MIGRATION_2_5, MIGRATION_3_5
+                        MIGRATION_4_5, MIGRATION_1_5, MIGRATION_2_5, MIGRATION_3_5,
+                        MIGRATION_5_6, MIGRATION_1_6, MIGRATION_2_6, MIGRATION_3_6, MIGRATION_4_6
                     )
                     .addCallback(DatabaseCallback(scope))
                     // Destructive migration removed! Data preservation guaranteed.

@@ -62,7 +62,9 @@ object AppViewModelProvider {
             SettingsViewModel(
                 userPreferencesRepository = app.appContainer.userPreferencesRepository,
                 categoryRepository = app.appContainer.categoryRepository,
-                backupRestoreRepository = app.appContainer.backupRestoreRepository
+                backupRestoreRepository = app.appContainer.backupRestoreRepository,
+                transactionRepository = app.appContainer.transactionRepository,
+                pendingTransactionRepository = app.appContainer.pendingTransactionRepository
             )
         }
         initializer {
@@ -75,7 +77,8 @@ object AppViewModelProvider {
                 settlementRepository = app.appContainer.settlementRepository,
                 friendGroupRepository = app.appContainer.friendGroupRepository,
                 merchantPreferenceRepository = app.appContainer.merchantPreferenceRepository,
-                smartTransactionMatcher = app.appContainer.smartTransactionMatcher
+                smartTransactionMatcher = app.appContainer.smartTransactionMatcher,
+                userPreferencesRepository = app.appContainer.userPreferencesRepository
             )
         }
         initializer {

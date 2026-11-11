@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Unarchive
@@ -154,6 +155,16 @@ fun TransactionItemCard(
                         Icon(
                             imageVector = Icons.Default.ReceiptLong,
                             contentDescription = "Receipt attached",
+                            tint = AppTheme.colors.primaryAccent,
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
+
+                    if (transaction.hasLocation) {
+                        Text("•", color = AppTheme.colors.textTertiary, fontSize = 10.sp)
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = "Location attached",
                             tint = AppTheme.colors.primaryAccent,
                             modifier = Modifier.size(12.dp)
                         )

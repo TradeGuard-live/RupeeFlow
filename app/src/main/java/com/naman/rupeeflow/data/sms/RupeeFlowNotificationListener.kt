@@ -95,7 +95,13 @@ class RupeeFlowNotificationListener : NotificationListenerService() {
                 if (!prefs.notificationListenerEnabled) return@launch
 
                 val parseResult = SmsParser.parse(combined, pkg, sbn.postTime)
-                if (!parseResult.isValidTransaction) return@launch
+                val isUnknownCandidate = parseResult.isUnknown &&
+                        !parseResult.isOtp &&
+                        !parseResult.isPromotional &&
+                        !parseResult.isBalanceInquiry &&
+                        !parseResult.isFailed
+
+                if (!parseResult.isValidTransaction && !isUnknownCandidate) return@launch
 
                 mutex.withLock {
                     val isDup = pendingRepo.isDuplicate(
@@ -109,6 +115,16 @@ class RupeeFlowNotificationListener : NotificationListenerService() {
                     )
                     if (isDup) return@withLock
 
+                    val capturedLocation = if (prefs.locationCaptureMode == com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_DETECTION) {
+                        com.naman.rupeeflow.location.OfflineLocationManager.getLastKnownLocation(applicationContext)
+                    } else null
+
+                    val pendingStatus = if (parseResult.isValidTransaction) {
+                        PendingStatus.PENDING
+                    } else {
+                        PendingStatus.UNKNOWN
+                    }
+
                     val entity = PendingTransactionEntity(
                         detectedAmountPaise = parseResult.amountPaise,
                         detectedType = parseResult.type,
@@ -118,18 +134,27 @@ class RupeeFlowNotificationListener : NotificationListenerService() {
                         referenceNumber = parseResult.referenceNumber,
                         rawContent = parseResult.rawBody,
                         timestamp = parseResult.timestamp,
-                        status = PendingStatus.PENDING,
-                        source = TransactionSource.NOTIFICATION
+                        status = pendingStatus,
+                        source = TransactionSource.NOTIFICATION,
+                        latitude = capturedLocation?.latitude,
+                        longitude = capturedLocation?.longitude,
+                        accuracyMeters = capturedLocation?.accuracyMeters,
+                        locationCapturedAt = capturedLocation?.locationCapturedAt,
+                        locationSource = if (capturedLocation != null) com.naman.rupeeflow.domain.model.LocationSource.DEVICE_AT_DETECTION else null,
+                        locationLabel = null,
+                        googleMapsUrl = capturedLocation?.googleMapsUrl
                     )
 
                     val pendingId = app.appContainer.database.pendingTransactionDao().insert(entity)
 
-                    TransactionNotificationHelper.showPendingTransactionNotification(
-                        context = applicationContext,
-                        pendingId = pendingId,
-                        amountPaise = parseResult.amountPaise,
-                        merchantOrBank = parseResult.merchant ?: parseResult.bankName
-                    )
+                    if (pendingStatus == PendingStatus.PENDING) {
+                        TransactionNotificationHelper.showPendingTransactionNotification(
+                            context = applicationContext,
+                            pendingId = pendingId,
+                            amountPaise = parseResult.amountPaise,
+                            merchantOrBank = parseResult.merchant ?: parseResult.bankName
+                        )
+                    }
                 }
             } catch (_: Exception) {
                 // Safeguard against unhandled exceptions during background processing

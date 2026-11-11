@@ -50,7 +50,7 @@ class BackupRestoreRepository(
 ) {
 
     companion object {
-        const val CURRENT_BACKUP_VERSION = 4
+        const val CURRENT_BACKUP_VERSION = 5
         const val BACKUP_APP_NAME = "RupeeFlow"
         const val MAX_BACKUP_FILE_BYTES = 50 * 1024 * 1024 // 50MB protection limit
         const val MIN_PASSWORD_LENGTH = 12
@@ -222,6 +222,13 @@ class BackupRestoreRepository(
                 put("referenceNumber", t.referenceNumber ?: "")
                 put("groupId", t.groupId ?: -1L)
                 put("billImagePath", portableBill ?: "")
+                if (t.latitude != null) put("latitude", t.latitude)
+                if (t.longitude != null) put("longitude", t.longitude)
+                if (t.accuracyMeters != null) put("accuracyMeters", t.accuracyMeters.toDouble())
+                if (t.locationCapturedAt != null) put("locationCapturedAt", t.locationCapturedAt)
+                if (t.locationSource != null) put("locationSource", t.locationSource.name)
+                if (!t.locationLabel.isNullOrBlank()) put("locationLabel", t.locationLabel)
+                if (!t.googleMapsUrl.isNullOrBlank()) put("googleMapsUrl", t.googleMapsUrl)
                 put("createdAt", t.createdAt)
             }
 
@@ -277,7 +284,35 @@ class BackupRestoreRepository(
         }
         root.put("input_usage", usageArray)
 
-        // 8. Portable Embedded Images Map
+        // 8. Pending Transactions
+        val pendingList = database.pendingTransactionDao().getAllDetectedTransactionsList()
+        val pendingArray = JSONArray()
+        for (pt in pendingList) {
+            val obj = JSONObject().apply {
+                put("id", pt.id)
+                put("detectedAmountPaise", pt.detectedAmountPaise)
+                put("detectedType", pt.detectedType.name)
+                put("detectedBank", pt.detectedBank ?: "")
+                put("detectedAccount", pt.detectedAccount ?: "")
+                put("detectedMerchant", pt.detectedMerchant ?: "")
+                put("referenceNumber", pt.referenceNumber ?: "")
+                put("rawContent", pt.rawContent)
+                put("timestamp", pt.timestamp)
+                put("status", pt.status.name)
+                put("source", pt.source.name)
+                if (pt.latitude != null) put("latitude", pt.latitude)
+                if (pt.longitude != null) put("longitude", pt.longitude)
+                if (pt.accuracyMeters != null) put("accuracyMeters", pt.accuracyMeters.toDouble())
+                if (pt.locationCapturedAt != null) put("locationCapturedAt", pt.locationCapturedAt)
+                if (pt.locationSource != null) put("locationSource", pt.locationSource.name)
+                if (!pt.locationLabel.isNullOrBlank()) put("locationLabel", pt.locationLabel)
+                if (!pt.googleMapsUrl.isNullOrBlank()) put("googleMapsUrl", pt.googleMapsUrl)
+            }
+            pendingArray.put(obj)
+        }
+        root.put("pending_transactions", pendingArray)
+
+        // 9. Portable Embedded Images Map
         val imagesObj = JSONObject()
         for ((key, b64) in imagesMap) {
             imagesObj.put(key, b64)
@@ -648,6 +683,15 @@ class BackupRestoreRepository(
                         val paidBy = obj.optLong("paidByFriendId", -1L).takeIf { it > 0 }
                         val gId = obj.optLong("groupId", -1L).takeIf { it > 0 }
                         val billPath = resolveImagePath(obj.optString("billImagePath").takeIf { it.isNotBlank() })
+                        val lat = if (obj.has("latitude") && !obj.isNull("latitude")) obj.getDouble("latitude") else null
+                        val lon = if (obj.has("longitude") && !obj.isNull("longitude")) obj.getDouble("longitude") else null
+                        val acc = if (obj.has("accuracyMeters") && !obj.isNull("accuracyMeters")) obj.getDouble("accuracyMeters").toFloat() else null
+                        val locTime = if (obj.has("locationCapturedAt") && !obj.isNull("locationCapturedAt")) obj.getLong("locationCapturedAt") else null
+                        val locSource = obj.optString("locationSource").takeIf { it.isNotBlank() }?.let {
+                            runCatching { LocationSource.valueOf(it) }.getOrNull()
+                        }
+                        val locLabel = obj.optString("locationLabel").takeIf { it.isNotBlank() }
+                        val mapsUrl = obj.optString("googleMapsUrl").takeIf { it.isNotBlank() }
 
                         val txnEntity = TransactionEntity(
                             id = obj.optLong("id", 0L),
@@ -677,6 +721,13 @@ class BackupRestoreRepository(
                             referenceNumber = obj.optString("referenceNumber").takeIf { it.isNotBlank() },
                             groupId = gId,
                             billImagePath = billPath,
+                            latitude = lat,
+                            longitude = lon,
+                            accuracyMeters = acc,
+                            locationCapturedAt = locTime,
+                            locationSource = locSource,
+                            locationLabel = locLabel,
+                            googleMapsUrl = mapsUrl,
                             createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
                             updatedAt = obj.optLong("updatedAt", System.currentTimeMillis())
                         )
@@ -744,6 +795,51 @@ class BackupRestoreRepository(
                             preferenceScore = obj.optDouble("preferenceScore", 0.0)
                         )
                         database.inputUsageDao().insertOrUpdate(usageEntity)
+                    }
+                }
+
+                // 8. Restore Pending Transactions
+                if (root.has("pending_transactions")) {
+                    val pendingArray = root.getJSONArray("pending_transactions")
+                    for (i in 0 until pendingArray.length()) {
+                        val obj = pendingArray.getJSONObject(i)
+                        val lat = if (obj.has("latitude") && !obj.isNull("latitude")) obj.getDouble("latitude") else null
+                        val lon = if (obj.has("longitude") && !obj.isNull("longitude")) obj.getDouble("longitude") else null
+                        val acc = if (obj.has("accuracyMeters") && !obj.isNull("accuracyMeters")) obj.getDouble("accuracyMeters").toFloat() else null
+                        val locTime = if (obj.has("locationCapturedAt") && !obj.isNull("locationCapturedAt")) obj.getLong("locationCapturedAt") else null
+                        val locSource = obj.optString("locationSource").takeIf { it.isNotBlank() }?.let {
+                            runCatching { LocationSource.valueOf(it) }.getOrNull()
+                        }
+                        val locLabel = obj.optString("locationLabel").takeIf { it.isNotBlank() }
+                        val mapsUrl = obj.optString("googleMapsUrl").takeIf { it.isNotBlank() }
+
+                        val pendingEntity = PendingTransactionEntity(
+                            id = obj.optLong("id", 0L),
+                            detectedAmountPaise = obj.getLong("detectedAmountPaise"),
+                            detectedType = runCatching {
+                                TransactionType.valueOf(obj.getString("detectedType"))
+                            }.getOrDefault(TransactionType.EXPENSE),
+                            detectedBank = obj.optString("detectedBank").takeIf { it.isNotBlank() },
+                            detectedAccount = obj.optString("detectedAccount").takeIf { it.isNotBlank() },
+                            detectedMerchant = obj.optString("detectedMerchant").takeIf { it.isNotBlank() },
+                            referenceNumber = obj.optString("referenceNumber").takeIf { it.isNotBlank() },
+                            rawContent = obj.getString("rawContent"),
+                            timestamp = obj.getLong("timestamp"),
+                            status = runCatching {
+                                PendingStatus.valueOf(obj.getString("status"))
+                            }.getOrDefault(PendingStatus.PENDING),
+                            source = runCatching {
+                                TransactionSource.valueOf(obj.getString("source"))
+                            }.getOrDefault(TransactionSource.SMS),
+                            latitude = lat,
+                            longitude = lon,
+                            accuracyMeters = acc,
+                            locationCapturedAt = locTime,
+                            locationSource = locSource,
+                            locationLabel = locLabel,
+                            googleMapsUrl = mapsUrl
+                        )
+                        database.pendingTransactionDao().insert(pendingEntity)
                     }
                 }
             }

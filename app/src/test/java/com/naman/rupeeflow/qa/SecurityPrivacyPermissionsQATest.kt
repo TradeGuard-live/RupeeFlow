@@ -97,11 +97,12 @@ class SecurityPrivacyPermissionsQATest {
         assertTrue("Must declare POST_NOTIFICATIONS for transaction alerts", declaredPermissions.contains("android.permission.POST_NOTIFICATIONS"))
         assertTrue("Must declare USE_BIOMETRIC for app security", declaredPermissions.contains("android.permission.USE_BIOMETRIC"))
         assertTrue("Must declare RECORD_AUDIO for offline voice assistant", declaredPermissions.contains("android.permission.RECORD_AUDIO"))
+        assertTrue("Must declare ACCESS_FINE_LOCATION for offline GPS transaction location", declaredPermissions.contains("android.permission.ACCESS_FINE_LOCATION"))
+        assertTrue("Must declare ACCESS_COARSE_LOCATION for offline transaction location", declaredPermissions.contains("android.permission.ACCESS_COARSE_LOCATION"))
 
         // Strictly verify that dangerous extraneous permissions are NOT declared
         assertFalse("Must NOT declare INTERNET (100% offline local-first application)", declaredPermissions.contains("android.permission.INTERNET"))
-        assertFalse("Must NOT declare ACCESS_FINE_LOCATION", declaredPermissions.contains("android.permission.ACCESS_FINE_LOCATION"))
-        assertFalse("Must NOT declare ACCESS_COARSE_LOCATION", declaredPermissions.contains("android.permission.ACCESS_COARSE_LOCATION"))
+        assertFalse("Must NOT declare ACCESS_BACKGROUND_LOCATION", declaredPermissions.contains("android.permission.ACCESS_BACKGROUND_LOCATION"))
         assertFalse("Must NOT declare CAMERA", declaredPermissions.contains("android.permission.CAMERA"))
         assertFalse("Must NOT declare READ_CONTACTS", declaredPermissions.contains("android.permission.READ_CONTACTS"))
         assertFalse("Must NOT declare READ_SMS", declaredPermissions.contains("android.permission.READ_SMS"))

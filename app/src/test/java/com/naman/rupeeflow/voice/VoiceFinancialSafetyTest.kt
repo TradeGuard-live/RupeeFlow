@@ -167,6 +167,8 @@ class VoiceFinancialSafetyTest {
                 merchant: String?,
                 title: String?
             ) = false
+            override suspend fun getLatestLocationByMerchant(merchantName: String): com.naman.rupeeflow.domain.model.TransactionLocation? = null
+            override suspend fun clearAllLocations() {}
         }
 
         val fakeSettlementRepo = object : SettlementRepository {

@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -27,6 +28,7 @@ import com.naman.rupeeflow.domain.model.TransactionStatus
 import com.naman.rupeeflow.domain.model.TransactionType
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
+import com.naman.rupeeflow.location.LocationIntentHelper
 import com.naman.rupeeflow.ui.theme.*
 
 @Composable
@@ -39,6 +41,7 @@ fun TransactionDetailDialog(
     onEdit: (Transaction) -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     val category = transaction.category
     val catColor = CategoryIconHelper.parseColor(category?.colorHex)
@@ -148,6 +151,46 @@ fun TransactionDetailDialog(
                     }
                     DetailRow("Source", transaction.source.name)
                     DetailRow("Status", transaction.transactionStatus.name)
+                    if (transaction.hasLocation && transaction.location != null) {
+                        val loc = transaction.location!!
+                        val locLabel = loc.locationLabel ?: "${String.format(java.util.Locale.ROOT, "%.5f", loc.latitude)}, ${String.format(java.util.Locale.ROOT, "%.5f", loc.longitude)}"
+                        DetailRow("Location", locLabel)
+                        DetailRow("Location Source", loc.locationSource.displayName)
+                        if (loc.accuracyMeters != null) {
+                            DetailRow("Accuracy", "±${loc.accuracyMeters.toInt()}m")
+                        }
+                    }
+                }
+
+                if (transaction.hasLocation && transaction.latitude != null && transaction.longitude != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = {
+                            LocationIntentHelper.openLocation(
+                                context = context,
+                                latitude = transaction.latitude,
+                                longitude = transaction.longitude,
+                                label = transaction.locationLabel ?: transaction.merchantName ?: transaction.title
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = AppTheme.colors.primaryAccent
+                        ),
+                        border = BorderStroke(1.dp, AppTheme.colors.primaryAccent.copy(alpha = 0.5f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "View on Map",
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
 
                 // Attached Bill / Receipt Photo Preview

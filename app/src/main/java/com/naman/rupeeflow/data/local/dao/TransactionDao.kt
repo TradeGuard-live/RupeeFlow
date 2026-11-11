@@ -65,6 +65,13 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE amountPaise = :amountPaise AND transactionDate BETWEEN :startMillis AND :endMillis LIMIT 1")
     suspend fun findDuplicate(amountPaise: Long, startMillis: Long, endMillis: Long): TransactionEntity?
 
+    @androidx.room.Transaction
+    @Query("SELECT * FROM transactions WHERE merchantName = :merchantName AND latitude IS NOT NULL AND longitude IS NOT NULL ORDER BY transactionDate DESC LIMIT 1")
+    suspend fun findLatestLocationByMerchant(merchantName: String): TransactionWithParticipants?
+
+    @Query("UPDATE transactions SET latitude = NULL, longitude = NULL, accuracyMeters = NULL, locationCapturedAt = NULL, locationSource = NULL, locationLabel = NULL, googleMapsUrl = NULL")
+    suspend fun clearAllLocations()
+
     // Atomic save/update inside a single Room transaction
     // Enforces strict share balance validation, duplicate participant rejection,
     // and safe participant replacement.

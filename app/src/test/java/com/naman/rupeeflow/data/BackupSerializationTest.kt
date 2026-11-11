@@ -285,5 +285,69 @@ class BackupSerializationTest {
         val friends = friendRepo.getAllFriendsList()
         assertTrue(friends.any { it.name == "Legacy Friend" })
     }
+
+    @Test
+    fun testVersion5BackupWithLocationAndPendingTransactions() = runBlocking {
+        // 1. Insert transaction with location
+        val txn = Transaction(
+            title = "Cafe Coffee Day",
+            amountPaise = 25000L,
+            categoryId = 1L,
+            latitude = 12.9716,
+            longitude = 77.5946,
+            accuracyMeters = 8.5f,
+            locationCapturedAt = 1731302400000L,
+            locationSource = LocationSource.DEVICE_CURRENT,
+            locationLabel = "MG Road Outlet",
+            googleMapsUrl = "https://maps.google.com/?q=12.9716,77.5946"
+        )
+        txnRepo.saveTransaction(txn)
+
+        // 2. Insert pending transaction with location
+        val pendingEntity = PendingTransactionEntity(
+            detectedAmountPaise = 753L,
+            detectedType = TransactionType.UPI_LITE_TOPUP,
+            detectedBank = "HDFC Bank",
+            rawContent = "UPI LITE Top-up amounting to Rs.7.53 has been successful. Ref No 104810950877 - HDFC Bank",
+            timestamp = 1731302400000L,
+            status = PendingStatus.PENDING,
+            source = TransactionSource.SMS,
+            latitude = 28.6139,
+            longitude = 77.2090,
+            locationSource = LocationSource.DEVICE_AT_DETECTION
+        )
+        database.pendingTransactionDao().insert(pendingEntity)
+
+        // 3. Export
+        val exportedJson = backupRepo.exportToJson()
+        val jsonObj = JSONObject(exportedJson)
+        assertEquals(5, jsonObj.getInt("version"))
+        assertTrue(jsonObj.has("pending_transactions"))
+
+        // 4. Reset & Restore
+        backupRepo.resetApp()
+        assertEquals(0, txnRepo.getAllTransactionsList().size)
+        assertEquals(0, database.pendingTransactionDao().getAllDetectedTransactionsList().size)
+
+        val success = backupRepo.restoreFromJson(exportedJson)
+        assertTrue(success)
+
+        val restoredTxns = txnRepo.getAllTransactionsList()
+        assertEquals(1, restoredTxns.size)
+        val restoredTxn = restoredTxns[0]
+        assertEquals("Cafe Coffee Day", restoredTxn.title)
+        assertTrue(restoredTxn.hasLocation)
+        assertEquals(12.9716, restoredTxn.latitude!!, 0.0001)
+        assertEquals(77.5946, restoredTxn.longitude!!, 0.0001)
+        assertEquals("MG Road Outlet", restoredTxn.locationLabel)
+        assertEquals(LocationSource.DEVICE_CURRENT, restoredTxn.locationSource)
+
+        val restoredPending = database.pendingTransactionDao().getAllDetectedTransactionsList()
+        assertEquals(1, restoredPending.size)
+        assertEquals(753L, restoredPending[0].detectedAmountPaise)
+        assertEquals(TransactionType.UPI_LITE_TOPUP, restoredPending[0].detectedType)
+        assertEquals(28.6139, restoredPending[0].latitude!!, 0.0001)
+        assertEquals(77.2090, restoredPending[0].longitude!!, 0.0001)
+    }
 }
 

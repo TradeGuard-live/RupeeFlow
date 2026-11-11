@@ -56,6 +56,26 @@ fun SettingsScreen(
     var showResetConfirmDialog by remember { mutableStateOf(false) }
     var showSmsDisclosureDialog by remember { mutableStateOf(false) }
     var showNotificationDisclosureDialog by remember { mutableStateOf(false) }
+    var showLocationModeDialog by remember { mutableStateOf(false) }
+    var showClearLocationsConfirmDialog by remember { mutableStateOf(false) }
+
+    var pendingLocationModeToSet by remember { mutableStateOf<com.naman.rupeeflow.domain.model.LocationCaptureMode?>(null) }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (fineGranted || coarseGranted) {
+            val mode = pendingLocationModeToSet ?: com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_REVIEW
+            viewModel.setLocationCaptureMode(mode)
+            Toast.makeText(context, "Location capture enabled: ${mode.name}", Toast.LENGTH_SHORT).show()
+        } else {
+            viewModel.setLocationCaptureMode(com.naman.rupeeflow.domain.model.LocationCaptureMode.OFF)
+            Toast.makeText(context, "Location permission denied. Transaction location disabled.", Toast.LENGTH_LONG).show()
+        }
+        pendingLocationModeToSet = null
+    }
 
     val smsPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -137,6 +157,30 @@ fun SettingsScreen(
                         onCheckedChange = { viewModel.setBiometricLockEnabled(it) },
                         icon = Icons.Default.Fingerprint,
                         iconTint = AppTheme.colors.primaryAccent
+                    )
+
+                    HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 12.dp))
+
+                    val locationSubtitle = when (state.locationCaptureMode) {
+                        com.naman.rupeeflow.domain.model.LocationCaptureMode.OFF -> "Off (No location captured)"
+                        com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_REVIEW -> "When reviewing a detected transaction"
+                        com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_DETECTION -> "When a transaction is detected"
+                    }
+
+                    SettingsActionRow(
+                        title = "Transaction Location",
+                        subtitle = locationSubtitle,
+                        icon = Icons.Default.LocationOn,
+                        onClick = { showLocationModeDialog = true }
+                    )
+
+                    HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 12.dp))
+
+                    SettingsActionRow(
+                        title = "Clear All Saved Locations",
+                        subtitle = "Permanently remove GPS coordinates from all transactions",
+                        icon = Icons.Default.LocationOff,
+                        onClick = { showClearLocationsConfirmDialog = true }
                     )
                 }
             }
@@ -644,6 +688,146 @@ fun SettingsScreen(
                     Text("Cancel", color = AppTheme.colors.textSecondary)
                 }
             }
+        )
+    }
+
+    if (showLocationModeDialog) {
+        AlertDialog(
+            onDismissRequest = { showLocationModeDialog = false },
+            title = {
+                Text(
+                    text = "Transaction Location",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = AppTheme.colors.textPrimary
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Choose when RupeeFlow attaches offline GPS coordinates to your transactions. Coordinates are kept strictly offline on your device and are never shared.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.textSecondary
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    listOf(
+                        com.naman.rupeeflow.domain.model.LocationCaptureMode.OFF to ("Off" to "Do not capture or store location coordinates"),
+                        com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_REVIEW to ("When Reviewing" to "Capture location only when you review and approve a detected transaction"),
+                        com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_DETECTION to ("On Detection" to "Capture hardware location when a transaction SMS/Notification arrives")
+                    ).forEach { (mode, pair) ->
+                        val (label, desc) = pair
+                        val isSelected = state.locationCaptureMode == mode
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) AppTheme.colors.accentContainer else AppTheme.colors.surfaceSecondary,
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.cardBorder
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (mode == com.naman.rupeeflow.domain.model.LocationCaptureMode.OFF) {
+                                        viewModel.setLocationCaptureMode(mode)
+                                        showLocationModeDialog = false
+                                    } else {
+                                        if (com.naman.rupeeflow.location.OfflineLocationManager.hasPermission(context)) {
+                                            viewModel.setLocationCaptureMode(mode)
+                                            showLocationModeDialog = false
+                                        } else {
+                                            pendingLocationModeToSet = mode
+                                            showLocationModeDialog = false
+                                            locationPermissionLauncher.launch(
+                                                arrayOf(
+                                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                                )
+                                            )
+                                        }
+                                    }
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = isSelected,
+                                    onClick = null,
+                                    colors = RadioButtonDefaults.colors(
+                                        selectedColor = AppTheme.colors.primaryAccent
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AppTheme.colors.textPrimary
+                                    )
+                                    Text(
+                                        text = desc,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = AppTheme.colors.textSecondary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showLocationModeDialog = false }) {
+                    Text("Close", color = AppTheme.colors.primaryAccent)
+                }
+            },
+            containerColor = AppTheme.colors.surfaceElevated,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    if (showClearLocationsConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearLocationsConfirmDialog = false },
+            title = {
+                Text(
+                    text = "Clear All Saved Locations?",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = AppTheme.colors.textPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = "This will permanently remove saved latitude and longitude coordinates from all transactions and detected items. Financial amounts, dates, and categories will remain untouched.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AppTheme.colors.textSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.clearAllLocations()
+                        showClearLocationsConfirmDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CoralRed)
+                ) {
+                    Text("Clear All Locations", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearLocationsConfirmDialog = false }) {
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
+                }
+            },
+            containerColor = AppTheme.colors.surfaceElevated,
+            shape = RoundedCornerShape(20.dp)
         )
     }
 }

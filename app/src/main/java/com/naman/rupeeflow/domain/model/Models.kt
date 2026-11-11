@@ -48,6 +48,26 @@ data class TransactionParticipant(
     val splitMethod: SplitMethod = SplitMethod.EQUAL
 )
 
+data class TransactionLocation(
+    val latitude: Double,
+    val longitude: Double,
+    val accuracyMeters: Float? = null,
+    val locationCapturedAt: Long = System.currentTimeMillis(),
+    val locationSource: LocationSource = LocationSource.MANUAL_COORDINATES,
+    val locationLabel: String? = null,
+    val googleMapsUrl: String? = null
+) {
+    fun isValid(): Boolean {
+        return !latitude.isNaN() && !latitude.isInfinite() &&
+                !longitude.isNaN() && !longitude.isInfinite() &&
+                latitude in -90.0..90.0 && longitude in -180.0..180.0
+    }
+
+    fun toGeoUri(): String = "geo:$latitude,$longitude?q=$latitude,$longitude"
+    fun toGoogleMapsUrl(): String = googleMapsUrl?.ifBlank { null }
+        ?: "https://www.google.com/maps/search/?api=1&query=$latitude,$longitude"
+}
+
 data class Transaction(
     val id: Long = 0,
     val title: String,
@@ -69,6 +89,13 @@ data class Transaction(
     val referenceNumber: String? = null,
     val groupId: Long? = null,
     val billImagePath: String? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val accuracyMeters: Float? = null,
+    val locationCapturedAt: Long? = null,
+    val locationSource: LocationSource? = null,
+    val locationLabel: String? = null,
+    val googleMapsUrl: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 ) {
@@ -78,10 +105,28 @@ data class Transaction(
     val isSplit: Boolean
         get() = participants.size > 1 || (participants.isNotEmpty() && participants.any { it.friendId != null })
 
+    val hasLocation: Boolean
+        get() = latitude != null && longitude != null
+
+    val location: TransactionLocation?
+        get() = if (latitude != null && longitude != null) {
+            TransactionLocation(
+                latitude = latitude,
+                longitude = longitude,
+                accuracyMeters = accuracyMeters,
+                locationCapturedAt = locationCapturedAt ?: createdAt,
+                locationSource = locationSource ?: LocationSource.MANUAL_COORDINATES,
+                locationLabel = locationLabel,
+                googleMapsUrl = googleMapsUrl
+            )
+        } else null
+
     val userExpensePaise: Long
         get() {
             if (transactionStatus == TransactionStatus.IGNORED) return 0L
-            if (transactionType != TransactionType.EXPENSE) return 0L
+            // Top-ups are wallet funding events, not expenses.
+            // Transfers and debt settlements are tracked separately.
+            if (transactionType != TransactionType.EXPENSE && transactionType != TransactionType.UPI_LITE_PAYMENT) return 0L
 
             return if (participants.isNotEmpty()) {
                 val me = participants.firstOrNull { it.friendId == null }
@@ -110,7 +155,7 @@ data class Settlement(
 data class PendingTransaction(
     val id: Long = 0,
     val detectedAmountPaise: Long,
-    val detectedType: TransactionType,
+    val detectedType: TransactionType = TransactionType.EXPENSE,
     val detectedBank: String? = null,
     val detectedAccount: String? = null,
     val detectedMerchant: String? = null,
@@ -118,8 +163,31 @@ data class PendingTransaction(
     val rawContent: String,
     val timestamp: Long = System.currentTimeMillis(),
     val status: PendingStatus = PendingStatus.PENDING,
-    val source: TransactionSource = TransactionSource.SMS
-)
+    val source: TransactionSource = TransactionSource.SMS,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val accuracyMeters: Float? = null,
+    val locationCapturedAt: Long? = null,
+    val locationSource: LocationSource? = null,
+    val locationLabel: String? = null,
+    val googleMapsUrl: String? = null
+) {
+    val hasLocation: Boolean
+        get() = latitude != null && longitude != null
+
+    val location: TransactionLocation?
+        get() = if (latitude != null && longitude != null) {
+            TransactionLocation(
+                latitude = latitude,
+                longitude = longitude,
+                accuracyMeters = accuracyMeters,
+                locationCapturedAt = locationCapturedAt ?: timestamp,
+                locationSource = locationSource ?: LocationSource.DEVICE_AT_DETECTION,
+                locationLabel = locationLabel,
+                googleMapsUrl = googleMapsUrl
+            )
+        } else null
+}
 
 data class FinancialSummary(
     val totalExpenseThisMonthPaise: Long = 0,

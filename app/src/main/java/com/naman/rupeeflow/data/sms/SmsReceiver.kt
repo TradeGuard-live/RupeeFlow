@@ -49,7 +49,13 @@ class SmsReceiver : BroadcastReceiver() {
 
                 // Parse message
                 val parseResult = SmsParser.parse(fullBody, sender, timestamp)
-                if (!parseResult.isValidTransaction) return@launch
+                val isUnknownCandidate = parseResult.isUnknown &&
+                        !parseResult.isOtp &&
+                        !parseResult.isPromotional &&
+                        !parseResult.isBalanceInquiry &&
+                        !parseResult.isFailed
+
+                if (!parseResult.isValidTransaction && !isUnknownCandidate) return@launch
 
                 // Context-aware duplicate detection
                 val isDup = pendingRepo.isDuplicate(
@@ -63,7 +69,18 @@ class SmsReceiver : BroadcastReceiver() {
                 )
                 if (isDup) return@launch
 
-                // Save as PendingTransaction with sanitized content
+                // Location capture on detection (if opted in)
+                val capturedLocation = if (prefs.locationCaptureMode == com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_DETECTION) {
+                    com.naman.rupeeflow.location.OfflineLocationManager.getLastKnownLocation(context)
+                } else null
+
+                val pendingStatus = if (parseResult.isValidTransaction) {
+                    PendingStatus.PENDING
+                } else {
+                    PendingStatus.UNKNOWN
+                }
+
+                // Save as PendingTransaction with sanitized content and location
                 val entity = PendingTransactionEntity(
                     detectedAmountPaise = parseResult.amountPaise,
                     detectedType = parseResult.type,
@@ -73,19 +90,28 @@ class SmsReceiver : BroadcastReceiver() {
                     referenceNumber = parseResult.referenceNumber,
                     rawContent = parseResult.rawBody,
                     timestamp = parseResult.timestamp,
-                    status = PendingStatus.PENDING,
-                    source = TransactionSource.SMS
+                    status = pendingStatus,
+                    source = TransactionSource.SMS,
+                    latitude = capturedLocation?.latitude,
+                    longitude = capturedLocation?.longitude,
+                    accuracyMeters = capturedLocation?.accuracyMeters,
+                    locationCapturedAt = capturedLocation?.locationCapturedAt,
+                    locationSource = if (capturedLocation != null) com.naman.rupeeflow.domain.model.LocationSource.DEVICE_AT_DETECTION else null,
+                    locationLabel = null,
+                    googleMapsUrl = capturedLocation?.googleMapsUrl
                 )
 
                 val pendingId = app.appContainer.database.pendingTransactionDao().insert(entity)
 
-                // Trigger notification
-                TransactionNotificationHelper.showPendingTransactionNotification(
-                    context = context,
-                    pendingId = pendingId,
-                    amountPaise = parseResult.amountPaise,
-                    merchantOrBank = parseResult.merchant ?: parseResult.bankName
-                )
+                // Trigger notification only for valid transactions needing review
+                if (pendingStatus == PendingStatus.PENDING) {
+                    TransactionNotificationHelper.showPendingTransactionNotification(
+                        context = context,
+                        pendingId = pendingId,
+                        amountPaise = parseResult.amountPaise,
+                        merchantOrBank = parseResult.merchant ?: parseResult.bankName
+                    )
+                }
             } catch (_: Exception) {
                 // Safeguard against unhandled exceptions during background processing
             } finally {

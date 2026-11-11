@@ -10,8 +10,14 @@ interface PendingTransactionDao {
     @Query("SELECT * FROM pending_transactions WHERE status = 'PENDING' ORDER BY timestamp DESC")
     fun getPendingTransactions(): Flow<List<PendingTransactionEntity>>
 
+    @Query("SELECT * FROM pending_transactions WHERE status = 'UNKNOWN' ORDER BY timestamp DESC")
+    fun getUnknownTransactions(): Flow<List<PendingTransactionEntity>>
+
     @Query("SELECT * FROM pending_transactions ORDER BY timestamp DESC")
     fun getAllDetectedTransactions(): Flow<List<PendingTransactionEntity>>
+
+    @Query("SELECT * FROM pending_transactions ORDER BY timestamp DESC")
+    suspend fun getAllDetectedTransactionsList(): List<PendingTransactionEntity>
 
     @Query("SELECT * FROM pending_transactions WHERE status = 'PENDING' ORDER BY timestamp DESC")
     suspend fun getPendingTransactionsList(): List<PendingTransactionEntity>
@@ -45,4 +51,7 @@ interface PendingTransactionDao {
 
     @Delete
     suspend fun delete(pending: PendingTransactionEntity)
+
+    @Query("UPDATE pending_transactions SET latitude = NULL, longitude = NULL, accuracyMeters = NULL, locationCapturedAt = NULL, locationSource = NULL, locationLabel = NULL, googleMapsUrl = NULL")
+    suspend fun clearAllLocations()
 }

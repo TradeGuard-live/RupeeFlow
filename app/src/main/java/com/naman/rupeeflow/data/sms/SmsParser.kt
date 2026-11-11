@@ -1,8 +1,10 @@
 package com.naman.rupeeflow.data.sms
 
+import com.naman.rupeeflow.data.sms.parser.AmountExtractor
+import com.naman.rupeeflow.data.sms.parser.BankMessageParser
+import com.naman.rupeeflow.data.sms.parser.banks.*
 import com.naman.rupeeflow.domain.model.PaymentMethod
 import com.naman.rupeeflow.domain.model.TransactionType
-import com.naman.rupeeflow.domain.util.CurrencyUtils
 import java.util.Locale
 import java.util.regex.Pattern
 
@@ -18,6 +20,7 @@ data class ParsedSmsResult(
     val isFailed: Boolean = false,
     val isBalanceInquiry: Boolean = false,
     val isPromotional: Boolean = false,
+    val isUnknown: Boolean = false,
     val paymentMethod: PaymentMethod = PaymentMethod.UPI,
     val timestamp: Long = System.currentTimeMillis(),
     val rawSender: String? = null,
@@ -39,64 +42,16 @@ object SmsParser {
         Pattern.compile("(?i)\\b(pre-approved|apply\\s*now|avail\\s*now|loan\\s*offer|get\\s*up\\s*to|congratulations|reward\\s*points|earn\\s*cashback|discount\\s*voucher)\\b")
     )
 
-    // Amount regexes
-    private val AMOUNT_PATTERNS = listOf(
-        // e.g. "debited by Rs. 850.00", "debited by INR 1,200", "₹500.00 debited"
-        Pattern.compile("(?i)(?:rs\\.?|inr|₹)\\s*([\\d,]+(?:\\.\\d{1,2})?)"),
-        Pattern.compile("(?i)(?:debited|credited|spent|paid|withdrawn|sent|received|transferred)\\s*(?:by|for|of)?\\s*(?:rs\\.?|inr|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)"),
-        Pattern.compile("(?i)([\\d,]+(?:\\.\\d{1,2})?)\\s*(?:rs\\.?|inr|₹)"),
-        Pattern.compile("(?i)(?:amount\\s*of)\\s*(?:rs\\.?|inr|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)"),
-        Pattern.compile("(?i)(?:you\\s+paid|you've\\s+spent|paid)\\s*(?:rs\\.?|inr|₹)?\\s*([\\d,]+(?:\\.\\d{1,2})?)")
-    )
-
-    // Account / Card regexes
-    private val ACCOUNT_PATTERNS = listOf(
-        Pattern.compile("(?i)(?:a/c|acct|account|card)\\s*(?:no\\.?)?\\s*(?:ending\\s*(?:with|in)?\\s*)?[xX*]*(\\d{3,4})"),
-        Pattern.compile("(?i)[xX*]{2,}(\\d{3,4})"),
-        Pattern.compile("(?i)(?:ac\\s*)?[xX*]+(\\d{3,4})")
-    )
-
-    // Reference / UTR regexes
-    private val REF_PATTERNS = listOf(
-        Pattern.compile("(?i)(?:upi\\s*ref(?:\\s*no)?|ref(?:\\s*no)?|rrn|utr|txn\\s*id|transaction\\s*id)[\\s:=#-]*([0-9a-zA-Z]{6,22})"),
-        Pattern.compile("(?i)(?:ref\\s*no\\.?|ref\\s*#)\\s*([0-9a-zA-Z]{6,22})"),
-        Pattern.compile("(?i)(?:imps\\s*ref\\s*(?:no\\.?)?)\\s*([0-9]{8,16})")
-    )
-
-    // Merchant / Beneficiary patterns
-    private val MERCHANT_PATTERNS = listOf(
-        Pattern.compile("(?i)(?:to\\s+vpa|paid\\s+to|sent\\s+to|transferred\\s+to)\\s+([a-zA-Z0-9@._\\-\\s]{3,30}?)(?:\\s+(?:on|ref|upi|avl|bal|using|via|dated|\\.)|$)"),
-        Pattern.compile("(?i)(?:at|towards|info:?|for)\\s+([a-zA-Z0-9&._\\-\\s]{3,30}?)(?:\\s+(?:on|ref|upi|avl|bal|using|via|dated|\\.)|$)"),
-        Pattern.compile("(?i)(?:to)\\s+([a-zA-Z0-9@._\\-]{3,30})(?:\\s+(?:on|ref|upi|avl|bal|using|via|dated|\\.)|$)"),
-        Pattern.compile("(?i)(?:vpa\\s+)([a-zA-Z0-9@._\\-]+)")
-    )
-
-    // Comprehensive bank & payment app identifiers
-    private val BANK_IDENTIFIERS = mapOf(
-        "HDFC" to "HDFC Bank",
-        "SBI" to "State Bank of India",
-        "ICICI" to "ICICI Bank",
-        "AXIS" to "Axis Bank",
-        "KOTAK" to "Kotak Mahindra Bank",
-        "BOB" to "Bank of Baroda",
-        "BARODA" to "Bank of Baroda",
-        "IDFC" to "IDFC FIRST Bank",
-        "INDUS" to "IndusInd Bank",
-        "PNB" to "Punjab National Bank",
-        "CANARA" to "Canara Bank",
-        "PAYTM" to "Paytm",
-        "FEDERAL" to "Federal Bank",
-        "YES" to "Yes Bank",
-        "RBL" to "RBL Bank",
-        "UNION" to "Union Bank of India",
-        "INDIAN" to "Indian Bank",
-        "CENTRAL" to "Central Bank of India",
-        "GPAY" to "Google Pay",
-        "PHONEPE" to "PhonePe",
-        "CRED" to "CRED",
-        "AMAZON" to "Amazon Pay",
-        "JUPITER" to "Jupiter",
-        "FI" to "Fi Money"
+    // Modular Indian Bank & UPI message parser pipeline
+    private val parsers: List<BankMessageParser> = listOf(
+        UpiAppNotificationParser(),
+        HdfcBankParser(),
+        SbiBankParser(),
+        IciciBankParser(),
+        AxisBankParser(),
+        KotakBankParser(),
+        BankOfBarodaParser(),
+        GenericIndianBankParser()
     )
 
     /**
@@ -104,7 +59,6 @@ object SmsParser {
      * while preserving the last 4 digits for recognition.
      */
     fun sanitizeRawContent(content: String): String {
-        // Mask 12-16 digit numbers down to last 4 digits
         return content.replace(Regex("\\b\\d{4}[ -]?\\d{4}[ -]?\\d{4}[ -]?(\\d{4})\\b"), "XXXX-XXXX-XXXX-$1")
             .replace(Regex("\\b\\d{8,12}(\\d{4})\\b"), "XXXX$1")
     }
@@ -132,9 +86,10 @@ object SmsParser {
                 lower.contains("sent") || lower.contains("deducted")
         val hasCredit = lower.contains("credited") || lower.contains("received") ||
                 lower.contains("deposited") || lower.contains("refund") || lower.contains("reversed")
+        val hasUpiLite = lower.contains("upi lite") || lower.contains("upi_lite")
 
         for (pattern in PROMOTIONAL_PATTERNS) {
-            if (pattern.matcher(lower).find() && !hasDebit && !hasCredit) {
+            if (pattern.matcher(lower).find() && !hasDebit && !hasCredit && !hasUpiLite) {
                 return ParsedSmsResult(
                     isValidTransaction = false,
                     isPromotional = true,
@@ -159,7 +114,9 @@ object SmsParser {
         }
 
         // 4. Check for pure balance enquiry
-        if (!hasDebit && !hasCredit) {
+        val isBalanceOnly = (lower.contains("bal:") || lower.contains("avl bal") || lower.contains("available bal") || lower.contains("balance in your a/c")) &&
+                !hasDebit && !hasCredit && !hasUpiLite
+        if (isBalanceOnly) {
             return ParsedSmsResult(
                 isValidTransaction = false,
                 isBalanceInquiry = true,
@@ -169,109 +126,23 @@ object SmsParser {
             )
         }
 
-        // 5. Extract Amount
-        var amountPaise = 0L
-        for (pattern in AMOUNT_PATTERNS) {
-            val matcher = pattern.matcher(trimmed)
-            if (matcher.find()) {
-                val group = matcher.group(1)
-                if (group != null) {
-                    val paise = CurrencyUtils.parseInputToPaise(group)
-                    if (paise > 0L) {
-                        amountPaise = paise
-                        break
-                    }
+        // 5. Run through Bank Parsers pipeline
+        for (parser in parsers) {
+            if (parser.canParse(sender, trimmed)) {
+                val result = parser.parse(sender, trimmed, timestamp)
+                if (result != null && result.isValidTransaction) {
+                    return result
                 }
             }
         }
 
-        if (amountPaise <= 0L) {
-            return ParsedSmsResult(
-                isValidTransaction = false,
-                rawSender = sender,
-                rawBody = sanitizeRawContent(trimmed),
-                timestamp = timestamp
-            )
-        }
-
-        // 6. Determine Transaction Type
-        val transactionType = when {
-            lower.contains("refund") || lower.contains("reversed") -> TransactionType.REFUND
-            hasCredit && !hasDebit -> TransactionType.INCOME
-            hasDebit -> TransactionType.EXPENSE
-            else -> TransactionType.EXPENSE
-        }
-
-        // 7. Extract Account / Card
-        var accountLast4: String? = null
-        for (pattern in ACCOUNT_PATTERNS) {
-            val matcher = pattern.matcher(trimmed)
-            if (matcher.find()) {
-                accountLast4 = matcher.group(1)
-                break
-            }
-        }
-
-        // 8. Extract Reference Number
-        var refNumber: String? = null
-        for (pattern in REF_PATTERNS) {
-            val matcher = pattern.matcher(trimmed)
-            if (matcher.find()) {
-                refNumber = matcher.group(1)?.trim()
-                break
-            }
-        }
-
-        // 9. Extract Merchant / Recipient
-        var merchant: String? = null
-        for (pattern in MERCHANT_PATTERNS) {
-            val matcher = pattern.matcher(trimmed)
-            if (matcher.find()) {
-                val candidate = matcher.group(1)?.trim()
-                if (!candidate.isNullOrBlank() && !candidate.equals("vpa", ignoreCase = true)) {
-                    merchant = candidate.take(30).trimEnd('.', ',')
-                    break
-                }
-            }
-        }
-
-        // 10. Payment method
-        val paymentMethod = when {
-            lower.contains("upi") || (merchant != null && merchant.contains("@")) -> PaymentMethod.UPI
-            lower.contains("atm") || lower.contains("cash") -> PaymentMethod.CASH
-            lower.contains("credit card") -> PaymentMethod.CREDIT_CARD
-            lower.contains("debit card") || lower.contains("card") -> PaymentMethod.DEBIT_CARD
-            lower.contains("netbanking") || lower.contains("neft") || lower.contains("rtgs") || lower.contains("imps") -> PaymentMethod.BANK_TRANSFER
-            else -> PaymentMethod.UPI
-        }
-
-        // 11. Identify Bank Name
-        val bankName = identifyBank(sender, trimmed)
-
+        // 6. Unknown / Unrecognized transaction message handling
         return ParsedSmsResult(
-            isValidTransaction = true,
-            amountPaise = amountPaise,
-            type = transactionType,
-            bankName = bankName,
-            accountLast4 = accountLast4,
-            merchant = merchant,
-            referenceNumber = refNumber,
-            paymentMethod = paymentMethod,
-            timestamp = timestamp,
+            isValidTransaction = false,
+            isUnknown = true,
             rawSender = sender,
-            rawBody = sanitizeRawContent(trimmed)
+            rawBody = sanitizeRawContent(trimmed),
+            timestamp = timestamp
         )
-    }
-
-    private fun identifyBank(sender: String?, body: String): String {
-        val upperSender = sender?.uppercase(Locale.ROOT) ?: ""
-        val upperBody = body.uppercase(Locale.ROOT)
-
-        for ((key, name) in BANK_IDENTIFIERS) {
-            if (upperSender.contains(key) || upperBody.contains(key)) {
-                return name
-            }
-        }
-        return "Bank"
     }
 }
