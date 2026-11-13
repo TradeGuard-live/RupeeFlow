@@ -137,13 +137,16 @@ class HdfcBankParser : BankMessageParser {
             else -> PaymentMethod.UPI
         }
 
+        val recipient = com.naman.rupeeflow.data.sms.parser.PaymentRecipientExtractor.extract(trimmed)
         return ParsedSmsResult(
             isValidTransaction = true,
             amountPaise = amountPaise,
             type = txnType,
             bankName = bankName,
             accountLast4 = accountLast4,
-            merchant = extractMerchant(trimmed),
+            merchant = recipient.merchantName ?: extractMerchant(trimmed),
+            phoneNumber = recipient.phoneNumber,
+            upiId = recipient.upiId,
             referenceNumber = refNumber,
             paymentMethod = paymentMethod,
             timestamp = timestamp,
@@ -153,6 +156,9 @@ class HdfcBankParser : BankMessageParser {
     }
 
     private fun extractMerchant(body: String): String? {
+        val recipient = com.naman.rupeeflow.data.sms.parser.PaymentRecipientExtractor.extract(body)
+        if (recipient.merchantName != null) return recipient.merchantName
+
         for (pattern in MERCHANT_PATTERNS) {
             val matcher = pattern.matcher(body)
             while (matcher.find()) {
@@ -167,7 +173,10 @@ class HdfcBankParser : BankMessageParser {
                         !lowerCandidate.startsWith("your a/c") &&
                         !lowerCandidate.startsWith("account")
                     ) {
-                        return cleaned
+                        val classified = com.naman.rupeeflow.data.sms.parser.PaymentRecipientExtractor.classifyCandidate(cleaned)
+                        if (classified.merchantName != null) {
+                            return classified.merchantName
+                        }
                     }
                 }
             }

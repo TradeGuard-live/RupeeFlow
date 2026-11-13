@@ -56,6 +56,7 @@ fun PendingTransactionsScreen(
     var selectedDetectedForDetail by remember { mutableStateOf<PendingTransaction?>(null) }
     var selectedFilter by remember { mutableStateOf("PENDING") } // "PENDING", "APPROVED", "IGNORED", "UNKNOWN", "ALL"
     var showUpiLiteConfirmItem by remember { mutableStateOf<PendingTransaction?>(null) }
+    var detectionToDelete by remember { mutableStateOf<PendingTransaction?>(null) }
 
     // Intelligent Transaction Matching state
     var matchDetected by remember { mutableStateOf<PendingTransaction?>(null) }
@@ -414,7 +415,7 @@ fun PendingTransactionsScreen(
                                                         color = AppTheme.colors.incomeGreen.copy(alpha = 0.2f)
                                                     ) {
                                                         Text(
-                                                            text = "Added ✓",
+                                                            text = "Added",
                                                             style = MaterialTheme.typography.labelSmall,
                                                             color = AppTheme.colors.incomeGreen,
                                                             fontWeight = FontWeight.Bold,
@@ -457,8 +458,15 @@ fun PendingTransactionsScreen(
                                         }
 
                                         Spacer(modifier = Modifier.height(2.dp))
+                                        val payeeDisplay = when {
+                                            !item.detectedMerchant.isNullOrBlank() -> item.detectedMerchant
+                                            !item.phoneNumber.isNullOrBlank() -> "To ${item.phoneNumber}"
+                                            !item.upiId.isNullOrBlank() -> "To ${item.upiId}"
+                                            !item.detectedBank.isNullOrBlank() -> item.detectedBank
+                                            else -> "Bank"
+                                        }
                                         Text(
-                                            text = "${item.detectedMerchant ?: item.detectedBank ?: "Bank"} • ${DateTimeUtils.formatRelativeDate(item.timestamp)}",
+                                            text = "$payeeDisplay • ${DateTimeUtils.formatRelativeDate(item.timestamp)}",
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = AppTheme.colors.textSecondary
                                         )
@@ -511,6 +519,10 @@ fun PendingTransactionsScreen(
                                     ) {
                                         when {
                                             isPending -> {
+                                                // Delete Action
+                                                IconButton(onClick = { detectionToDelete = item }) {
+                                                    Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = AppTheme.colors.textMuted)
+                                                }
                                                 // Ignore Action
                                                 IconButton(onClick = { viewModel.ignorePending(item.id) }) {
                                                     Icon(Icons.Default.Close, contentDescription = "Ignore", tint = AppTheme.colors.textMuted)
@@ -533,7 +545,8 @@ fun PendingTransactionsScreen(
                                                 }
                                             }
                                             isUnknown -> {
-                                                IconButton(onClick = { viewModel.deletePending(item.id) }) {
+                                                // Delete Action
+                                                IconButton(onClick = { detectionToDelete = item }) {
                                                     Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = AppTheme.colors.textMuted)
                                                 }
                                                 IconButton(onClick = { viewModel.ignorePending(item.id) }) {
@@ -552,6 +565,10 @@ fun PendingTransactionsScreen(
                                                 }
                                             }
                                             isIgnored -> {
+                                                // Delete Permanently Action
+                                                IconButton(onClick = { detectionToDelete = item }) {
+                                                    Icon(Icons.Default.DeleteOutline, contentDescription = "Delete Permanently", tint = AppTheme.colors.textMuted)
+                                                }
                                                 // Restore Action
                                                 OutlinedButton(
                                                     onClick = { viewModel.restorePending(item.id) },
@@ -793,18 +810,82 @@ fun PendingTransactionsScreen(
             },
             dismissButton = {
                 if (item.status == PendingStatus.PENDING || item.status == PendingStatus.UNKNOWN) {
-                    OutlinedButton(
-                        onClick = {
-                            viewModel.ignorePending(item.id)
-                            selectedDetectedForDetail = null
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = {
+                                detectionToDelete = item
+                                selectedDetectedForDetail = null
+                            }
+                        ) {
+                            Text("Delete", color = MaterialTheme.colorScheme.error)
                         }
-                    ) {
-                        Text("Ignore")
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.ignorePending(item.id)
+                                selectedDetectedForDetail = null
+                            }
+                        ) {
+                            Text("Ignore")
+                        }
+                    }
+                } else if (item.status == PendingStatus.IGNORED) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = {
+                                detectionToDelete = item
+                                selectedDetectedForDetail = null
+                            }
+                        ) {
+                            Text("Delete Permanently", color = MaterialTheme.colorScheme.error)
+                        }
+                        TextButton(onClick = { selectedDetectedForDetail = null }) {
+                            Text("Close")
+                        }
                     }
                 } else {
                     TextButton(onClick = { selectedDetectedForDetail = null }) {
                         Text("Close")
                     }
+                }
+            },
+            containerColor = AppTheme.colors.surfaceElevated
+        )
+    }
+
+    // Delete Confirmation Dialog for Detected Transactions
+    detectionToDelete?.let { item ->
+        AlertDialog(
+            onDismissRequest = { detectionToDelete = null },
+            title = {
+                Text(
+                    text = "Delete Detection?",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = AppTheme.colors.textPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = "Delete this detection permanently? This removes the detection record. If already recorded as a transaction, your financial ledger remains intact.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AppTheme.colors.textSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val toDelete = item
+                        viewModel.deletePending(toDelete.id)
+                        detectionToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { detectionToDelete = null }) {
+                    Text("Cancel")
                 }
             },
             containerColor = AppTheme.colors.surfaceElevated
@@ -901,7 +982,7 @@ fun PendingTransactionsScreen(
                 selectedMatchDraft = null
             },
             initialAmountPaise = item.detectedAmountPaise,
-            initialTitle = selectedMatchDraft?.suggestedTitle ?: (item.detectedMerchant ?: item.detectedBank),
+            initialTitle = selectedMatchDraft?.suggestedTitle ?: (item.detectedMerchant ?: if (!item.phoneNumber.isNullOrBlank()) "Payment to ${item.phoneNumber}" else item.detectedBank),
             initialCategory = selectedMatchDraft?.suggestedCategory,
             initialType = item.detectedType,
             initialPaymentMethod = if (item.detectedType == TransactionType.UPI_LITE_TOPUP) PaymentMethod.UPI_LITE else (selectedMatchDraft?.suggestedPaymentMethod ?: PaymentMethod.UPI),

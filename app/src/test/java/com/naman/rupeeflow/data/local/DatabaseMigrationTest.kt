@@ -849,4 +849,97 @@ class DatabaseMigrationTest {
 
         db.close()
     }
+
+    @Test
+    fun testMigration7To8_AddsPhoneNumberAndUpiIdColumns() {
+        val context = RuntimeEnvironment.getApplication()
+        val tempDbFile = File.createTempFile("test_migration_7_8", ".db")
+        tempDbFile.deleteOnExit()
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(tempDbFile.absolutePath)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(7) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        createV1Schema(db)
+                        insertTestData(db)
+                        RupeeFlowDatabase.MIGRATION_1_7.migrate(db)
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA foreign_keys = ON;")
+
+        // Migrate 7 to 8
+        RupeeFlowDatabase.MIGRATION_7_8.migrate(db)
+
+        // Verify pending_transactions has phoneNumber and upiId
+        db.execSQL("""
+            INSERT INTO pending_transactions (detectedAmountPaise, detectedType, detectedBank, detectedAccount, detectedMerchant, phoneNumber, upiId, referenceNumber, rawContent, timestamp, status, source)
+            VALUES (1300000, 'EXPENSE', 'Paytm', NULL, NULL, '7308080808', '7308080808@paytm', 'REF999', 'Paid to 7308080808', 4000, 'PENDING', 'NOTIFICATION')
+        """.trimIndent())
+
+        val pCursor = db.query("SELECT phoneNumber, upiId FROM pending_transactions WHERE referenceNumber = 'REF999'")
+        assertTrue(pCursor.moveToFirst())
+        assertEquals("7308080808", pCursor.getString(0))
+        assertEquals("7308080808@paytm", pCursor.getString(1))
+        pCursor.close()
+
+        // Verify transactions has phoneNumber and upiId
+        val tCursor = db.query("SELECT phoneNumber, upiId FROM transactions WHERE id = 1")
+        assertTrue(tCursor.moveToFirst())
+        assertTrue("Existing transaction phoneNumber should be null", tCursor.isNull(0))
+        assertTrue("Existing transaction upiId should be null", tCursor.isNull(1))
+        tCursor.close()
+
+        val fkCursor = db.query("PRAGMA foreign_key_check")
+        assertEquals(0, fkCursor.count)
+        fkCursor.close()
+
+        db.close()
+    }
+
+    @Test
+    fun testMigration1To8_DirectMigrationPreservesAllExistingRecordsAndCreatesVersion8Tables() {
+        val context = RuntimeEnvironment.getApplication()
+        val tempDbFile = File.createTempFile("test_migration_1_8", ".db")
+        tempDbFile.deleteOnExit()
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(tempDbFile.absolutePath)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        createV1Schema(db)
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA foreign_keys = ON;")
+
+        insertTestData(db)
+
+        // Direct migration from version 1 to 8
+        RupeeFlowDatabase.MIGRATION_1_8.migrate(db)
+
+        verifyMigratedData(db)
+
+        val cursor = db.query("SELECT phoneNumber, upiId FROM pending_transactions WHERE id = 1")
+        assertTrue(cursor.moveToFirst())
+        assertTrue("Newly added phoneNumber must default to null", cursor.isNull(0))
+        assertTrue("Newly added upiId must default to null", cursor.isNull(1))
+        cursor.close()
+
+        val fkCursor = db.query("PRAGMA foreign_key_check")
+        assertEquals(0, fkCursor.count)
+        fkCursor.close()
+
+        db.close()
+    }
 }

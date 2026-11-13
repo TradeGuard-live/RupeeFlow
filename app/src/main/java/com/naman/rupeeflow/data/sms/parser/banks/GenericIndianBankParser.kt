@@ -83,9 +83,10 @@ class GenericIndianBankParser : BankMessageParser {
 
         // Generic banking indicators
         val hasBankIndicator = upperBody.contains("A/C") || upperBody.contains("ACCOUNT") ||
-                upperBody.contains("BANK") || upperBody.contains("UPI")
+                upperBody.contains("BANK") || upperBody.contains("UPI") || normSender.contains("BANK")
         val hasTransactionKeyword = upperBody.contains("DEBITED") || upperBody.contains("CREDITED") ||
-                upperBody.contains("REFUND") || upperBody.contains("TRANSFERRED")
+                upperBody.contains("REFUND") || upperBody.contains("TRANSFERRED") ||
+                upperBody.contains("PAID") || upperBody.contains("SPENT")
 
         return hasBankIndicator && hasTransactionKeyword
     }
@@ -142,12 +143,15 @@ class GenericIndianBankParser : BankMessageParser {
         }
 
         val hasDebit = lower.contains("debited") || lower.contains("spent") ||
-                lower.contains("paid") || lower.contains("withdrawn") || lower.contains("sent")
+                lower.contains("paid") || lower.contains("withdrawn") ||
+                (lower.contains("sent") && !lower.contains("sent you"))
         val hasCredit = lower.contains("credited") || lower.contains("received") ||
-                lower.contains("deposited") || lower.contains("refund") || lower.contains("reversed")
+                lower.contains("deposited") || lower.contains("refund") || lower.contains("reversed") ||
+                lower.contains("sent you")
 
         val txnType = when {
             lower.contains("refund") || lower.contains("reversed") -> TransactionType.REFUND
+            lower.contains("sent you") -> TransactionType.INCOME
             hasCredit && !hasDebit -> TransactionType.INCOME
             hasDebit -> TransactionType.EXPENSE
             else -> TransactionType.EXPENSE
@@ -162,13 +166,16 @@ class GenericIndianBankParser : BankMessageParser {
             else -> PaymentMethod.UPI
         }
 
+        val recipient = com.naman.rupeeflow.data.sms.parser.PaymentRecipientExtractor.extract(trimmed)
         return ParsedSmsResult(
             isValidTransaction = true,
             amountPaise = amountPaise,
             type = txnType,
             bankName = identifiedBank,
             accountLast4 = accountLast4,
-            merchant = extractMerchant(trimmed),
+            merchant = recipient.merchantName ?: extractMerchant(trimmed),
+            phoneNumber = recipient.phoneNumber,
+            upiId = recipient.upiId,
             referenceNumber = refNumber,
             paymentMethod = paymentMethod,
             timestamp = timestamp,
@@ -190,12 +197,18 @@ class GenericIndianBankParser : BankMessageParser {
     }
 
     private fun extractMerchant(body: String): String? {
+        val recipient = com.naman.rupeeflow.data.sms.parser.PaymentRecipientExtractor.extract(body)
+        if (recipient.merchantName != null) return recipient.merchantName
+
         for (pattern in MERCHANT_PATTERNS) {
             val matcher = pattern.matcher(body)
             if (matcher.find()) {
                 val candidate = matcher.group(1)?.trim()
-                if (!candidate.isNullOrBlank() && !candidate.equals("vpa", ignoreCase = true)) {
-                    return candidate.take(30).trimEnd('.', ',')
+                if (!candidate.isNullOrBlank()) {
+                    val classified = com.naman.rupeeflow.data.sms.parser.PaymentRecipientExtractor.classifyCandidate(candidate)
+                    if (classified.merchantName != null) {
+                        return classified.merchantName
+                    }
                 }
             }
         }

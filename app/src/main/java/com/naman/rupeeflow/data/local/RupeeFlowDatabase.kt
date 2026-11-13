@@ -29,7 +29,7 @@ import java.io.File
         ReportDraftEntity::class,
         InputUsageEntity::class
     ],
-    version = 7, // Upgraded to version 7: Expense Groups and PDF Report Drafts
+    version = 8, // Upgraded to version 8: Phone number and UPI ID on pending transactions and transactions
     exportSchema = true // Schema export enabled
 )
 @TypeConverters(Converters::class)
@@ -489,6 +489,37 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 7 to 8: Add phoneNumber and upiId to pending_transactions and transactions
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `pending_transactions` ADD COLUMN `phoneNumber` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `pending_transactions` ADD COLUMN `upiId` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `phoneNumber` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `upiId` TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_6_8 = object : Migration(6, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_6_7.migrate(db)
+                MIGRATION_7_8.migrate(db)
+            }
+        }
+
+        val MIGRATION_5_8 = object : Migration(5, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_5_7.migrate(db)
+                MIGRATION_7_8.migrate(db)
+            }
+        }
+
+        val MIGRATION_1_8 = object : Migration(1, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_1_7.migrate(db)
+                MIGRATION_7_8.migrate(db)
+            }
+        }
+
         // Automatic safe pre-migration backup procedure
         fun createPreMigrationBackup(context: Context) {
             try {
@@ -517,7 +548,8 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                         MIGRATION_3_4, MIGRATION_1_4, MIGRATION_2_4,
                         MIGRATION_4_5, MIGRATION_1_5, MIGRATION_2_5, MIGRATION_3_5,
                         MIGRATION_5_6, MIGRATION_1_6, MIGRATION_2_6, MIGRATION_3_6, MIGRATION_4_6,
-                        MIGRATION_6_7, MIGRATION_5_7, MIGRATION_4_7, MIGRATION_3_7, MIGRATION_2_7, MIGRATION_1_7
+                        MIGRATION_6_7, MIGRATION_5_7, MIGRATION_4_7, MIGRATION_3_7, MIGRATION_2_7, MIGRATION_1_7,
+                        MIGRATION_7_8, MIGRATION_6_8, MIGRATION_5_8, MIGRATION_1_8
                     )
                     .addCallback(DatabaseCallback(scope))
                     // Destructive migration removed! Data preservation guaranteed.

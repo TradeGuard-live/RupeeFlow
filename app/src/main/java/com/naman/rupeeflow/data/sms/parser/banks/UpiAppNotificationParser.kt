@@ -4,6 +4,9 @@ import com.naman.rupeeflow.data.sms.ParsedSmsResult
 import com.naman.rupeeflow.data.sms.SmsParser
 import com.naman.rupeeflow.data.sms.parser.AmountExtractor
 import com.naman.rupeeflow.data.sms.parser.BankMessageParser
+import com.naman.rupeeflow.data.sms.parser.NotificationCategory
+import com.naman.rupeeflow.data.sms.parser.NotificationCategoryClassifier
+import com.naman.rupeeflow.data.sms.parser.PaymentRecipientExtractor
 import com.naman.rupeeflow.data.sms.parser.ReferenceExtractor
 import com.naman.rupeeflow.domain.model.PaymentMethod
 import com.naman.rupeeflow.domain.model.TransactionType
@@ -31,11 +34,6 @@ class UpiAppNotificationParser : BankMessageParser {
         "(?i)(?:a/c|acct|account|card)\\s*(?:ending\\s*(?:with|in)?\\s*)?[xX*]*(\\d{3,4})"
     )
 
-    private val MERCHANT_PATTERNS = listOf(
-        Pattern.compile("(?i)(?:paid\\s+to|sent\\s+to|to)\\s+([a-zA-Z0-9@._\\-\\s]{3,30}?)(?:\\s+(?:on|ref|using|via|successful|done)|$)"),
-        Pattern.compile("(?i)(?:received\\s+from|from)\\s+([a-zA-Z0-9@._\\-\\s]{3,30}?)(?:\\s+(?:on|ref|using|via|successful|done)|$)")
-    )
-
     override fun canParse(sender: String?, body: String): Boolean {
         if (sender != null && PACKAGE_MAP.containsKey(sender)) return true
         val upperSender = sender?.uppercase(Locale.ROOT) ?: ""
@@ -56,17 +54,6 @@ class UpiAppNotificationParser : BankMessageParser {
         val trimmed = body.trim()
         val lower = trimmed.lowercase(Locale.ROOT)
 
-        val amountPaise = AmountExtractor.extract(trimmed)
-        if (amountPaise <= 0L) return null
-
-        val refNumber = ReferenceExtractor.extract(trimmed)
-
-        var accountLast4: String? = null
-        val acMatcher = ACCOUNT_PATTERN.matcher(trimmed)
-        if (acMatcher.find()) {
-            accountLast4 = acMatcher.group(1)
-        }
-
         val providerName = PACKAGE_MAP[sender] ?: when {
             lower.contains("google pay") || lower.contains("gpay") -> "Google Pay"
             lower.contains("phonepe") -> "PhonePe"
@@ -77,14 +64,116 @@ class UpiAppNotificationParser : BankMessageParser {
             else -> "UPI App"
         }
 
-        // 1. UPI Lite top-up in UPI apps
+        // 1. Classification before amount extraction: reject promotional offers, ads, loans, referral campaigns
+        val classification = NotificationCategoryClassifier.classify(
+            title = "",
+            body = trimmed,
+            senderOrPackage = sender
+        )
+
+        when (classification.category) {
+            NotificationCategory.PROMOTIONAL -> {
+                return ParsedSmsResult(
+                    isValidTransaction = false,
+                    isPromotional = true,
+                    rejectionReason = "PROMOTIONAL_CONTENT",
+                    bankName = providerName,
+                    rawSender = sender,
+                    rawBody = SmsParser.sanitizeRawContent(trimmed),
+                    timestamp = timestamp
+                )
+            }
+            NotificationCategory.FAILED_TRANSACTION -> {
+                return ParsedSmsResult(
+                    isValidTransaction = false,
+                    isFailed = true,
+                    rejectionReason = "FAILED_PAYMENT",
+                    bankName = providerName,
+                    rawSender = sender,
+                    rawBody = SmsParser.sanitizeRawContent(trimmed),
+                    timestamp = timestamp
+                )
+            }
+            NotificationCategory.OTP -> {
+                return ParsedSmsResult(
+                    isValidTransaction = false,
+                    isOtp = true,
+                    rejectionReason = "OTP_MESSAGE",
+                    bankName = providerName,
+                    rawSender = sender,
+                    rawBody = SmsParser.sanitizeRawContent(trimmed),
+                    timestamp = timestamp
+                )
+            }
+            NotificationCategory.BALANCE_UPDATE -> {
+                return ParsedSmsResult(
+                    isValidTransaction = false,
+                    isBalanceInquiry = true,
+                    rejectionReason = "BALANCE_INQUIRY",
+                    bankName = providerName,
+                    rawSender = sender,
+                    rawBody = SmsParser.sanitizeRawContent(trimmed),
+                    timestamp = timestamp
+                )
+            }
+            NotificationCategory.INFORMATIONAL -> {
+                return ParsedSmsResult(
+                    isValidTransaction = false,
+                    rejectionReason = "INFORMATIONAL_ALERT",
+                    bankName = providerName,
+                    rawSender = sender,
+                    rawBody = SmsParser.sanitizeRawContent(trimmed),
+                    timestamp = timestamp
+                )
+            }
+            else -> {
+                // Continue parsing
+            }
+        }
+
+        // 2. Extract Amount
+        val amountPaise = AmountExtractor.extract(trimmed)
+        if (amountPaise <= 0L) return null
+
+        val recipientInfo = PaymentRecipientExtractor.extract(trimmed)
+        val refNumber = recipientInfo.referenceNumber ?: ReferenceExtractor.extract(trimmed)
+
+        var accountLast4: String? = null
+        val acMatcher = ACCOUNT_PATTERN.matcher(trimmed)
+        if (acMatcher.find()) {
+            accountLast4 = acMatcher.group(1)
+        }
+
+        // 3. If amount is present but lacks sufficient completed payment evidence (e.g. ₹13,000 without past-tense debit/credit confirmation)
+        if (!classification.hasConfirmedTransactionEvidence) {
+            val isPendingReview = classification.category == NotificationCategory.PENDING_TRANSACTION
+            return ParsedSmsResult(
+                isValidTransaction = false,
+                isUnknown = true, // Sent to review screen prefilled
+                rejectionReason = if (isPendingReview) "PENDING_PAYMENT" else "INSUFFICIENT_EVIDENCE",
+                amountPaise = amountPaise,
+                bankName = providerName,
+                accountLast4 = accountLast4,
+                merchant = recipientInfo.merchantName,
+                phoneNumber = recipientInfo.phoneNumber,
+                upiId = recipientInfo.upiId,
+                referenceNumber = refNumber,
+                timestamp = timestamp,
+                rawSender = sender,
+                rawBody = SmsParser.sanitizeRawContent(trimmed)
+            )
+        }
+
+        // 4. UPI Lite Top-up
         if (lower.contains("upi lite top-up") || lower.contains("upi lite topup") || lower.contains("added money to upi lite")) {
             return ParsedSmsResult(
                 isValidTransaction = true,
                 amountPaise = amountPaise,
                 type = TransactionType.UPI_LITE_TOPUP,
                 bankName = providerName,
-                merchant = "UPI Lite wallet",
+                merchant = recipientInfo.merchantName ?: "UPI Lite wallet",
+                phoneNumber = recipientInfo.phoneNumber,
+                upiId = recipientInfo.upiId,
                 referenceNumber = refNumber,
                 paymentMethod = PaymentMethod.UPI_LITE,
                 timestamp = timestamp,
@@ -93,14 +182,16 @@ class UpiAppNotificationParser : BankMessageParser {
             )
         }
 
-        // 2. UPI Lite payment in UPI apps
+        // 5. UPI Lite Payment
         if (lower.contains("paid using upi lite") || lower.contains("upi lite payment")) {
             return ParsedSmsResult(
                 isValidTransaction = true,
                 amountPaise = amountPaise,
                 type = TransactionType.UPI_LITE_PAYMENT,
                 bankName = providerName,
-                merchant = extractMerchant(trimmed),
+                merchant = recipientInfo.merchantName,
+                phoneNumber = recipientInfo.phoneNumber,
+                upiId = recipientInfo.upiId,
                 referenceNumber = refNumber,
                 paymentMethod = PaymentMethod.UPI_LITE,
                 timestamp = timestamp,
@@ -109,13 +200,17 @@ class UpiAppNotificationParser : BankMessageParser {
             )
         }
 
-        val hasDebit = lower.contains("paid") || lower.contains("sent") ||
-                lower.contains("debited") || lower.contains("spent")
+        // 6. Direction & Transaction Type
+        val hasDebit = lower.contains("paid") || lower.contains("sent to") ||
+                (lower.contains("sent") && !lower.contains("sent you")) ||
+                lower.contains("debited") || lower.contains("spent") || lower.contains("transferred")
         val hasCredit = lower.contains("received") || lower.contains("credited") ||
-                lower.contains("cashback") || lower.contains("refund")
+                lower.contains("cashback") || lower.contains("refund") || lower.contains("reversed") ||
+                lower.contains("sent you")
 
         val txnType = when {
-            lower.contains("refund") || lower.contains("cashback") -> TransactionType.REFUND
+            lower.contains("refund") || lower.contains("reversed") -> TransactionType.REFUND
+            lower.contains("cashback") || lower.contains("sent you") -> TransactionType.INCOME
             hasCredit && !hasDebit -> TransactionType.INCOME
             hasDebit -> TransactionType.EXPENSE
             else -> TransactionType.EXPENSE
@@ -127,7 +222,9 @@ class UpiAppNotificationParser : BankMessageParser {
             type = txnType,
             bankName = providerName,
             accountLast4 = accountLast4,
-            merchant = extractMerchant(trimmed),
+            merchant = recipientInfo.merchantName,
+            phoneNumber = recipientInfo.phoneNumber,
+            upiId = recipientInfo.upiId,
             referenceNumber = refNumber,
             paymentMethod = PaymentMethod.UPI,
             timestamp = timestamp,
@@ -135,18 +232,4 @@ class UpiAppNotificationParser : BankMessageParser {
             rawBody = SmsParser.sanitizeRawContent(trimmed)
         )
     }
-
-    private fun extractMerchant(body: String): String? {
-        for (pattern in MERCHANT_PATTERNS) {
-            val matcher = pattern.matcher(body)
-            if (matcher.find()) {
-                val candidate = matcher.group(1)?.trim()
-                if (!candidate.isNullOrBlank() && !candidate.equals("vpa", ignoreCase = true)) {
-                    return candidate.take(30).trimEnd('.', ',')
-                }
-            }
-        }
-        return null
-    }
 }
-

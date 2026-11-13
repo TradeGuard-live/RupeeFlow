@@ -67,13 +67,16 @@ class KotakBankParser : BankMessageParser {
             else -> PaymentMethod.UPI
         }
 
+        val recipient = com.naman.rupeeflow.data.sms.parser.PaymentRecipientExtractor.extract(trimmed)
         return ParsedSmsResult(
             isValidTransaction = true,
             amountPaise = amountPaise,
             type = txnType,
             bankName = bankName,
             accountLast4 = accountLast4,
-            merchant = extractMerchant(trimmed),
+            merchant = recipient.merchantName ?: extractMerchant(trimmed),
+            phoneNumber = recipient.phoneNumber,
+            upiId = recipient.upiId,
             referenceNumber = refNumber,
             paymentMethod = paymentMethod,
             timestamp = timestamp,
@@ -83,12 +86,18 @@ class KotakBankParser : BankMessageParser {
     }
 
     private fun extractMerchant(body: String): String? {
+        val recipient = com.naman.rupeeflow.data.sms.parser.PaymentRecipientExtractor.extract(body)
+        if (recipient.merchantName != null) return recipient.merchantName
+
         for (pattern in MERCHANT_PATTERNS) {
             val matcher = pattern.matcher(body)
             if (matcher.find()) {
                 val candidate = matcher.group(1)?.trim()
-                if (!candidate.isNullOrBlank() && !candidate.equals("vpa", ignoreCase = true)) {
-                    return candidate.take(30).trimEnd('.', ',')
+                if (!candidate.isNullOrBlank()) {
+                    val classified = com.naman.rupeeflow.data.sms.parser.PaymentRecipientExtractor.classifyCandidate(candidate)
+                    if (classified.merchantName != null) {
+                        return classified.merchantName
+                    }
                 }
             }
         }

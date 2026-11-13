@@ -52,6 +52,11 @@
             </intent-filter>
         </receiver>
 
+        <!-- Notification Action Receiver for Add Expense, Ignore and Delete actions directly from notifications -->
+        <receiver
+            android:name=".data.sms.TransactionNotificationActionReceiver"
+            android:exported="false" />
+
         <!-- Notification Listener Service (Companion fallback for UPI/Banking apps) -->
         <!-- Hardened exported=true with BIND_NOTIFICATION_LISTENER_SERVICE permission required on Android 12+ -->
         <service

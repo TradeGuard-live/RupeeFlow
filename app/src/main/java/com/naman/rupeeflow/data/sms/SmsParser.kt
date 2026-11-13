@@ -2,11 +2,13 @@ package com.naman.rupeeflow.data.sms
 
 import com.naman.rupeeflow.data.sms.parser.AmountExtractor
 import com.naman.rupeeflow.data.sms.parser.BankMessageParser
+import com.naman.rupeeflow.data.sms.parser.NotificationCategory
+import com.naman.rupeeflow.data.sms.parser.NotificationCategoryClassifier
+import com.naman.rupeeflow.data.sms.parser.PaymentRecipientExtractor
+import com.naman.rupeeflow.data.sms.parser.ReferenceExtractor
 import com.naman.rupeeflow.data.sms.parser.banks.*
 import com.naman.rupeeflow.domain.model.PaymentMethod
 import com.naman.rupeeflow.domain.model.TransactionType
-import java.util.Locale
-import java.util.regex.Pattern
 
 data class ParsedSmsResult(
     val isValidTransaction: Boolean,
@@ -24,23 +26,13 @@ data class ParsedSmsResult(
     val paymentMethod: PaymentMethod = PaymentMethod.UPI,
     val timestamp: Long = System.currentTimeMillis(),
     val rawSender: String? = null,
-    val rawBody: String = ""
+    val rawBody: String = "",
+    val phoneNumber: String? = null,
+    val upiId: String? = null,
+    val rejectionReason: String? = null
 )
 
 object SmsParser {
-
-    private val OTP_PATTERNS = listOf(
-        Pattern.compile("(?i)\\b(otp|one\\s*time\\s*password|verification\\s*code|secret\\s*code)\\b"),
-        Pattern.compile("(?i)\\b(is\\s+your\\s+otp|use\\s+code|do\\s+not\\s+share)\\b")
-    )
-
-    private val FAILED_PATTERNS = listOf(
-        Pattern.compile("(?i)\\b(declined|failed|unsuccessful|cannot\\s*be\\s*processed|insufficient\\s*funds|rejected)\\b")
-    )
-
-    private val PROMOTIONAL_PATTERNS = listOf(
-        Pattern.compile("(?i)\\b(pre-approved|apply\\s*now|avail\\s*now|loan\\s*offer|get\\s*up\\s*to|congratulations|reward\\s*points|earn\\s*cashback|discount\\s*voucher)\\b")
-    )
 
     // Modular Indian Bank & UPI message parser pipeline
     private val parsers: List<BankMessageParser> = listOf(
@@ -63,86 +55,122 @@ object SmsParser {
             .replace(Regex("\\b\\d{8,12}(\\d{4})\\b"), "XXXX$1")
     }
 
-    fun parse(smsBody: String, sender: String? = null, timestamp: Long = System.currentTimeMillis()): ParsedSmsResult {
-        val trimmed = smsBody.trim()
-        val lower = trimmed.lowercase(Locale.ROOT)
+    /**
+     * Multi-stage classification and extraction pipeline for incoming notifications and SMS messages.
+     * Evaluates source, category, and completed transaction evidence prior to amount extraction.
+     */
+    fun parseNotification(
+        title: String,
+        body: String,
+        packageName: String? = null,
+        timestamp: Long = System.currentTimeMillis()
+    ): ParsedSmsResult {
+        val trimmedTitle = title.trim()
+        val trimmedBody = body.trim()
+        val combined = when {
+            trimmedTitle.isNotBlank() && trimmedBody.isNotBlank() -> "$trimmedTitle $trimmedBody"
+            trimmedTitle.isNotBlank() -> trimmedTitle
+            else -> trimmedBody
+        }.trim()
 
-        // 1. Check for OTP messages
-        for (pattern in OTP_PATTERNS) {
-            if (pattern.matcher(lower).find()) {
+        // 1. Notification Category Classification prior to amount extraction
+        val classification = NotificationCategoryClassifier.classify(
+            title = trimmedTitle,
+            body = trimmedBody,
+            senderOrPackage = packageName
+        )
+
+        when (classification.category) {
+            NotificationCategory.OTP -> {
                 return ParsedSmsResult(
                     isValidTransaction = false,
                     isOtp = true,
-                    rawSender = sender,
-                    rawBody = sanitizeRawContent(trimmed),
+                    rejectionReason = "OTP_MESSAGE",
+                    rawSender = packageName,
+                    rawBody = sanitizeRawContent(combined),
                     timestamp = timestamp
                 )
             }
-        }
-
-        // 2. Check for Promotional messages without confirmed transaction
-        val hasDebit = lower.contains("debited") || lower.contains("spent") ||
-                lower.contains("paid") || lower.contains("withdrawn") ||
-                lower.contains("sent") || lower.contains("deducted")
-        val hasCredit = lower.contains("credited") || lower.contains("received") ||
-                lower.contains("deposited") || lower.contains("refund") || lower.contains("reversed")
-        val hasUpiLite = lower.contains("upi lite") || lower.contains("upi_lite")
-
-        for (pattern in PROMOTIONAL_PATTERNS) {
-            if (pattern.matcher(lower).find() && !hasDebit && !hasCredit && !hasUpiLite) {
+            NotificationCategory.PROMOTIONAL -> {
                 return ParsedSmsResult(
                     isValidTransaction = false,
                     isPromotional = true,
-                    rawSender = sender,
-                    rawBody = sanitizeRawContent(trimmed),
+                    rejectionReason = "PROMOTIONAL_CONTENT",
+                    rawSender = packageName,
+                    rawBody = sanitizeRawContent(combined),
                     timestamp = timestamp
                 )
             }
-        }
-
-        // 3. Check for Failed transactions
-        for (pattern in FAILED_PATTERNS) {
-            if (pattern.matcher(lower).find()) {
+            NotificationCategory.FAILED_TRANSACTION -> {
                 return ParsedSmsResult(
                     isValidTransaction = false,
                     isFailed = true,
-                    rawSender = sender,
-                    rawBody = sanitizeRawContent(trimmed),
+                    rejectionReason = "FAILED_PAYMENT",
+                    rawSender = packageName,
+                    rawBody = sanitizeRawContent(combined),
                     timestamp = timestamp
                 )
             }
+            NotificationCategory.BALANCE_UPDATE -> {
+                return ParsedSmsResult(
+                    isValidTransaction = false,
+                    isBalanceInquiry = true,
+                    rejectionReason = "BALANCE_INQUIRY",
+                    rawSender = packageName,
+                    rawBody = sanitizeRawContent(combined),
+                    timestamp = timestamp
+                )
+            }
+            NotificationCategory.INFORMATIONAL -> {
+                return ParsedSmsResult(
+                    isValidTransaction = false,
+                    rejectionReason = "INFORMATIONAL_ALERT",
+                    rawSender = packageName,
+                    rawBody = sanitizeRawContent(combined),
+                    timestamp = timestamp
+                )
+            }
+            else -> {
+                // Potential transaction candidate or ambiguous notification
+            }
         }
 
-        // 4. Check for pure balance enquiry
-        val isBalanceOnly = (lower.contains("bal:") || lower.contains("avl bal") || lower.contains("available bal") || lower.contains("balance in your a/c")) &&
-                !hasDebit && !hasCredit && !hasUpiLite
-        if (isBalanceOnly) {
-            return ParsedSmsResult(
-                isValidTransaction = false,
-                isBalanceInquiry = true,
-                rawSender = sender,
-                rawBody = sanitizeRawContent(trimmed),
-                timestamp = timestamp
-            )
-        }
-
-        // 5. Run through Bank Parsers pipeline
+        // 2. Run through Bank & UPI Parsers pipeline
         for (parser in parsers) {
-            if (parser.canParse(sender, trimmed)) {
-                val result = parser.parse(sender, trimmed, timestamp)
+            if (parser.canParse(packageName, combined)) {
+                val result = parser.parse(packageName, combined, timestamp)
                 if (result != null && result.isValidTransaction) {
+                    return result
+                } else if (result != null && (result.isUnknown || result.isPromotional || result.isFailed)) {
                     return result
                 }
             }
         }
 
-        // 6. Unknown / Unrecognized transaction message handling
+        // 3. Fallback for unclassified candidate
+        val amountPaise = AmountExtractor.extract(combined)
+        val recipientInfo = PaymentRecipientExtractor.extract(combined)
+
         return ParsedSmsResult(
             isValidTransaction = false,
             isUnknown = true,
-            rawSender = sender,
-            rawBody = sanitizeRawContent(trimmed),
-            timestamp = timestamp
+            amountPaise = amountPaise,
+            bankName = packageName,
+            merchant = recipientInfo.merchantName,
+            phoneNumber = recipientInfo.phoneNumber,
+            upiId = recipientInfo.upiId,
+            referenceNumber = recipientInfo.referenceNumber ?: ReferenceExtractor.extract(combined),
+            rawSender = packageName,
+            rawBody = sanitizeRawContent(combined),
+            timestamp = timestamp,
+            rejectionReason = if (amountPaise <= 0L) "INSUFFICIENT_EVIDENCE" else null
         )
+    }
+
+    /**
+     * Standard entry point for SMS parsing. Delegated to full pipeline.
+     */
+    fun parse(smsBody: String, sender: String? = null, timestamp: Long = System.currentTimeMillis()): ParsedSmsResult {
+        return parseNotification(title = "", body = smsBody, packageName = sender, timestamp = timestamp)
     }
 }

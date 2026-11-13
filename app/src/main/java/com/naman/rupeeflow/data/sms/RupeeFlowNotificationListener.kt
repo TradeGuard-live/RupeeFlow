@@ -94,7 +94,12 @@ class RupeeFlowNotificationListener : NotificationListenerService() {
                 val prefs = userPrefsRepo.userPreferencesFlow.first()
                 if (!prefs.notificationListenerEnabled) return@launch
 
-                val parseResult = SmsParser.parse(combined, pkg, sbn.postTime)
+                val parseResult = SmsParser.parseNotification(
+                    title = title,
+                    body = content,
+                    packageName = pkg,
+                    timestamp = sbn.postTime
+                )
                 val isUnknownCandidate = parseResult.isUnknown &&
                         !parseResult.isOtp &&
                         !parseResult.isPromotional &&
@@ -131,6 +136,8 @@ class RupeeFlowNotificationListener : NotificationListenerService() {
                         detectedBank = parseResult.bankName ?: pkg,
                         detectedAccount = parseResult.accountLast4,
                         detectedMerchant = parseResult.merchant,
+                        phoneNumber = parseResult.phoneNumber,
+                        upiId = parseResult.upiId,
                         referenceNumber = parseResult.referenceNumber,
                         rawContent = parseResult.rawBody,
                         timestamp = parseResult.timestamp,
@@ -152,7 +159,9 @@ class RupeeFlowNotificationListener : NotificationListenerService() {
                             context = applicationContext,
                             pendingId = pendingId,
                             amountPaise = parseResult.amountPaise,
-                            merchantOrBank = parseResult.merchant ?: parseResult.bankName
+                            merchantOrBank = parseResult.merchant ?: parseResult.bankName,
+                            phoneNumber = parseResult.phoneNumber,
+                            upiId = parseResult.upiId
                         )
                     }
                 }
