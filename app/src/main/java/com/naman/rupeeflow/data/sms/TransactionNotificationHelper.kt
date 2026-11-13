@@ -122,7 +122,7 @@ object TransactionNotificationHelper {
             .setContentText(messageText)
             .setStyle(
                 NotificationCompat.BigTextStyle()
-                    .bigText("$messageText\nTap an action below to add or dismiss without opening the app.")
+                    .bigText(messageText)
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(contentPendingIntent)
