@@ -38,6 +38,14 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :id")
     fun getTransactionByIdFlow(id: Long): Flow<TransactionWithParticipants?>
 
+    @androidx.room.Transaction
+    @Query("SELECT * FROM transactions WHERE expenseGroupId = :expenseGroupId ORDER BY transactionDate DESC, id DESC")
+    fun getTransactionsForExpenseGroup(expenseGroupId: Long): Flow<List<TransactionWithParticipants>>
+
+    @androidx.room.Transaction
+    @Query("SELECT * FROM transactions WHERE expenseGroupId = :expenseGroupId ORDER BY transactionDate DESC, id DESC")
+    suspend fun getTransactionsForExpenseGroupList(expenseGroupId: Long): List<TransactionWithParticipants>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransactionEntity(transaction: TransactionEntity): Long
 

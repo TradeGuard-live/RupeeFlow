@@ -201,13 +201,21 @@ class FriendsViewModel(
     // Group management operations
     fun createGroup(
         name: String,
+        description: String? = null,
         iconName: String? = null,
         colorHex: String? = null,
         friendIds: List<Long> = emptyList(),
         groupImagePath: String? = null
     ) {
         viewModelScope.launch {
-            val newGroupId = friendGroupRepository.createGroup(name, iconName, colorHex, friendIds, groupImagePath)
+            val newGroupId = friendGroupRepository.createGroup(
+                name = name,
+                iconName = iconName,
+                colorHex = colorHex,
+                friendIds = friendIds,
+                groupImagePath = groupImagePath,
+                description = description
+            )
             selectGroup(newGroupId)
         }
     }

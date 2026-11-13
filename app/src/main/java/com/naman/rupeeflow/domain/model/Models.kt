@@ -34,6 +34,35 @@ data class FriendGroup(
     val groupImagePath: String? = null,
     val memberCount: Int = 0,
     val memberFriendIds: List<Long> = emptyList(),
+    val description: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+// Expense Group / Trip Group domain model for organizing transactions by events/purposes
+data class ExpenseGroup(
+    val id: Long = 0,
+    val name: String,
+    val description: String? = null,
+    val iconName: String? = null,
+    val colorHex: String? = null,
+    val isArchived: Boolean = false,
+    val transactionCount: Int = 0,
+    val totalSpendingPaise: Long = 0L,
+    val cashSpendingPaise: Long = 0L,
+    val onlineSpendingPaise: Long = 0L,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+// Report draft domain model for saving customizable report exclusion presets
+data class ReportDraft(
+    val id: Long = 0,
+    val name: String,
+    val periodType: ReportPeriodType = ReportPeriodType.MONTHLY,
+    val startDate: Long,
+    val endDate: Long,
+    val excludedTransactionIds: Set<Long> = emptySet(),
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )
@@ -88,6 +117,8 @@ data class Transaction(
     val merchantName: String? = null,
     val referenceNumber: String? = null,
     val groupId: Long? = null,
+    val expenseGroupId: Long? = null,
+    val expenseGroupName: String? = null,
     val billImagePath: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -107,6 +138,9 @@ data class Transaction(
 
     val hasLocation: Boolean
         get() = latitude != null && longitude != null
+
+    val hasExpenseGroup: Boolean
+        get() = expenseGroupId != null || !expenseGroupName.isNullOrBlank()
 
     val location: TransactionLocation?
         get() = if (latitude != null && longitude != null) {

@@ -357,6 +357,8 @@ fun TransactionsScreen(
             categories = state.categories,
             friends = state.friends,
             groups = state.friendGroups,
+            expenseGroups = state.expenseGroups,
+            onCreateExpenseGroup = { viewModel.createExpenseGroup(it) },
             onDismiss = { showFastAddSheet = false },
             onSave = { newTxn -> viewModel.saveTransaction(newTxn) },
             onSaveSettlement = { settlement -> viewModel.recordSettlement(settlement) }
@@ -389,6 +391,8 @@ fun TransactionsScreen(
             categories = state.categories,
             friends = state.friends,
             groups = state.friendGroups,
+            expenseGroups = state.expenseGroups,
+            onCreateExpenseGroup = { viewModel.createExpenseGroup(it) },
             onDismiss = { editingTransaction = null },
             onSave = { updated -> viewModel.saveTransaction(updated) }
         )

@@ -136,7 +136,48 @@ fun RupeeFlowApp(
                     viewModel = settingsViewModel,
                     onNavigateToPending = {
                         navController.navigate(Screen.PendingTransactions.route)
+                    },
+                    onNavigateToReportGenerator = {
+                        navController.navigate(Screen.ReportGenerator.route)
+                    },
+                    onNavigateToExpenseGroups = {
+                        navController.navigate(Screen.ExpenseGroups.route)
                     }
+                )
+            }
+
+            // Expense Groups / Trips Management
+            composable(Screen.ExpenseGroups.route) {
+                val expenseGroupViewModel: com.naman.rupeeflow.ui.screens.groups.ExpenseGroupViewModel = viewModel(factory = AppViewModelProvider.Factory)
+                com.naman.rupeeflow.ui.screens.groups.ExpenseGroupsScreen(
+                    viewModel = expenseGroupViewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToGroupDetail = { groupId ->
+                        navController.navigate(Screen.ExpenseGroupDetail.createRoute(groupId))
+                    }
+                )
+            }
+
+            // Expense Group Detail
+            composable(
+                route = Screen.ExpenseGroupDetail.route,
+                arguments = listOf(navArgument("groupId") { type = NavType.LongType })
+            ) { backStackEntry ->
+                val groupId = backStackEntry.arguments?.getLong("groupId") ?: 0L
+                val expenseGroupViewModel: com.naman.rupeeflow.ui.screens.groups.ExpenseGroupViewModel = viewModel(factory = AppViewModelProvider.Factory)
+                com.naman.rupeeflow.ui.screens.groups.ExpenseGroupDetailScreen(
+                    groupId = groupId,
+                    viewModel = expenseGroupViewModel,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            // PDF Expense Report Generator
+            composable(Screen.ReportGenerator.route) {
+                val reportViewModel: com.naman.rupeeflow.ui.screens.report.ReportGeneratorViewModel = viewModel(factory = AppViewModelProvider.Factory)
+                com.naman.rupeeflow.ui.screens.report.ReportGeneratorScreen(
+                    viewModel = reportViewModel,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
 

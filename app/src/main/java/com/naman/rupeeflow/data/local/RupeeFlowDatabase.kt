@@ -25,9 +25,11 @@ import java.io.File
         PendingTransactionEntity::class,
         FriendGroupEntity::class,
         FriendGroupMemberEntity::class,
+        ExpenseGroupEntity::class,
+        ReportDraftEntity::class,
         InputUsageEntity::class
     ],
-    version = 6, // Upgraded to version 6 with offline transaction locations and UPI Lite support
+    version = 7, // Upgraded to version 7: Expense Groups and PDF Report Drafts
     exportSchema = true // Schema export enabled
 )
 @TypeConverters(Converters::class)
@@ -39,6 +41,8 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
     abstract fun settlementDao(): SettlementDao
     abstract fun pendingTransactionDao(): PendingTransactionDao
     abstract fun friendGroupDao(): FriendGroupDao
+    abstract fun expenseGroupDao(): ExpenseGroupDao
+    abstract fun reportDraftDao(): ReportDraftDao
     abstract fun inputUsageDao(): InputUsageDao
 
     companion object {
@@ -408,6 +412,83 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 6 to 7: Add expense_groups, report_drafts, and expense group references
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1. Add description column to friend_groups
+                db.execSQL("ALTER TABLE `friend_groups` ADD COLUMN `description` TEXT")
+
+                // 2. Create expense_groups table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `expense_groups` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `description` TEXT,
+                        `iconName` TEXT,
+                        `colorHex` TEXT,
+                        `isArchived` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expense_groups_name` ON `expense_groups` (`name`)")
+
+                // 3. Create report_drafts table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `report_drafts` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `periodType` TEXT NOT NULL,
+                        `startDate` INTEGER NOT NULL,
+                        `endDate` INTEGER NOT NULL,
+                        `excludedTransactionIdsJson` TEXT NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
+                // 4. Add expenseGroupId and expenseGroupName to transactions
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `expenseGroupId` INTEGER REFERENCES `expense_groups`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `expenseGroupName` TEXT")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_expenseGroupId` ON `transactions` (`expenseGroupId`)")
+            }
+        }
+
+        val MIGRATION_5_7 = object : Migration(5, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_5_6.migrate(db)
+                MIGRATION_6_7.migrate(db)
+            }
+        }
+
+        val MIGRATION_4_7 = object : Migration(4, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_4_6.migrate(db)
+                MIGRATION_6_7.migrate(db)
+            }
+        }
+
+        val MIGRATION_3_7 = object : Migration(3, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_3_6.migrate(db)
+                MIGRATION_6_7.migrate(db)
+            }
+        }
+
+        val MIGRATION_2_7 = object : Migration(2, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_2_6.migrate(db)
+                MIGRATION_6_7.migrate(db)
+            }
+        }
+
+        val MIGRATION_1_7 = object : Migration(1, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_1_6.migrate(db)
+                MIGRATION_6_7.migrate(db)
+            }
+        }
+
         // Automatic safe pre-migration backup procedure
         fun createPreMigrationBackup(context: Context) {
             try {
@@ -435,7 +516,8 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                         MIGRATION_1_2, MIGRATION_2_3, MIGRATION_1_3,
                         MIGRATION_3_4, MIGRATION_1_4, MIGRATION_2_4,
                         MIGRATION_4_5, MIGRATION_1_5, MIGRATION_2_5, MIGRATION_3_5,
-                        MIGRATION_5_6, MIGRATION_1_6, MIGRATION_2_6, MIGRATION_3_6, MIGRATION_4_6
+                        MIGRATION_5_6, MIGRATION_1_6, MIGRATION_2_6, MIGRATION_3_6, MIGRATION_4_6,
+                        MIGRATION_6_7, MIGRATION_5_7, MIGRATION_4_7, MIGRATION_3_7, MIGRATION_2_7, MIGRATION_1_7
                     )
                     .addCallback(DatabaseCallback(scope))
                     // Destructive migration removed! Data preservation guaranteed.

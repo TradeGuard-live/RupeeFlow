@@ -27,6 +27,14 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector?
         fun createRoute(friendId: Long) = "friend_detail/$friendId"
     }
 
+    object ExpenseGroups : Screen("expense_groups", "Expense Groups")
+
+    object ExpenseGroupDetail : Screen("expense_group_detail/{groupId}", "Group Detail") {
+        fun createRoute(groupId: Long) = "expense_group_detail/$groupId"
+    }
+
+    object ReportGenerator : Screen("report_generator", "Expense Report")
+
     object PendingTransactions : Screen("pending_transactions", "Pending Review")
 
     object AddEditTransaction : Screen(

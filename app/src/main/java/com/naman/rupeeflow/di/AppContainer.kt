@@ -15,6 +15,8 @@ interface AppContainer {
     val userPreferencesRepository: UserPreferencesRepository
     val backupRestoreRepository: BackupRestoreRepository
     val friendGroupRepository: FriendGroupRepository
+    val expenseGroupRepository: ExpenseGroupRepository
+    val reportDraftRepository: ReportDraftRepository
     val inputRankingRepository: InputRankingRepository
     val imageStorageManager: ImageStorageManager
     val appLockManager: com.naman.rupeeflow.security.AppLockManager
@@ -30,6 +32,17 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val friendGroupRepository: FriendGroupRepository by lazy {
         FriendGroupRepositoryImpl(database.friendGroupDao())
+    }
+
+    override val expenseGroupRepository: ExpenseGroupRepository by lazy {
+        ExpenseGroupRepositoryImpl(
+            expenseGroupDao = database.expenseGroupDao(),
+            transactionDao = database.transactionDao()
+        )
+    }
+
+    override val reportDraftRepository: ReportDraftRepository by lazy {
+        ReportDraftRepositoryImpl(database.reportDraftDao())
     }
 
     override val inputRankingRepository: InputRankingRepository by lazy {

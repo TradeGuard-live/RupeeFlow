@@ -169,6 +169,24 @@ fun TransactionItemCard(
                             modifier = Modifier.size(12.dp)
                         )
                     }
+
+                    if (transaction.hasExpenseGroup) {
+                        Text("•", color = AppTheme.colors.textTertiary, fontSize = 10.sp)
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = if (isLight) Color(0xFFE0E7FF) else Color(0xFF312E81).copy(alpha = 0.5f)
+                        ) {
+                            Text(
+                                text = transaction.expenseGroupName ?: "Group",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isLight) Color(0xFF4338CA) else Color(0xFFA5B4FC),
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
             }
 

@@ -735,4 +735,118 @@ class DatabaseMigrationTest {
 
         db.close()
     }
+
+    @Test
+    fun testMigration6To7_AddsExpenseGroupsReportDraftsAndTransactionExpenseGroupColumns() {
+        val context = RuntimeEnvironment.getApplication()
+        val tempDbFile = File.createTempFile("test_migration_6_7", ".db")
+        tempDbFile.deleteOnExit()
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(tempDbFile.absolutePath)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        createV1Schema(db)
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA foreign_keys = ON;")
+
+        insertTestData(db)
+
+        // Migrate to version 6 first
+        RupeeFlowDatabase.MIGRATION_1_6.migrate(db)
+
+        // Now run MIGRATION_6_7
+        RupeeFlowDatabase.MIGRATION_6_7.migrate(db)
+
+        // Verify description added to friend_groups
+        db.execSQL("INSERT INTO friend_groups (name, description, createdAt, updatedAt) VALUES ('Haveli', 'Close hostel friends', 1000, 1000)")
+        val fgCursor = db.query("SELECT name, description FROM friend_groups WHERE name = 'Haveli'")
+        assertTrue(fgCursor.moveToFirst())
+        assertEquals("Haveli", fgCursor.getString(0))
+        assertEquals("Close hostel friends", fgCursor.getString(1))
+        fgCursor.close()
+
+        // Verify expense_groups table
+        db.execSQL("INSERT INTO expense_groups (name, description, colorHex, isArchived, createdAt, updatedAt) VALUES ('Goa Trip', 'Annual vacation 2026', '#3B82F6', 0, 1000, 1000)")
+        val egCursor = db.query("SELECT id, name, description, isArchived FROM expense_groups WHERE name = 'Goa Trip'")
+        assertTrue(egCursor.moveToFirst())
+        val egId = egCursor.getLong(0)
+        assertEquals("Goa Trip", egCursor.getString(1))
+        assertEquals("Annual vacation 2026", egCursor.getString(2))
+        assertEquals(0, egCursor.getInt(3))
+        egCursor.close()
+
+        // Verify transactions expenseGroupId and expenseGroupName columns
+        db.execSQL("UPDATE transactions SET expenseGroupId = $egId, expenseGroupName = 'Goa Trip' WHERE id = 1")
+        val txnCursor = db.query("SELECT expenseGroupId, expenseGroupName FROM transactions WHERE id = 1")
+        assertTrue(txnCursor.moveToFirst())
+        assertEquals(egId, txnCursor.getLong(0))
+        assertEquals("Goa Trip", txnCursor.getString(1))
+        txnCursor.close()
+
+        // Verify report_drafts table
+        db.execSQL("INSERT INTO report_drafts (name, periodType, startDate, endDate, excludedTransactionIdsJson, createdAt, updatedAt) VALUES ('Tax Statement', 'MONTHLY', 1000, 2000, '[1, 2]', 1000, 1000)")
+        val draftCursor = db.query("SELECT name, periodType, excludedTransactionIdsJson FROM report_drafts WHERE name = 'Tax Statement'")
+        assertTrue(draftCursor.moveToFirst())
+        assertEquals("Tax Statement", draftCursor.getString(0))
+        assertEquals("MONTHLY", draftCursor.getString(1))
+        assertEquals("[1, 2]", draftCursor.getString(2))
+        draftCursor.close()
+
+        // Verify foreign key constraints are healthy
+        val fkCursor = db.query("PRAGMA foreign_key_check")
+        assertEquals(0, fkCursor.count)
+        fkCursor.close()
+
+        db.close()
+    }
+
+    @Test
+    fun testMigration1To7_DirectMigrationPreservesAllExistingRecordsAndCreatesVersion7Tables() {
+        val context = RuntimeEnvironment.getApplication()
+        val tempDbFile = File.createTempFile("test_migration_1_7", ".db")
+        tempDbFile.deleteOnExit()
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(tempDbFile.absolutePath)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        createV1Schema(db)
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA foreign_keys = ON;")
+
+        insertTestData(db)
+
+        // Direct migration from version 1 to 7
+        RupeeFlowDatabase.MIGRATION_1_7.migrate(db)
+
+        verifyMigratedData(db)
+
+        // Verify newly added version 7 columns in transactions
+        val cursor = db.query("SELECT expenseGroupId, expenseGroupName FROM transactions WHERE id = 1")
+        assertTrue(cursor.moveToFirst())
+        assertTrue("Newly added expenseGroupId must default to null", cursor.isNull(0))
+        assertTrue("Newly added expenseGroupName must default to null", cursor.isNull(1))
+        cursor.close()
+
+        val fkCursor = db.query("PRAGMA foreign_key_check")
+        assertEquals(0, fkCursor.count)
+        fkCursor.close()
+
+        db.close()
+    }
 }

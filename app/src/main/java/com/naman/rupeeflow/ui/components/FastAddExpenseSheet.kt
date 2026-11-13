@@ -43,6 +43,8 @@ fun FastAddExpenseSheet(
     categories: List<Category>,
     friends: List<Friend>,
     groups: List<FriendGroup> = emptyList(),
+    expenseGroups: List<ExpenseGroup> = emptyList(),
+    onCreateExpenseGroup: ((String) -> Unit)? = null,
     onDismiss: () -> Unit,
     onSave: (Transaction) -> Unit,
     onSaveSettlement: ((Settlement) -> Unit)? = null,
@@ -81,6 +83,7 @@ fun FastAddExpenseSheet(
     var isSuggestedActive by remember { mutableStateOf(suggestedFromPrevious) }
     var selectedPaymentMethod by remember { mutableStateOf(initialPaymentMethod ?: PaymentMethod.UPI) }
     var selectedPayerId by remember { mutableStateOf<Long?>(null) } // null = Me
+    var selectedExpenseGroup by remember { mutableStateOf<ExpenseGroup?>(null) }
 
     // Location state & merchant location memory
     var attachedLocation by remember { mutableStateOf<TransactionLocation?>(initialLocation) }
@@ -523,6 +526,19 @@ fun FastAddExpenseSheet(
                     categories = categories,
                     selectedCategory = selectedCategory,
                     onSelect = { selectedCategory = it }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Expense Group / Trip Selector
+                ExpenseGroupSelector(
+                    expenseGroups = expenseGroups,
+                    selectedExpenseGroupId = selectedExpenseGroup?.id,
+                    selectedExpenseGroupName = selectedExpenseGroup?.name,
+                    onSelectGroup = { selectedExpenseGroup = it },
+                    onCreateNewGroup = { newName ->
+                        onCreateExpenseGroup?.invoke(newName)
+                    }
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -1005,6 +1021,8 @@ fun FastAddExpenseSheet(
                             transactionStatus = TransactionStatus.ACTIVE,
                             source = TransactionSource.MANUAL,
                             groupId = selectedGroupFilterId,
+                            expenseGroupId = selectedExpenseGroup?.id,
+                            expenseGroupName = selectedExpenseGroup?.name,
                             billImagePath = billImagePath,
                             latitude = attachedLocation?.latitude,
                             longitude = attachedLocation?.longitude,

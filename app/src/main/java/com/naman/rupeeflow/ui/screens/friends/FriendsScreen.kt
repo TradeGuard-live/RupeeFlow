@@ -430,8 +430,8 @@ fun FriendsScreen(
         CreateGroupDialog(
             allFriends = state.friends.filter { !it.isArchived },
             onDismiss = { showCreateGroupDialog = false },
-            onCreate = { name, icon, color, friendIds, groupImagePath ->
-                viewModel.createGroup(name, icon, color, friendIds, groupImagePath)
+            onCreate = { name, description, icon, color, friendIds, groupImagePath ->
+                viewModel.createGroup(name, description, icon, color, friendIds, groupImagePath)
                 showCreateGroupDialog = false
             }
         )
@@ -709,15 +709,25 @@ fun AddFriendDialog(
 fun CreateGroupDialog(
     allFriends: List<Friend>,
     onDismiss: () -> Unit,
-    onCreate: (name: String, icon: String?, color: String?, friendIds: List<Long>, groupImagePath: String?) -> Unit
+    onCreate: (name: String, description: String?, icon: String?, color: String?, friendIds: List<Long>, groupImagePath: String?) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var groupName by remember { mutableStateOf("") }
+    var groupDescription by remember { mutableStateOf("") }
+    var friendSearchQuery by remember { mutableStateOf("") }
     var selectedFriendIds by remember { mutableStateOf(setOf<Long>()) }
     val colors = listOf("#06B6D4", "#3B82F6", "#10B981", "#8B5CF6", "#F59E0B", "#EC4899")
     var selectedColorHex by remember { mutableStateOf(colors.first()) }
     var groupImagePath by remember { mutableStateOf<String?>(null) }
+
+    val filteredFriends = remember(allFriends, friendSearchQuery) {
+        if (friendSearchQuery.isBlank()) allFriends
+        else allFriends.filter {
+            it.name.contains(friendSearchQuery, ignoreCase = true) ||
+                    (it.phoneNumber?.contains(friendSearchQuery, ignoreCase = true) == true)
+        }
+    }
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
@@ -738,7 +748,7 @@ fun CreateGroupDialog(
             border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.cardBorder),
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f)
+                .fillMaxHeight(0.88f)
         ) {
             Column(
                 modifier = Modifier
@@ -751,7 +761,7 @@ fun CreateGroupDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Create Group",
+                        text = "Create Friend Group",
                         style = MaterialTheme.typography.titleLarge,
                         color = AppTheme.colors.textPrimary
                     )
@@ -820,7 +830,7 @@ fun CreateGroupDialog(
                     value = groupName,
                     onValueChange = { groupName = it },
                     label = { Text("Group Name *", color = AppTheme.colors.textSecondary) },
-                    placeholder = { Text("e.g. Hostel Friends, Roommates, Travel", color = AppTheme.colors.textTertiary) },
+                    placeholder = { Text("e.g. Haveli, Sarangpur, Flatmates", color = AppTheme.colors.textTertiary) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppTheme.colors.textPrimary),
@@ -828,7 +838,21 @@ fun CreateGroupDialog(
                     shape = RoundedCornerShape(14.dp)
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = groupDescription,
+                    onValueChange = { groupDescription = it },
+                    label = { Text("Description (Optional)", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("e.g. Shared ledger with close friends", color = AppTheme.colors.textTertiary) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppTheme.colors.textPrimary),
+                    colors = rupeeFlowTextFieldColors(),
+                    shape = RoundedCornerShape(14.dp)
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Color selector
                 Text("Group Color", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textSecondary)
@@ -842,20 +866,42 @@ fun CreateGroupDialog(
                         val isSelected = selectedColorHex == hex
                         Box(
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(30.dp)
                                 .clip(CircleShape)
                                 .background(color)
                                 .clickable { selectedColorHex = hex },
                             contentAlignment = Alignment.Center
                         ) {
                             if (isSelected) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Search Friends
+                OutlinedTextField(
+                    value = friendSearchQuery,
+                    onValueChange = { friendSearchQuery = it },
+                    placeholder = { Text("Search friends...", color = AppTheme.colors.textSecondary) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = AppTheme.colors.textSecondary) },
+                    trailingIcon = {
+                        if (friendSearchQuery.isNotBlank()) {
+                            IconButton(onClick = { friendSearchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = AppTheme.colors.textSecondary)
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppTheme.colors.textPrimary),
+                    colors = rupeeFlowTextFieldColors(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Select Members Header
                 Row(
@@ -864,24 +910,27 @@ fun CreateGroupDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Add Friends (${selectedFriendIds.size} selected)",
+                        text = "Members (${selectedFriendIds.size} selected)",
                         style = MaterialTheme.typography.labelSmall,
                         color = AppTheme.colors.textSecondary,
                         fontWeight = FontWeight.Bold
                     )
-                    if (allFriends.isNotEmpty()) {
+                    if (filteredFriends.isNotEmpty()) {
                         TextButton(
                             onClick = {
-                                selectedFriendIds = if (selectedFriendIds.size == allFriends.size) {
-                                    emptySet()
+                                val currentFilteredIds = filteredFriends.map { it.id }.toSet()
+                                selectedFriendIds = if (selectedFriendIds.containsAll(currentFilteredIds)) {
+                                    selectedFriendIds - currentFilteredIds
                                 } else {
-                                    allFriends.map { it.id }.toSet()
+                                    selectedFriendIds + currentFilteredIds
                                 }
                             },
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                         ) {
+                            val currentFilteredIds = filteredFriends.map { it.id }.toSet()
+                            val allFilteredSelected = selectedFriendIds.containsAll(currentFilteredIds)
                             Text(
-                                text = if (selectedFriendIds.size == allFriends.size) "Deselect All" else "Select All",
+                                text = if (allFilteredSelected) "Deselect All" else "Select All",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = AppTheme.colors.primaryAccent
                             )
@@ -898,17 +947,21 @@ fun CreateGroupDialog(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    if (allFriends.isEmpty()) {
+                    if (filteredFriends.isEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 20.dp),
+                                .padding(vertical = 16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("No friends available to add.", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                            Text(
+                                if (friendSearchQuery.isNotBlank()) "No matching friends found." else "No friends available to add.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = AppTheme.colors.textSecondary
+                            )
                         }
                     } else {
-                        allFriends.forEach { friend ->
+                        filteredFriends.forEach { friend ->
                             val isChecked = selectedFriendIds.contains(friend.id)
                             Row(
                                 modifier = Modifier
@@ -945,25 +998,47 @@ fun CreateGroupDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                Button(
-                    onClick = {
-                        if (groupName.isNotBlank()) {
-                            onCreate(groupName, "group", selectedColorHex, selectedFriendIds.toList(), groupImagePath)
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AppTheme.colors.primaryAccent,
-                        contentColor = Color.White
-                    ),
-                    enabled = groupName.isNotBlank()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text("Create Group", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Cancel", color = AppTheme.colors.textSecondary)
+                    }
+
+                    Button(
+                        onClick = {
+                            if (groupName.isNotBlank()) {
+                                onCreate(
+                                    groupName,
+                                    groupDescription.ifBlank { null },
+                                    "group",
+                                    selectedColorHex,
+                                    selectedFriendIds.toList(),
+                                    groupImagePath
+                                )
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1.5f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppTheme.colors.primaryAccent,
+                            contentColor = Color.White
+                        ),
+                        enabled = groupName.isNotBlank()
+                    ) {
+                        Text("Create Group", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }
@@ -982,8 +1057,18 @@ fun EditGroupDialog(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var groupName by remember { mutableStateOf(group.name) }
+    var groupDescription by remember { mutableStateOf(group.description ?: "") }
+    var friendSearchQuery by remember { mutableStateOf("") }
     var selectedFriendIds by remember { mutableStateOf(group.memberFriendIds.toSet()) }
     var groupImagePath by remember { mutableStateOf(group.groupImagePath) }
+
+    val filteredFriends = remember(allFriends, friendSearchQuery) {
+        if (friendSearchQuery.isBlank()) allFriends
+        else allFriends.filter {
+            it.name.contains(friendSearchQuery, ignoreCase = true) ||
+                    (it.phoneNumber?.contains(friendSearchQuery, ignoreCase = true) == true)
+        }
+    }
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
@@ -1004,7 +1089,7 @@ fun EditGroupDialog(
             border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.cardBorder),
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f)
+                .fillMaxHeight(0.88f)
         ) {
             Column(
                 modifier = Modifier
@@ -1017,7 +1102,7 @@ fun EditGroupDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Edit Group",
+                        text = "Edit Friend Group",
                         style = MaterialTheme.typography.titleLarge,
                         color = AppTheme.colors.textPrimary
                     )
@@ -1093,7 +1178,43 @@ fun EditGroupDialog(
                     shape = RoundedCornerShape(14.dp)
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = groupDescription,
+                    onValueChange = { groupDescription = it },
+                    label = { Text("Description (Optional)", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("e.g. Friends split ledger", color = AppTheme.colors.textTertiary) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppTheme.colors.textPrimary),
+                    colors = rupeeFlowTextFieldColors(),
+                    shape = RoundedCornerShape(14.dp)
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Search Friends within Group
+                OutlinedTextField(
+                    value = friendSearchQuery,
+                    onValueChange = { friendSearchQuery = it },
+                    placeholder = { Text("Search friends...", color = AppTheme.colors.textSecondary) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = AppTheme.colors.textSecondary) },
+                    trailingIcon = {
+                        if (friendSearchQuery.isNotBlank()) {
+                            IconButton(onClick = { friendSearchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear", tint = AppTheme.colors.textSecondary)
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppTheme.colors.textPrimary),
+                    colors = rupeeFlowTextFieldColors(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Select Members Header
                 Row(
@@ -1107,19 +1228,22 @@ fun EditGroupDialog(
                         color = AppTheme.colors.textSecondary,
                         fontWeight = FontWeight.Bold
                     )
-                    if (allFriends.isNotEmpty()) {
+                    if (filteredFriends.isNotEmpty()) {
                         TextButton(
                             onClick = {
-                                selectedFriendIds = if (selectedFriendIds.size == allFriends.size) {
-                                    emptySet()
+                                val currentFilteredIds = filteredFriends.map { it.id }.toSet()
+                                selectedFriendIds = if (selectedFriendIds.containsAll(currentFilteredIds)) {
+                                    selectedFriendIds - currentFilteredIds
                                 } else {
-                                    allFriends.map { it.id }.toSet()
+                                    selectedFriendIds + currentFilteredIds
                                 }
                             },
                             contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                         ) {
+                            val currentFilteredIds = filteredFriends.map { it.id }.toSet()
+                            val allFilteredSelected = selectedFriendIds.containsAll(currentFilteredIds)
                             Text(
-                                text = if (selectedFriendIds.size == allFriends.size) "Deselect All" else "Select All",
+                                text = if (allFilteredSelected) "Deselect All" else "Select All",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = AppTheme.colors.primaryAccent
                             )
@@ -1136,48 +1260,63 @@ fun EditGroupDialog(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    allFriends.forEach { friend ->
-                        val isChecked = selectedFriendIds.contains(friend.id)
-                        Row(
+                    if (filteredFriends.isEmpty()) {
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable {
-                                    selectedFriendIds = if (isChecked) {
-                                        selectedFriendIds - friend.id
-                                    } else {
-                                        selectedFriendIds + friend.id
-                                    }
-                                }
-                                .padding(vertical = 4.dp, horizontal = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(vertical = 16.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Checkbox(
-                                checked = isChecked,
-                                onCheckedChange = { checked ->
-                                    selectedFriendIds = if (checked) {
-                                        selectedFriendIds + friend.id
-                                    } else {
-                                        selectedFriendIds - friend.id
-                                    }
-                                },
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = AppTheme.colors.primaryAccent,
-                                    uncheckedColor = AppTheme.colors.textSecondary
-                                )
+                            Text(
+                                if (friendSearchQuery.isNotBlank()) "No matching friends found." else "No friends available.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = AppTheme.colors.textSecondary
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(friend.name, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
+                        }
+                    } else {
+                        filteredFriends.forEach { friend ->
+                            val isChecked = selectedFriendIds.contains(friend.id)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        selectedFriendIds = if (isChecked) {
+                                            selectedFriendIds - friend.id
+                                        } else {
+                                            selectedFriendIds + friend.id
+                                        }
+                                    }
+                                    .padding(vertical = 4.dp, horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = isChecked,
+                                    onCheckedChange = { checked ->
+                                        selectedFriendIds = if (checked) {
+                                            selectedFriendIds + friend.id
+                                        } else {
+                                            selectedFriendIds - friend.id
+                                        }
+                                    },
+                                    colors = CheckboxDefaults.colors(
+                                        checkedColor = AppTheme.colors.primaryAccent,
+                                        uncheckedColor = AppTheme.colors.textSecondary
+                                    )
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(friend.name, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // Action Buttons: Save & Delete Group
+                // Action Buttons: Delete, Cancel, Save Changes
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedButton(
                         onClick = onDelete,
@@ -1193,15 +1332,32 @@ fun EditGroupDialog(
                             if (isDark) CoralRed else Color(0xFFFCA5A5)
                         )
                     ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text("Delete", fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text("Cancel", color = AppTheme.colors.textSecondary)
                     }
 
                     Button(
                         onClick = {
                             if (groupName.isNotBlank()) {
-                                onSave(group.copy(name = groupName.trim(), groupImagePath = groupImagePath), selectedFriendIds.toList())
+                                onSave(
+                                    group.copy(
+                                        name = groupName.trim(),
+                                        description = groupDescription.trim().ifBlank { null },
+                                        groupImagePath = groupImagePath
+                                    ),
+                                    selectedFriendIds.toList()
+                                )
                             }
                         },
                         modifier = Modifier
@@ -1214,7 +1370,7 @@ fun EditGroupDialog(
                         ),
                         enabled = groupName.isNotBlank()
                     ) {
-                        Text("Save Changes", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Save", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
                 }
             }

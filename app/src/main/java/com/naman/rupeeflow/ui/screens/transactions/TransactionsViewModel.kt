@@ -25,7 +25,8 @@ data class TransactionsUiState(
     val selectedCategoryFilter: Category? = null,
     val categories: List<Category> = emptyList(),
     val friends: List<Friend> = emptyList(),
-    val friendGroups: List<FriendGroup> = emptyList()
+    val friendGroups: List<FriendGroup> = emptyList(),
+    val expenseGroups: List<com.naman.rupeeflow.domain.model.ExpenseGroup> = emptyList()
 )
 
 class TransactionsViewModel(
@@ -34,6 +35,7 @@ class TransactionsViewModel(
     private val friendRepository: FriendRepository,
     private val settlementRepository: SettlementRepository,
     private val friendGroupRepository: FriendGroupRepository? = null,
+    private val expenseGroupRepository: com.naman.rupeeflow.data.repository.ExpenseGroupRepository? = null,
     private val inputRankingRepository: InputRankingRepository? = null
 ) : ViewModel() {
 
@@ -47,13 +49,15 @@ class TransactionsViewModel(
     private fun loadData() {
         viewModelScope.launch {
             val groupsFlow = friendGroupRepository?.getAllGroups() ?: flowOf(emptyList())
+            val expenseGroupsFlow = expenseGroupRepository?.getActiveExpenseGroups() ?: flowOf(emptyList())
             combine(
                 transactionRepository.getAllTransactions(),
                 categoryRepository.getAllCategories(),
                 friendRepository.getActiveFriends(),
-                groupsFlow
-            ) { txns, categories, friends, groups ->
-                GroupedTransactionBundle(txns, categories, friends, groups)
+                groupsFlow,
+                expenseGroupsFlow
+            ) { txns, categories, friends, groups, expGroups ->
+                GroupedTransactionBundle(txns, categories, friends, groups, expGroups)
             }.collect { bundle ->
                 _uiState.update { current ->
                     val filtered = applyFilters(
@@ -75,10 +79,17 @@ class TransactionsViewModel(
                         filteredTransactions = filtered,
                         categories = rankedCategories,
                         friends = rankedFriends,
-                        friendGroups = rankedGroups
+                        friendGroups = rankedGroups,
+                        expenseGroups = bundle.expGroups
                     )
                 }
             }
+        }
+    }
+
+    fun createExpenseGroup(name: String) {
+        viewModelScope.launch {
+            expenseGroupRepository?.createExpenseGroup(name)
         }
     }
 
@@ -86,7 +97,8 @@ class TransactionsViewModel(
         val txns: List<Transaction>,
         val categories: List<Category>,
         val friends: List<Friend>,
-        val groups: List<FriendGroup>
+        val groups: List<FriendGroup>,
+        val expGroups: List<com.naman.rupeeflow.domain.model.ExpenseGroup>
     )
 
     fun onSearchQueryChanged(query: String) {

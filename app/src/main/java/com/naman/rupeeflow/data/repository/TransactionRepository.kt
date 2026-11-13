@@ -17,6 +17,8 @@ interface TransactionRepository {
     fun getTransactionsByStatus(status: TransactionStatus): Flow<List<Transaction>>
     suspend fun getTransactionById(id: Long): Transaction?
     fun getTransactionByIdFlow(id: Long): Flow<Transaction?>
+    fun getTransactionsForExpenseGroup(expenseGroupId: Long): Flow<List<Transaction>> = kotlinx.coroutines.flow.flowOf(emptyList())
+    suspend fun getTransactionsForExpenseGroupList(expenseGroupId: Long): List<Transaction> = emptyList()
     suspend fun saveTransaction(transaction: Transaction): Long
     suspend fun updateTransactionStatus(id: Long, status: TransactionStatus)
     suspend fun deleteTransaction(id: Long)
@@ -89,6 +91,25 @@ class TransactionRepositoryImpl(
                 it.toDomain(catMap, friendMap)
             }
         }
+    }
+
+    override fun getTransactionsForExpenseGroup(expenseGroupId: Long): Flow<List<Transaction>> {
+        return combine(
+            transactionDao.getTransactionsForExpenseGroup(expenseGroupId),
+            categoryDao.getAllCategories(),
+            friendDao.getAllFriends()
+        ) { rawTxns, categories, friends ->
+            val catMap = categories.associateBy { it.id }
+            val friendMap = friends.associateBy { it.id }
+            rawTxns.map { it.toDomain(catMap, friendMap) }
+        }
+    }
+
+    override suspend fun getTransactionsForExpenseGroupList(expenseGroupId: Long): List<Transaction> {
+        val rawTxns = transactionDao.getTransactionsForExpenseGroupList(expenseGroupId)
+        val catMap = categoryDao.getAllCategoriesList().associateBy { it.id }
+        val friendMap = friendDao.getAllFriendsList().associateBy { it.id }
+        return rawTxns.map { it.toDomain(catMap, friendMap) }
     }
 
     // Atomic save/edit preserving id and createdAt, updating updatedAt
@@ -219,6 +240,8 @@ class TransactionRepositoryImpl(
             merchantName = transaction.merchantName,
             referenceNumber = transaction.referenceNumber,
             groupId = transaction.groupId,
+            expenseGroupId = transaction.expenseGroupId,
+            expenseGroupName = transaction.expenseGroupName,
             billImagePath = transaction.billImagePath,
             latitude = transaction.latitude,
             longitude = transaction.longitude,
@@ -249,6 +272,8 @@ class TransactionRepositoryImpl(
         merchantName = merchantName,
         referenceNumber = referenceNumber,
         groupId = groupId,
+        expenseGroupId = expenseGroupId,
+        expenseGroupName = expenseGroupName,
         billImagePath = billImagePath,
         latitude = latitude,
         longitude = longitude,

@@ -52,12 +52,19 @@ data class FriendEntity(
             parentColumns = ["id"],
             childColumns = ["groupId"],
             onDelete = ForeignKey.SET_NULL
+        ),
+        ForeignKey(
+            entity = ExpenseGroupEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["expenseGroupId"],
+            onDelete = ForeignKey.SET_NULL
         )
     ],
     indices = [
         Index(value = ["categoryId"]),
         Index(value = ["paidByFriendId"]),
         Index(value = ["groupId"]),
+        Index(value = ["expenseGroupId"]),
         Index(value = ["transactionDate"]),
         Index(value = ["transactionStatus"])
     ]
@@ -80,6 +87,8 @@ data class TransactionEntity(
     val merchantName: String? = null,
     val referenceNumber: String? = null,
     val groupId: Long? = null,
+    val expenseGroupId: Long? = null,
+    val expenseGroupName: String? = null,
     val billImagePath: String? = null,
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -195,9 +204,41 @@ data class FriendGroupEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val name: String,
+    val description: String? = null,
     val iconName: String? = null,
     val colorHex: String? = null,
     val groupImagePath: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+// Expense Group entities for organizing transactions into events/trips
+@Entity(
+    tableName = "expense_groups",
+    indices = [Index(value = ["name"])]
+)
+data class ExpenseGroupEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val name: String,
+    val description: String? = null,
+    val iconName: String? = null,
+    val colorHex: String? = null,
+    val isArchived: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+// Report Draft entity for saving customized report configurations and exclusions
+@Entity(tableName = "report_drafts")
+data class ReportDraftEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val name: String,
+    val periodType: ReportPeriodType = ReportPeriodType.MONTHLY,
+    val startDate: Long,
+    val endDate: Long,
+    val excludedTransactionIdsJson: String = "[]",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

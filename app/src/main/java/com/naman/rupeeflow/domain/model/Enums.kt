@@ -127,3 +127,18 @@ enum class FriendBalanceStatus {
     I_OWE_THEM,
     SETTLED
 }
+
+enum class ReportPeriodType {
+    WEEKLY,
+    MONTHLY,
+    YEARLY,
+    CUSTOM;
+
+    val displayName: String
+        get() = when (this) {
+            WEEKLY -> "Weekly"
+            MONTHLY -> "Monthly"
+            YEARLY -> "Yearly"
+            CUSTOM -> "Custom Range"
+        }
+}

@@ -31,7 +31,8 @@ data class OverviewUiState(
     val pendingTransactions: List<PendingTransaction> = emptyList(),
     val categories: List<Category> = emptyList(),
     val allFriends: List<Friend> = emptyList(),
-    val friendGroups: List<FriendGroup> = emptyList()
+    val friendGroups: List<FriendGroup> = emptyList(),
+    val expenseGroups: List<com.naman.rupeeflow.domain.model.ExpenseGroup> = emptyList()
 )
 
 class OverviewViewModel(
@@ -41,6 +42,7 @@ class OverviewViewModel(
     private val pendingTransactionRepository: PendingTransactionRepository,
     private val categoryRepository: CategoryRepository,
     private val friendGroupRepository: FriendGroupRepository? = null,
+    private val expenseGroupRepository: com.naman.rupeeflow.data.repository.ExpenseGroupRepository? = null,
     private val inputRankingRepository: InputRankingRepository? = null
 ) : ViewModel() {
 
@@ -56,6 +58,7 @@ class OverviewViewModel(
     private fun loadData() {
         viewModelScope.launch {
             val groupsFlow = friendGroupRepository?.getAllGroups() ?: flowOf(emptyList())
+            val expenseGroupsFlow = expenseGroupRepository?.getActiveExpenseGroups() ?: flowOf(emptyList())
             val baseFlow = combine(
                 transactionRepository.getAllTransactions(),
                 friendRepository.getActiveFriends(),
@@ -66,7 +69,7 @@ class OverviewViewModel(
                 OverviewBundle(transactions, friends, settlements, pendingList, categories)
             }
 
-            combine(baseFlow, groupsFlow, weekOffset) { bundle, groups, offset ->
+            combine(baseFlow, groupsFlow, expenseGroupsFlow, weekOffset) { bundle, groups, expGroups, offset ->
                 val friendsWithLedger = LedgerCalculator.computeFriendLedgers(bundle.friends, bundle.transactions, bundle.settlements)
 
                 val startOfMonth = DateTimeUtils.getStartOfMonth()
@@ -106,11 +109,18 @@ class OverviewViewModel(
                     pendingTransactions = bundle.pendingList,
                     categories = rankedCategories,
                     allFriends = rankedFriends,
-                    friendGroups = rankedGroups
+                    friendGroups = rankedGroups,
+                    expenseGroups = expGroups
                 )
             }.collect { state ->
                 _uiState.value = state
             }
+        }
+    }
+
+    fun createExpenseGroup(name: String) {
+        viewModelScope.launch {
+            expenseGroupRepository?.createExpenseGroup(name)
         }
     }
 

@@ -44,7 +44,9 @@ import com.naman.rupeeflow.ui.theme.*
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    onNavigateToPending: (() -> Unit)? = null
+    onNavigateToPending: (() -> Unit)? = null,
+    onNavigateToReportGenerator: (() -> Unit)? = null,
+    onNavigateToExpenseGroups: (() -> Unit)? = null
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -275,23 +277,6 @@ fun SettingsScreen(
                             )
                         }
                     }
-
-                    HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 12.dp))
-
-                    // SMS Simulator / Tester
-                    Button(
-                        onClick = { showSmsTesterDialog = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppTheme.colors.accentContainer,
-                            contentColor = AppTheme.colors.primaryAccent
-                        )
-                    ) {
-                        Icon(Icons.Default.BugReport, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Test SMS Parsing Engine")
-                    }
                 }
             }
 
@@ -320,77 +305,26 @@ fun SettingsScreen(
                 }
             }
 
-            // Backup & Export
+            // Reports & Documents
             item {
-                SettingsSectionHeader("Backup & Data Export")
+                SettingsSectionHeader("Reports & Documents")
                 RupeeFlowCard(modifier = Modifier.fillMaxWidth()) {
-                    // Export JSON Backup
+                    // Generate PDF Expense Report
                     SettingsActionRow(
-                        title = "Export Complete Backup (JSON)",
-                        subtitle = "Back up all transactions, friends & ledger records",
-                        icon = Icons.Default.Backup,
-                        onClick = {
-                            viewModel.exportBackup { json ->
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("RupeeFlow Backup", json)
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "Backup copied to clipboard!", Toast.LENGTH_LONG).show()
-                            }
-                        }
+                        title = "Generate Expense Report (PDF)",
+                        subtitle = "Create printable statements with date filters & custom exclusions",
+                        icon = Icons.Default.PictureAsPdf,
+                        onClick = { onNavigateToReportGenerator?.invoke() }
                     )
 
                     HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 10.dp))
 
-                    // Export Encrypted Backup (AES-256)
+                    // Expense Groups / Trips
                     SettingsActionRow(
-                        title = "Export Encrypted Backup (AES-256)",
-                        subtitle = "Password-protected with 600,000 PBKDF2 iterations",
-                        icon = Icons.Default.Lock,
-                        onClick = { showExportEncryptedDialog = true }
-                    )
-
-                    HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 10.dp))
-
-                    // Restore JSON Backup
-                    SettingsActionRow(
-                        title = "Restore from JSON Backup",
-                        subtitle = "Restore database from copied JSON string",
-                        icon = Icons.Default.Restore,
-                        onClick = { showRestoreDialog = true }
-                    )
-
-                    HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 10.dp))
-
-                    // Export Transactions CSV
-                    SettingsActionRow(
-                        title = "Export Transactions (CSV)",
-                        subtitle = "Spreadsheet export of all transactions",
-                        icon = Icons.Default.FileDownload,
-                        onClick = {
-                            viewModel.exportTransactionsCsv { csv ->
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("RupeeFlow Transactions CSV", csv)
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "Transactions CSV copied to clipboard!", Toast.LENGTH_LONG).show()
-                            }
-                        }
-                    )
-
-                    HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 10.dp))
-
-                    // Export Friends CSV
-                    SettingsActionRow(
-                        title = "Export Friends & Ledger (CSV)",
-                        subtitle = "Spreadsheet export of friend balances and debts",
-                        icon = Icons.Default.FileDownload,
-                        onClick = {
-                            viewModel.exportFriendsCsv { csv ->
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("RupeeFlow Friends CSV", csv)
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "Friends CSV copied to clipboard!", Toast.LENGTH_LONG).show()
-                            }
-                        }
+                        title = "Expense Groups / Trips",
+                        subtitle = "Organize transactions into trips, vacations & shared events",
+                        icon = Icons.Default.CardTravel,
+                        onClick = { onNavigateToExpenseGroups?.invoke() }
                     )
                 }
             }

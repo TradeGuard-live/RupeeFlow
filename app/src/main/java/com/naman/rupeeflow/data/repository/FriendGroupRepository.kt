@@ -20,6 +20,15 @@ interface FriendGroupRepository {
         friendIds: List<Long> = emptyList(),
         groupImagePath: String? = null
     ): Long
+
+    suspend fun createGroup(
+        name: String,
+        iconName: String? = null,
+        colorHex: String? = null,
+        friendIds: List<Long> = emptyList(),
+        groupImagePath: String? = null,
+        description: String? = null
+    ): Long = createGroup(name, iconName, colorHex, friendIds, groupImagePath)
     suspend fun updateGroup(group: FriendGroup, friendIds: List<Long>? = null)
     suspend fun deleteGroup(groupId: Long)
     suspend fun addFriendToGroup(groupId: Long, friendId: Long)
@@ -76,12 +85,22 @@ class FriendGroupRepositoryImpl(
         colorHex: String?,
         friendIds: List<Long>,
         groupImagePath: String?
+    ): Long = createGroup(name, iconName, colorHex, friendIds, groupImagePath, null)
+
+    override suspend fun createGroup(
+        name: String,
+        iconName: String?,
+        colorHex: String?,
+        friendIds: List<Long>,
+        groupImagePath: String?,
+        description: String?
     ): Long {
         val trimmed = name.trim()
         require(trimmed.isNotBlank()) { "Group name cannot be blank" }
         val now = System.currentTimeMillis()
         val entity = FriendGroupEntity(
             name = trimmed,
+            description = description?.trim()?.ifBlank { null },
             iconName = iconName,
             colorHex = colorHex,
             groupImagePath = groupImagePath,
@@ -97,6 +116,7 @@ class FriendGroupRepositoryImpl(
         val entity = FriendGroupEntity(
             id = group.id,
             name = trimmed,
+            description = group.description?.trim()?.ifBlank { null },
             iconName = group.iconName,
             colorHex = group.colorHex,
             groupImagePath = group.groupImagePath,
@@ -143,6 +163,7 @@ class FriendGroupRepositoryImpl(
         groupImagePath = groupImagePath,
         memberCount = members.size,
         memberFriendIds = members,
+        description = description,
         createdAt = createdAt,
         updatedAt = updatedAt
     )

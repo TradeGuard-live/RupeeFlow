@@ -29,6 +29,7 @@ import com.naman.rupeeflow.domain.model.TransactionType
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
 import com.naman.rupeeflow.location.LocationIntentHelper
+import com.naman.rupeeflow.location.LocationNameResolver
 import com.naman.rupeeflow.ui.theme.*
 
 @Composable
@@ -149,16 +150,17 @@ fun TransactionDetailDialog(
                     if (!transaction.merchantName.isNullOrBlank()) {
                         DetailRow("Merchant", transaction.merchantName)
                     }
-                    DetailRow("Source", transaction.source.name)
-                    DetailRow("Status", transaction.transactionStatus.name)
-                    if (transaction.hasLocation && transaction.location != null) {
-                        val loc = transaction.location!!
-                        val locLabel = loc.locationLabel ?: "${String.format(java.util.Locale.ROOT, "%.5f", loc.latitude)}, ${String.format(java.util.Locale.ROOT, "%.5f", loc.longitude)}"
-                        DetailRow("Location", locLabel)
-                        DetailRow("Location Source", loc.locationSource.displayName)
-                        if (loc.accuracyMeters != null) {
-                            DetailRow("Accuracy", "±${loc.accuracyMeters.toInt()}m")
-                        }
+                    if (transaction.hasExpenseGroup) {
+                        DetailRow("Expense Group", transaction.expenseGroupName ?: "Group")
+                    }
+                    if (transaction.hasLocation) {
+                        val readableLocation = LocationNameResolver.resolveReadableLocation(
+                            context = context,
+                            locationLabel = transaction.locationLabel,
+                            latitude = transaction.latitude,
+                            longitude = transaction.longitude
+                        )
+                        DetailRow("Payment Location", readableLocation)
                     }
                 }
 

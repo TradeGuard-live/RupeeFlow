@@ -25,6 +25,7 @@ object AppViewModelProvider {
                 pendingTransactionRepository = app.appContainer.pendingTransactionRepository,
                 categoryRepository = app.appContainer.categoryRepository,
                 friendGroupRepository = app.appContainer.friendGroupRepository,
+                expenseGroupRepository = app.appContainer.expenseGroupRepository,
                 inputRankingRepository = app.appContainer.inputRankingRepository
             )
         }
@@ -36,6 +37,7 @@ object AppViewModelProvider {
                 friendRepository = app.appContainer.friendRepository,
                 settlementRepository = app.appContainer.settlementRepository,
                 friendGroupRepository = app.appContainer.friendGroupRepository,
+                expenseGroupRepository = app.appContainer.expenseGroupRepository,
                 inputRankingRepository = app.appContainer.inputRankingRepository
             )
         }
@@ -96,6 +98,21 @@ object AppViewModelProvider {
             val app = rupeeFlowApplication()
             com.naman.rupeeflow.ui.screens.lock.AppLockViewModel(
                 appLockManager = app.appContainer.appLockManager
+            )
+        }
+        initializer {
+            val app = rupeeFlowApplication()
+            com.naman.rupeeflow.ui.screens.groups.ExpenseGroupViewModel(
+                expenseGroupRepository = app.appContainer.expenseGroupRepository,
+                transactionRepository = app.appContainer.transactionRepository
+            )
+        }
+        initializer {
+            val app = rupeeFlowApplication()
+            com.naman.rupeeflow.ui.screens.report.ReportGeneratorViewModel(
+                transactionRepository = app.appContainer.transactionRepository,
+                categoryRepository = app.appContainer.categoryRepository,
+                reportDraftRepository = app.appContainer.reportDraftRepository
             )
         }
     }

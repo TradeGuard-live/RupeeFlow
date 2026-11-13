@@ -41,6 +41,8 @@ fun EditTransactionDialog(
     categories: List<Category>,
     friends: List<Friend>,
     groups: List<FriendGroup> = emptyList(),
+    expenseGroups: List<ExpenseGroup> = emptyList(),
+    onCreateExpenseGroup: ((String) -> Unit)? = null,
     onDismiss: () -> Unit,
     onSave: (Transaction) -> Unit,
     onSearchMerchantLocation: (suspend (String) -> TransactionLocation?)? = null
@@ -66,6 +68,9 @@ fun EditTransactionDialog(
     var selectedCategory by remember {
         mutableStateOf(categories.firstOrNull { it.id == transaction.categoryId } ?: transaction.category ?: categories.firstOrNull())
     }
+
+    var selectedExpenseGroupId by remember { mutableStateOf(transaction.expenseGroupId) }
+    var selectedExpenseGroupName by remember { mutableStateOf(transaction.expenseGroupName) }
 
     // 5. Transaction type
     var selectedType by remember { mutableStateOf(transaction.transactionType) }
@@ -298,6 +303,22 @@ fun EditTransactionDialog(
                 categories = categories,
                 selectedCategory = selectedCategory,
                 onSelect = { selectedCategory = it }
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Expense Group (Optional) Selector
+            ExpenseGroupSelector(
+                expenseGroups = expenseGroups,
+                selectedExpenseGroupId = selectedExpenseGroupId,
+                selectedExpenseGroupName = selectedExpenseGroupName,
+                onSelectGroup = { group ->
+                    selectedExpenseGroupId = group?.id
+                    selectedExpenseGroupName = group?.name
+                },
+                onCreateNewGroup = { newName ->
+                    onCreateExpenseGroup?.invoke(newName)
+                }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -912,6 +933,8 @@ fun EditTransactionDialog(
                     merchantName = merchantName.trim().takeIf { it.isNotBlank() },
                     referenceNumber = referenceNumber.trim().takeIf { it.isNotBlank() },
                     groupId = selectedGroupFilterId,
+                    expenseGroupId = selectedExpenseGroupId,
+                    expenseGroupName = selectedExpenseGroupName,
                     billImagePath = billImagePath,
                     latitude = attachedLocation?.latitude,
                     longitude = attachedLocation?.longitude,
