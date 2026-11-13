@@ -18,9 +18,11 @@ object ImageStorageManager {
     private const val DIRECTORY_RECEIPTS = "receipts"
     private const val DIRECTORY_PROFILES = "profiles"
     private const val DIRECTORY_GROUPS = "groups"
+    private const val DIRECTORY_TRIPS = "trips"
 
     private const val MAX_BILL_DIMENSION = 1920
     private const val MAX_PROFILE_DIMENSION = 512
+    private const val MAX_TRIP_DIMENSION = 1280
     private const val JPEG_QUALITY = 80
 
     suspend fun saveBillImage(context: Context, sourceUri: Uri): String? = withContext(Dispatchers.IO) {
@@ -45,6 +47,14 @@ object ImageStorageManager {
 
     suspend fun saveGroupBitmap(context: Context, bitmap: Bitmap): String? = withContext(Dispatchers.IO) {
         saveBitmapToDirectory(context, bitmap, DIRECTORY_GROUPS, "group", MAX_PROFILE_DIMENSION)
+    }
+
+    suspend fun saveTripCoverImage(context: Context, sourceUri: Uri): String? = withContext(Dispatchers.IO) {
+        saveImageToDirectory(context, sourceUri, DIRECTORY_TRIPS, "trip", MAX_TRIP_DIMENSION)
+    }
+
+    suspend fun saveTripCoverBitmap(context: Context, bitmap: Bitmap): String? = withContext(Dispatchers.IO) {
+        saveBitmapToDirectory(context, bitmap, DIRECTORY_TRIPS, "trip", MAX_TRIP_DIMENSION)
     }
 
     fun deleteImage(filePath: String?): Boolean {

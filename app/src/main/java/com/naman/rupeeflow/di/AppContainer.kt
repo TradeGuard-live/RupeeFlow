@@ -37,7 +37,8 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
     override val expenseGroupRepository: ExpenseGroupRepository by lazy {
         ExpenseGroupRepositoryImpl(
             expenseGroupDao = database.expenseGroupDao(),
-            transactionDao = database.transactionDao()
+            transactionDao = database.transactionDao(),
+            friendGroupDao = database.friendGroupDao()
         )
     }
 

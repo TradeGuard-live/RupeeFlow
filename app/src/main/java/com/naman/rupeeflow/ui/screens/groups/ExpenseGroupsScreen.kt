@@ -18,12 +18,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.naman.rupeeflow.domain.model.ExpenseGroup
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.ui.components.RupeeFlowCard
+import com.naman.rupeeflow.ui.components.TripCoverAvatar
 import com.naman.rupeeflow.ui.components.rupeeFlowTextFieldColors
 import com.naman.rupeeflow.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,7 +36,7 @@ fun ExpenseGroupsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    var showCreateDialog by remember { mutableStateOf(false) }
+    var showCreateWizard by remember { mutableStateOf(false) }
     var editingGroup by remember { mutableStateOf<ExpenseGroup?>(null) }
     var deletingGroup by remember { mutableStateOf<ExpenseGroup?>(null) }
 
@@ -43,6 +45,7 @@ fun ExpenseGroupsScreen(
         if (state.searchQuery.isBlank()) displayedGroups
         else displayedGroups.filter {
             it.name.contains(state.searchQuery, ignoreCase = true) ||
+                    (it.destination?.contains(state.searchQuery, ignoreCase = true) == true) ||
                     (it.description?.contains(state.searchQuery, ignoreCase = true) == true)
         }
     }
@@ -68,7 +71,7 @@ fun ExpenseGroupsScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showCreateDialog = true }) {
+                    IconButton(onClick = { showCreateWizard = true }) {
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "Add Expense Group",
@@ -165,12 +168,22 @@ fun ExpenseGroupsScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Create groups for trips (e.g. Goa Trip, College Trip) or events to organize your expenses.",
+                            text = "Create groups for trips (e.g. Goa Trip, College Tour) or events to organize your expenses.",
                             style = MaterialTheme.typography.bodySmall,
                             color = AppTheme.colors.textSecondary,
                             modifier = Modifier.padding(horizontal = 32.dp),
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = { showCreateWizard = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Create Trip / Group", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             } else {
@@ -195,25 +208,55 @@ fun ExpenseGroupsScreen(
         }
     }
 
-    // Create Group Dialog
-    if (showCreateDialog) {
-        ExpenseGroupEditDialog(
-            group = null,
-            onDismiss = { showCreateDialog = false },
-            onSave = { name, description, colorHex ->
-                viewModel.createGroup(name, description, colorHex)
-                showCreateDialog = false
+    // Trip Creation Wizard Dialog
+    if (showCreateWizard) {
+        TripCreationWizardDialog(
+            friends = state.friends,
+            friendGroups = state.friendGroups,
+            onDismiss = { showCreateWizard = false },
+            onQuickAddFriend = { name, phone, email ->
+                var createdId = 0L
+                viewModel.quickAddFriend(name, phone, email) { id ->
+                    createdId = id
+                }
+                createdId
+            },
+            onCreateTrip = { name, destination, startDate, endDate, description, coverImageUri, colorHex, friendIds ->
+                viewModel.createTrip(
+                    name = name,
+                    destination = destination,
+                    startDate = startDate,
+                    endDate = endDate,
+                    description = description,
+                    coverImageUri = coverImageUri,
+                    colorHex = colorHex,
+                    friendIds = friendIds
+                )
+                showCreateWizard = false
             }
         )
     }
 
-    // Edit Group Dialog
+    // Edit Trip Dialog
     editingGroup?.let { group ->
-        ExpenseGroupEditDialog(
+        EditTripDetailsDialog(
             group = group,
+            friends = state.friends,
+            friendGroups = state.friendGroups,
             onDismiss = { editingGroup = null },
-            onSave = { name, description, colorHex ->
-                viewModel.updateGroup(group.copy(name = name, description = description, colorHex = colorHex))
+            onSave = { name, destination, startDate, endDate, description, coverImageUri, colorHex, friendIds ->
+                viewModel.updateTrip(
+                    group = group.copy(
+                        name = name,
+                        destination = destination,
+                        startDate = startDate,
+                        endDate = endDate,
+                        description = description,
+                        coverImageUri = coverImageUri,
+                        colorHex = colorHex
+                    ),
+                    friendIds = friendIds
+                )
                 editingGroup = null
             }
         )
@@ -223,10 +266,10 @@ fun ExpenseGroupsScreen(
     deletingGroup?.let { group ->
         AlertDialog(
             onDismissRequest = { deletingGroup = null },
-            title = { Text("Delete Expense Group?", color = AppTheme.colors.textPrimary) },
+            title = { Text("Delete Expense Group / Trip?", color = AppTheme.colors.textPrimary) },
             text = {
                 Text(
-                    "Delete \"${group.name}\"?\n\nDeleting this expense group will not delete any transactions or modify your ledger. All existing transactions and financial records will be preserved safely.",
+                    "Delete \"${group.name}\"?\n\nDeleting this expense group will not delete any transactions, settlements, or friends from your financial ledger. All transactions and balances will be completely preserved safely.",
                     color = AppTheme.colors.textSecondary
                 )
             },
@@ -241,7 +284,7 @@ fun ExpenseGroupsScreen(
                         contentColor = Color.White
                     )
                 ) {
-                    Text("Delete Group", fontWeight = FontWeight.Bold)
+                    Text("Delete Trip", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -264,11 +307,7 @@ fun ExpenseGroupCard(
     onDelete: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
-    val groupColor = try {
-        Color(android.graphics.Color.parseColor(group.colorHex ?: "#3B82F6"))
-    } catch (_: Exception) {
-        AppTheme.colors.primaryAccent
-    }
+    val dateFormat = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
 
     RupeeFlowCard(
         modifier = Modifier.fillMaxWidth(),
@@ -279,20 +318,12 @@ fun ExpenseGroupCard(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(groupColor.copy(alpha = 0.18f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CardTravel,
-                    contentDescription = null,
-                    tint = groupColor,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
+            // Visual Trip Cover Avatar (Rounded Corner Rectangular, distinct from circular friend avatars)
+            TripCoverAvatar(
+                group = group,
+                modifier = Modifier.size(52.dp),
+                cornerRadius = 14.dp
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 
@@ -321,20 +352,50 @@ fun ExpenseGroupCard(
                     }
                 }
 
-                if (!group.description.isNullOrBlank()) {
+                if (!group.destination.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = AppTheme.colors.primaryAccent,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = group.destination!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = AppTheme.colors.textSecondary,
+                            maxLines = 1
+                        )
+                    }
+                } else if (!group.description.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = group.description,
+                        text = group.description!!,
                         style = MaterialTheme.typography.bodySmall,
                         color = AppTheme.colors.textSecondary,
                         maxLines = 1
                     )
                 }
 
+                if (group.startDate != null || group.endDate != null) {
+                    val dateStr = when {
+                        group.startDate != null && group.endDate != null -> "${dateFormat.format(group.startDate!!)} - ${dateFormat.format(group.endDate!!)}"
+                        group.startDate != null -> "From ${dateFormat.format(group.startDate!!)}"
+                        else -> "Until ${dateFormat.format(group.endDate!!)}"
+                    }
+                    Text(
+                        text = dateStr,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AppTheme.colors.textTertiary
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = "${group.transactionCount} transactions • Cash: ${CurrencyUtils.formatPaiseToRupees(group.cashSpendingPaise)}",
+                    text = "${group.memberCount} members • ${group.transactionCount} transactions",
                     style = MaterialTheme.typography.labelSmall,
                     color = AppTheme.colors.textTertiary
                 )
@@ -349,6 +410,14 @@ fun ExpenseGroupCard(
                     fontWeight = FontWeight.Bold,
                     color = AppTheme.colors.textPrimary
                 )
+
+                if (group.grossSpendingPaise > 0L && group.grossSpendingPaise != group.totalSpendingPaise) {
+                    Text(
+                        text = "Total: ${CurrencyUtils.formatPaiseToRupees(group.grossSpendingPaise)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AppTheme.colors.textSecondary
+                    )
+                }
 
                 Box {
                     IconButton(
@@ -368,7 +437,7 @@ fun ExpenseGroupCard(
                         onDismissRequest = { showMenu = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("Edit Group") },
+                            text = { Text("Edit Trip") },
                             onClick = {
                                 showMenu = false
                                 onEdit()
@@ -376,7 +445,7 @@ fun ExpenseGroupCard(
                             leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) }
                         )
                         DropdownMenuItem(
-                            text = { Text(if (group.isArchived) "Unarchive Group" else "Archive Group") },
+                            text = { Text(if (group.isArchived) "Unarchive Trip" else "Archive Trip") },
                             onClick = {
                                 showMenu = false
                                 onToggleArchive()
@@ -384,7 +453,7 @@ fun ExpenseGroupCard(
                             leadingIcon = { Icon(Icons.Default.Archive, contentDescription = null) }
                         )
                         DropdownMenuItem(
-                            text = { Text("Delete Group", color = CoralRed) },
+                            text = { Text("Delete Trip", color = CoralRed) },
                             onClick = {
                                 showMenu = false
                                 onDelete()
@@ -397,131 +466,3 @@ fun ExpenseGroupCard(
         }
     }
 }
-
-@Composable
-fun ExpenseGroupEditDialog(
-    group: ExpenseGroup?,
-    onDismiss: () -> Unit,
-    onSave: (name: String, description: String?, colorHex: String) -> Unit
-) {
-    var name by remember { mutableStateOf(group?.name ?: "") }
-    var description by remember { mutableStateOf(group?.description ?: "") }
-    val colors = listOf("#3B82F6", "#06B6D4", "#10B981", "#8B5CF6", "#F59E0B", "#EC4899", "#EF4444")
-    var selectedColor by remember { mutableStateOf(group?.colorHex ?: colors.first()) }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = AppTheme.colors.surfaceElevated,
-            border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.cardBorder),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (group == null) "New Expense Group / Trip" else "Edit Group",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = AppTheme.colors.textPrimary
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = AppTheme.colors.textSecondary)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Group / Trip Name *", color = AppTheme.colors.textSecondary) },
-                    placeholder = { Text("e.g. Goa Trip, College Tour, Birthday Party") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = rupeeFlowTextFieldColors(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description (Optional)", color = AppTheme.colors.textSecondary) },
-                    placeholder = { Text("e.g. November 2026 trip expenses") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = rupeeFlowTextFieldColors(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Text("Theme Color", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textSecondary)
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    colors.forEach { hex ->
-                        val color = Color(android.graphics.Color.parseColor(hex))
-                        val isSelected = selectedColor == hex
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                                .clickable { selectedColor = hex },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isSelected) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Cancel", color = AppTheme.colors.textSecondary)
-                    }
-
-                    Button(
-                        onClick = {
-                            if (name.isNotBlank()) {
-                                onSave(name.trim(), description.trim().ifBlank { null }, selectedColor)
-                            }
-                        },
-                        modifier = Modifier.weight(1.5f).height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppTheme.colors.primaryAccent,
-                            contentColor = Color.White
-                        ),
-                        enabled = name.isNotBlank()
-                    ) {
-                        Text(if (group == null) "Create Group" else "Save Changes", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-}
-

@@ -221,6 +221,8 @@ class BackupRestoreRepository(
                 put("merchantName", t.merchantName ?: "")
                 put("referenceNumber", t.referenceNumber ?: "")
                 put("groupId", t.groupId ?: -1L)
+                if (t.expenseGroupId != null) put("expenseGroupId", t.expenseGroupId)
+                put("expenseGroupName", t.expenseGroupName ?: "")
                 put("billImagePath", portableBill ?: "")
                 if (t.latitude != null) put("latitude", t.latitude)
                 if (t.longitude != null) put("longitude", t.longitude)
@@ -312,7 +314,32 @@ class BackupRestoreRepository(
         }
         root.put("pending_transactions", pendingArray)
 
-        // 9. Portable Embedded Images Map
+        // 9. Expense Groups / Trips
+        val expenseGroups = database.expenseGroupDao().getAllExpenseGroupsList()
+        val expenseGroupArray = JSONArray()
+        for (eg in expenseGroups) {
+            val portableCover = embedImage(eg.coverImageUri)
+            val obj = JSONObject().apply {
+                put("id", eg.id)
+                put("name", eg.name)
+                put("description", eg.description ?: "")
+                put("destination", eg.destination ?: "")
+                if (eg.startDate != null) put("startDate", eg.startDate)
+                if (eg.endDate != null) put("endDate", eg.endDate)
+                put("coverImageUri", portableCover ?: "")
+                put("iconName", eg.iconName ?: "")
+                put("colorHex", eg.colorHex ?: "")
+                if (eg.linkedFriendGroupId != null) put("linkedFriendGroupId", eg.linkedFriendGroupId)
+                put("isArchived", eg.isArchived)
+                if (eg.archivedAt != null) put("archivedAt", eg.archivedAt)
+                put("createdAt", eg.createdAt)
+                put("updatedAt", eg.updatedAt)
+            }
+            expenseGroupArray.put(obj)
+        }
+        root.put("expense_groups", expenseGroupArray)
+
+        // 10. Portable Embedded Images Map
         val imagesObj = JSONObject()
         for ((key, b64) in imagesMap) {
             imagesObj.put(key, b64)
@@ -675,6 +702,37 @@ class BackupRestoreRepository(
                     }
                 }
 
+                // 4.5 Restore Expense Groups / Trips (before Transactions to satisfy foreign key)
+                if (root.has("expense_groups")) {
+                    val egArray = root.getJSONArray("expense_groups")
+                    for (i in 0 until egArray.length()) {
+                        val obj = egArray.getJSONObject(i)
+                        val coverPath = resolveImagePath(obj.optString("coverImageUri").takeIf { it.isNotBlank() })
+                        val linkedGId = obj.optLong("linkedFriendGroupId", -1L).takeIf { it > 0 }
+                        val startD = if (obj.has("startDate") && !obj.isNull("startDate")) obj.getLong("startDate") else null
+                        val endD = if (obj.has("endDate") && !obj.isNull("endDate")) obj.getLong("endDate") else null
+                        val archAt = if (obj.has("archivedAt") && !obj.isNull("archivedAt")) obj.getLong("archivedAt") else null
+
+                        val eg = ExpenseGroupEntity(
+                            id = obj.optLong("id", 0L),
+                            name = obj.getString("name"),
+                            description = obj.optString("description").takeIf { it.isNotBlank() },
+                            destination = obj.optString("destination").takeIf { it.isNotBlank() },
+                            startDate = startD,
+                            endDate = endD,
+                            coverImageUri = coverPath,
+                            iconName = obj.optString("iconName").takeIf { it.isNotBlank() },
+                            colorHex = obj.optString("colorHex").takeIf { it.isNotBlank() },
+                            linkedFriendGroupId = linkedGId,
+                            isArchived = obj.optBoolean("isArchived", false),
+                            archivedAt = archAt,
+                            createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
+                            updatedAt = obj.optLong("updatedAt", System.currentTimeMillis())
+                        )
+                        database.expenseGroupDao().insertExpenseGroup(eg)
+                    }
+                }
+
                 // 5. Restore Transactions & Participants
                 if (root.has("transactions")) {
                     val txnArray = root.getJSONArray("transactions")
@@ -682,6 +740,8 @@ class BackupRestoreRepository(
                         val obj = txnArray.getJSONObject(i)
                         val paidBy = obj.optLong("paidByFriendId", -1L).takeIf { it > 0 }
                         val gId = obj.optLong("groupId", -1L).takeIf { it > 0 }
+                        val egId = obj.optLong("expenseGroupId", -1L).takeIf { it > 0 }
+                        val egName = obj.optString("expenseGroupName").takeIf { it.isNotBlank() }
                         val billPath = resolveImagePath(obj.optString("billImagePath").takeIf { it.isNotBlank() })
                         val lat = if (obj.has("latitude") && !obj.isNull("latitude")) obj.getDouble("latitude") else null
                         val lon = if (obj.has("longitude") && !obj.isNull("longitude")) obj.getDouble("longitude") else null
@@ -720,6 +780,8 @@ class BackupRestoreRepository(
                             merchantName = obj.optString("merchantName").takeIf { it.isNotBlank() },
                             referenceNumber = obj.optString("referenceNumber").takeIf { it.isNotBlank() },
                             groupId = gId,
+                            expenseGroupId = egId,
+                            expenseGroupName = egName,
                             billImagePath = billPath,
                             latitude = lat,
                             longitude = lon,

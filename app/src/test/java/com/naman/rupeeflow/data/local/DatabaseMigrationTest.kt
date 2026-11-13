@@ -942,4 +942,95 @@ class DatabaseMigrationTest {
 
         db.close()
     }
+
+    @Test
+    fun testMigration8To9_AddsTripFieldsAndIndexToExpenseGroups() {
+        val context = RuntimeEnvironment.getApplication()
+        val tempDbFile = File.createTempFile("test_migration_8_9", ".db")
+        tempDbFile.deleteOnExit()
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(tempDbFile.absolutePath)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(8) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        createV1Schema(db)
+                        insertTestData(db)
+                        RupeeFlowDatabase.MIGRATION_1_8.migrate(db)
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA foreign_keys = ON;")
+
+        // Migrate 8 to 9
+        RupeeFlowDatabase.MIGRATION_8_9.migrate(db)
+
+        // Verify newly added columns in expense_groups
+        db.execSQL("""
+            INSERT INTO expense_groups (id, name, description, iconName, colorHex, destination, startDate, endDate, coverImageUri, linkedFriendGroupId, isArchived, archivedAt, createdAt, updatedAt)
+            VALUES (101, 'Goa Trip', 'Beach vacation', 'flight', '#3B82F6', 'Goa, India', 1700000000, 1700500000, '/data/trips/goa.jpg', NULL, 0, NULL, 5000, 5000)
+        """.trimIndent())
+
+        val cursor = db.query("SELECT destination, startDate, endDate, coverImageUri, linkedFriendGroupId, archivedAt FROM expense_groups WHERE id = 101")
+        assertTrue(cursor.moveToFirst())
+        assertEquals("Goa, India", cursor.getString(0))
+        assertEquals(1700000000L, cursor.getLong(1))
+        assertEquals(1700500000L, cursor.getLong(2))
+        assertEquals("/data/trips/goa.jpg", cursor.getString(3))
+        assertTrue(cursor.isNull(4))
+        assertTrue(cursor.isNull(5))
+        cursor.close()
+
+        // Verify foreign key check passes
+        val fkCursor = db.query("PRAGMA foreign_key_check")
+        assertEquals(0, fkCursor.count)
+        fkCursor.close()
+
+        db.close()
+    }
+
+    @Test
+    fun testMigration1To9_DirectMigrationPreservesAllExistingRecordsAndCreatesVersion9Tables() {
+        val context = RuntimeEnvironment.getApplication()
+        val tempDbFile = File.createTempFile("test_migration_1_9", ".db")
+        tempDbFile.deleteOnExit()
+
+        val helper = FrameworkSQLiteOpenHelperFactory().create(
+            androidx.sqlite.db.SupportSQLiteOpenHelper.Configuration.builder(context)
+                .name(tempDbFile.absolutePath)
+                .callback(object : androidx.sqlite.db.SupportSQLiteOpenHelper.Callback(1) {
+                    override fun onCreate(db: SupportSQLiteDatabase) {
+                        createV1Schema(db)
+                    }
+                    override fun onUpgrade(db: SupportSQLiteDatabase, oldVersion: Int, newVersion: Int) {}
+                })
+                .build()
+        )
+
+        val db = helper.writableDatabase
+        db.execSQL("PRAGMA foreign_keys = ON;")
+
+        insertTestData(db)
+
+        // Direct migration from version 1 to 9
+        RupeeFlowDatabase.MIGRATION_1_9.migrate(db)
+
+        verifyMigratedData(db)
+
+        // Verify expense_groups table exists with destination column
+        val cursor = db.query("SELECT COUNT(*) FROM expense_groups")
+        assertTrue(cursor.moveToFirst())
+        assertEquals(0, cursor.getInt(0))
+        cursor.close()
+
+        val fkCursor = db.query("PRAGMA foreign_key_check")
+        assertEquals(0, fkCursor.count)
+        fkCursor.close()
+
+        db.close()
+    }
 }

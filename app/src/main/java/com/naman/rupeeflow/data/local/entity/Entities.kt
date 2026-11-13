@@ -219,16 +219,25 @@ data class FriendGroupEntity(
 // Expense Group entities for organizing transactions into events/trips
 @Entity(
     tableName = "expense_groups",
-    indices = [Index(value = ["name"])]
+    indices = [
+        Index(value = ["name"]),
+        Index(value = ["linkedFriendGroupId"])
+    ]
 )
 data class ExpenseGroupEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
     val name: String,
     val description: String? = null,
+    val destination: String? = null,
+    val startDate: Long? = null,
+    val endDate: Long? = null,
+    val coverImageUri: String? = null,
     val iconName: String? = null,
     val colorHex: String? = null,
+    val linkedFriendGroupId: Long? = null,
     val isArchived: Boolean = false,
+    val archivedAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

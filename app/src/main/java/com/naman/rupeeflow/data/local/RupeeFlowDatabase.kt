@@ -29,7 +29,7 @@ import java.io.File
         ReportDraftEntity::class,
         InputUsageEntity::class
     ],
-    version = 8, // Upgraded to version 8: Phone number and UPI ID on pending transactions and transactions
+    version = 9, // Upgraded to version 9: Trip collaboration metadata, dates, cover image, and linked FriendGroup
     exportSchema = true // Schema export enabled
 )
 @TypeConverters(Converters::class)
@@ -520,6 +520,47 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 8 to 9: Add trip collaboration metadata to expense_groups
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `expense_groups` ADD COLUMN `destination` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `expense_groups` ADD COLUMN `startDate` INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE `expense_groups` ADD COLUMN `endDate` INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE `expense_groups` ADD COLUMN `coverImageUri` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `expense_groups` ADD COLUMN `linkedFriendGroupId` INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE `expense_groups` ADD COLUMN `archivedAt` INTEGER DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expense_groups_linkedFriendGroupId` ON `expense_groups` (`linkedFriendGroupId`)")
+            }
+        }
+
+        val MIGRATION_7_9 = object : Migration(7, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_7_8.migrate(db)
+                MIGRATION_8_9.migrate(db)
+            }
+        }
+
+        val MIGRATION_6_9 = object : Migration(6, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_6_8.migrate(db)
+                MIGRATION_8_9.migrate(db)
+            }
+        }
+
+        val MIGRATION_5_9 = object : Migration(5, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_5_8.migrate(db)
+                MIGRATION_8_9.migrate(db)
+            }
+        }
+
+        val MIGRATION_1_9 = object : Migration(1, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_1_8.migrate(db)
+                MIGRATION_8_9.migrate(db)
+            }
+        }
+
         // Automatic safe pre-migration backup procedure
         fun createPreMigrationBackup(context: Context) {
             try {
@@ -549,7 +590,8 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                         MIGRATION_4_5, MIGRATION_1_5, MIGRATION_2_5, MIGRATION_3_5,
                         MIGRATION_5_6, MIGRATION_1_6, MIGRATION_2_6, MIGRATION_3_6, MIGRATION_4_6,
                         MIGRATION_6_7, MIGRATION_5_7, MIGRATION_4_7, MIGRATION_3_7, MIGRATION_2_7, MIGRATION_1_7,
-                        MIGRATION_7_8, MIGRATION_6_8, MIGRATION_5_8, MIGRATION_1_8
+                        MIGRATION_7_8, MIGRATION_6_8, MIGRATION_5_8, MIGRATION_1_8,
+                        MIGRATION_8_9, MIGRATION_7_9, MIGRATION_6_9, MIGRATION_5_9, MIGRATION_1_9
                     )
                     .addCallback(DatabaseCallback(scope))
                     // Destructive migration removed! Data preservation guaranteed.

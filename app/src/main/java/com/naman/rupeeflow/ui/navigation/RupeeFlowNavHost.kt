@@ -168,7 +168,13 @@ fun RupeeFlowApp(
                 com.naman.rupeeflow.ui.screens.groups.ExpenseGroupDetailScreen(
                     groupId = groupId,
                     viewModel = expenseGroupViewModel,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToFriendDetail = { friendId ->
+                        navController.navigate(Screen.FriendDetail.createRoute(friendId))
+                    },
+                    onNavigateToReportGenerator = {
+                        navController.navigate(Screen.ReportGenerator.route)
+                    }
                 )
             }
 

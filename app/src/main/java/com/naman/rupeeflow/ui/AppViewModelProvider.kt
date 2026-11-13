@@ -104,7 +104,11 @@ object AppViewModelProvider {
             val app = rupeeFlowApplication()
             com.naman.rupeeflow.ui.screens.groups.ExpenseGroupViewModel(
                 expenseGroupRepository = app.appContainer.expenseGroupRepository,
-                transactionRepository = app.appContainer.transactionRepository
+                transactionRepository = app.appContainer.transactionRepository,
+                friendRepository = app.appContainer.friendRepository,
+                friendGroupRepository = app.appContainer.friendGroupRepository,
+                settlementRepository = app.appContainer.settlementRepository,
+                categoryRepository = app.appContainer.categoryRepository
             )
         }
         initializer {

@@ -89,16 +89,26 @@ fun EditTransactionDialog(
 
     // 10. Split method & 11. Participants & Shares
     val initialHasParticipants = transaction.participants.isNotEmpty()
-    var isSplitEnabled by remember { mutableStateOf(initialHasParticipants) }
+    val preselectedTrip = remember(transaction.expenseGroupId, expenseGroups) {
+        if (transaction.expenseGroupId != null) expenseGroups.firstOrNull { it.id == transaction.expenseGroupId } else null
+    }
+    val defaultFriendIds = remember(preselectedTrip) {
+        if (!initialHasParticipants && preselectedTrip != null && preselectedTrip.memberFriendIds.isNotEmpty()) {
+            preselectedTrip.memberFriendIds.toSet()
+        } else {
+            transaction.participants.mapNotNull { it.friendId }.toSet()
+        }
+    }
+    var isSplitEnabled by remember {
+        mutableStateOf(initialHasParticipants || (transaction.expenseGroupId != null && defaultFriendIds.isNotEmpty()))
+    }
     var isMeIncluded by remember {
         mutableStateOf(
             if (initialHasParticipants) transaction.participants.any { it.friendId == null } else true
         )
     }
     var selectedFriendIds by remember {
-        mutableStateOf(
-            transaction.participants.mapNotNull { it.friendId }.toSet()
-        )
+        mutableStateOf(defaultFriendIds)
     }
     var selectedGroupFilterId by remember { mutableStateOf(transaction.groupId) }
     var billImagePath by remember { mutableStateOf(transaction.billImagePath) }
@@ -315,6 +325,11 @@ fun EditTransactionDialog(
                 onSelectGroup = { group ->
                     selectedExpenseGroupId = group?.id
                     selectedExpenseGroupName = group?.name
+                    if (group != null && group.memberFriendIds.isNotEmpty() && !initialHasParticipants && selectedFriendIds.isEmpty()) {
+                        isSplitEnabled = true
+                        selectedFriendIds = group.memberFriendIds.toSet()
+                        isMeIncluded = true
+                    }
                 },
                 onCreateNewGroup = { newName ->
                     onCreateExpenseGroup?.invoke(newName)

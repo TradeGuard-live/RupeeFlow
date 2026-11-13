@@ -31,9 +31,12 @@ fun ExpenseGroupSelector(
     var showCreateDialog by remember { mutableStateOf(false) }
     var newGroupName by remember { mutableStateOf("") }
 
+    val selectedGroup = remember(selectedExpenseGroupId, expenseGroups) {
+        if (selectedExpenseGroupId != null) expenseGroups.firstOrNull { it.id == selectedExpenseGroupId } else null
+    }
     val currentGroupName = remember(selectedExpenseGroupId, selectedExpenseGroupName, expenseGroups) {
         if (selectedExpenseGroupId != null) {
-            expenseGroups.firstOrNull { it.id == selectedExpenseGroupId }?.name ?: selectedExpenseGroupName ?: "Trip Group"
+            selectedGroup?.name ?: selectedExpenseGroupName ?: "Trip Group"
         } else if (!selectedExpenseGroupName.isNullOrBlank()) {
             selectedExpenseGroupName
         } else {
@@ -66,12 +69,20 @@ fun ExpenseGroupSelector(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.CardTravel,
-                        contentDescription = null,
-                        tint = if (hasSelectedGroup) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    if (selectedGroup != null) {
+                        TripCoverAvatar(
+                            group = selectedGroup,
+                            modifier = Modifier.size(24.dp),
+                            cornerRadius = 6.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.CardTravel,
+                            contentDescription = null,
+                            tint = if (hasSelectedGroup) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = currentGroupName,
@@ -112,7 +123,11 @@ fun ExpenseGroupSelector(
                         expanded = false
                     },
                     leadingIcon = {
-                        Icon(Icons.Default.CardTravel, contentDescription = null, tint = AppTheme.colors.primaryAccent)
+                        TripCoverAvatar(
+                            group = eg,
+                            modifier = Modifier.size(24.dp),
+                            cornerRadius = 6.dp
+                        )
                     }
                 )
             }

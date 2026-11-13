@@ -70,28 +70,47 @@ fun rememberBitmapFromPath(path: String?): ImageBitmap? {
     return bitmap
 }
 
+val DETERMINISTIC_AVATAR_PALETTE = listOf(
+    Color(0xFF3B82F6), // Blue
+    Color(0xFF06B6D4), // Cyan
+    Color(0xFF10B981), // Emerald
+    Color(0xFF8B5CF6), // Purple
+    Color(0xFFEC4899), // Pink
+    Color(0xFFF97316), // Orange
+    Color(0xFF6366F1), // Indigo
+    Color(0xFF14B8A6)  // Teal
+)
+
+fun getDeterministicColor(identifier: String): Color {
+    val hash = kotlin.math.abs(identifier.hashCode())
+    return DETERMINISTIC_AVATAR_PALETTE[hash % DETERMINISTIC_AVATAR_PALETTE.size]
+}
+
 /**
- * Friend Avatar displaying profile picture if present, or initials fallback.
+ * Friend Avatar displaying profile picture if present, or consistent initials fallback.
  */
 @Composable
 fun FriendAvatar(
-    friend: Friend,
+    name: String,
+    profileImagePath: String?,
+    id: Long = 0,
     modifier: Modifier = Modifier.size(44.dp),
-    fallbackColor: Color = ElectricBlue
+    fallbackColor: Color? = null
 ) {
-    val bitmap = rememberBitmapFromPath(friend.profileImagePath)
+    val bitmap = rememberBitmapFromPath(profileImagePath)
+    val color = fallbackColor ?: getDeterministicColor(name.ifBlank { id.toString() })
 
     if (bitmap != null) {
         Image(
             bitmap = bitmap,
-            contentDescription = friend.name,
+            contentDescription = name,
             modifier = modifier
                 .clip(CircleShape)
-                .border(1.dp, fallbackColor.copy(alpha = 0.4f), CircleShape),
+                .border(1.dp, color.copy(alpha = 0.4f), CircleShape),
             contentScale = ContentScale.Crop
         )
     } else {
-        val initials = friend.name.split(" ")
+        val initials = name.split(" ")
             .mapNotNull { it.firstOrNull()?.toString() }
             .take(2)
             .joinToString("")
@@ -100,16 +119,137 @@ fun FriendAvatar(
         Box(
             modifier = modifier
                 .clip(CircleShape)
-                .background(fallbackColor.copy(alpha = 0.2f))
-                .border(1.dp, fallbackColor.copy(alpha = 0.4f), CircleShape),
+                .background(color.copy(alpha = 0.2f))
+                .border(1.dp, color.copy(alpha = 0.4f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = initials.ifBlank { "F" },
                 style = MaterialTheme.typography.titleSmall,
-                color = fallbackColor,
+                color = color,
                 fontWeight = FontWeight.Bold
             )
+        }
+    }
+}
+
+/**
+ * Friend Avatar displaying profile picture if present, or initials fallback.
+ */
+@Composable
+fun FriendAvatar(
+    friend: Friend,
+    modifier: Modifier = Modifier.size(44.dp),
+    fallbackColor: Color? = null
+) {
+    FriendAvatar(
+        name = friend.name,
+        profileImagePath = friend.profileImagePath,
+        id = friend.id,
+        modifier = modifier,
+        fallbackColor = fallbackColor
+    )
+}
+
+/**
+ * Trip Cover Avatar displaying trip cover image or styled travel icon, visually distinct from friend circles.
+ */
+@Composable
+fun TripCoverAvatar(
+    group: com.naman.rupeeflow.domain.model.ExpenseGroup,
+    modifier: Modifier = Modifier.size(48.dp),
+    cornerRadius: Dp = 14.dp
+) {
+    val bitmap = rememberBitmapFromPath(group.coverImageUri)
+    val themeColor = try {
+        Color(android.graphics.Color.parseColor(group.colorHex ?: "#3B82F6"))
+    } catch (_: Exception) {
+        getDeterministicColor(group.name)
+    }
+
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = group.name,
+            modifier = modifier
+                .clip(RoundedCornerShape(cornerRadius))
+                .border(1.5.dp, themeColor.copy(alpha = 0.6f), RoundedCornerShape(cornerRadius)),
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape(cornerRadius))
+                .background(themeColor.copy(alpha = 0.2f))
+                .border(1.5.dp, themeColor.copy(alpha = 0.5f), RoundedCornerShape(cornerRadius)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.CardTravel,
+                contentDescription = group.name,
+                tint = themeColor,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Trip Cover Banner for Trip Details Screen header dashboard.
+ */
+@Composable
+fun TripCoverBanner(
+    group: com.naman.rupeeflow.domain.model.ExpenseGroup,
+    modifier: Modifier = Modifier.fillMaxWidth().height(140.dp)
+) {
+    val bitmap = rememberBitmapFromPath(group.coverImageUri)
+    val themeColor = try {
+        Color(android.graphics.Color.parseColor(group.colorHex ?: "#3B82F6"))
+    } catch (_: Exception) {
+        getDeterministicColor(group.name)
+    }
+
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = group.name,
+            modifier = modifier
+                .clip(RoundedCornerShape(16.dp))
+                .border(1.dp, themeColor.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        colors = listOf(
+                            themeColor.copy(alpha = 0.35f),
+                            themeColor.copy(alpha = 0.15f)
+                        )
+                    )
+                )
+                .border(1.dp, themeColor.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Default.Flight,
+                    contentDescription = null,
+                    tint = themeColor,
+                    modifier = Modifier.size(40.dp)
+                )
+                if (!group.destination.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = group.destination!!,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = AppTheme.colors.textPrimary
+                    )
+                }
+            }
         }
     }
 }
