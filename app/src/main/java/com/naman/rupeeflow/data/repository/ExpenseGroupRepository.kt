@@ -119,6 +119,7 @@ class ExpenseGroupRepositoryImpl(
             updatedAt = System.currentTimeMillis()
         )
         expenseGroupDao.updateExpenseGroup(entity)
+        transactionDao.updateExpenseGroupNameForGroup(group.id, trimmed)
     }
 
     override suspend fun setArchived(id: Long, isArchived: Boolean) {
@@ -135,13 +136,27 @@ class ExpenseGroupRepositoryImpl(
         transactions: List<com.naman.rupeeflow.data.local.dao.TransactionWithParticipants>
     ): ExpenseGroup {
         val activeTxns = transactions.filter { it.transaction.transactionStatus == TransactionStatus.ACTIVE }
-        val expenseTxns = activeTxns.filter { it.transaction.transactionType == TransactionType.EXPENSE }
+        val expenseTxns = activeTxns.filter {
+            it.transaction.transactionType == TransactionType.EXPENSE ||
+                    it.transaction.transactionType == TransactionType.UPI_LITE_PAYMENT
+        }
 
-        val totalSpendingPaise = expenseTxns.sumOf { it.transaction.amountPaise }
-        val cashSpendingPaise = expenseTxns.filter { it.transaction.paymentMethod == PaymentMethod.CASH }
-            .sumOf { it.transaction.amountPaise }
-        val onlineSpendingPaise = expenseTxns.filter { it.transaction.paymentMethod != PaymentMethod.CASH }
-            .sumOf { it.transaction.amountPaise }
+        fun twpPersonalExpense(twp: com.naman.rupeeflow.data.local.dao.TransactionWithParticipants): Long {
+            return if (twp.participants.isNotEmpty()) {
+                val me = twp.participants.firstOrNull { it.friendId == null }
+                me?.shareAmountPaise ?: 0L
+            } else {
+                if (twp.transaction.paidByFriendId == null) twp.transaction.amountPaise else 0L
+            }
+        }
+
+        val totalSpendingPaise = expenseTxns.sumOf { twpPersonalExpense(it) }
+        val cashSpendingPaise = expenseTxns
+            .filter { it.transaction.paymentMethod == PaymentMethod.CASH }
+            .sumOf { twpPersonalExpense(it) }
+        val onlineSpendingPaise = expenseTxns
+            .filter { it.transaction.paymentMethod != PaymentMethod.CASH }
+            .sumOf { twpPersonalExpense(it) }
 
         return ExpenseGroup(
             id = id,

@@ -266,7 +266,7 @@ fun ReportGeneratorScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
-                            Text("Total Expenses", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textSecondary)
+                            Text("Personal Expenses", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textSecondary)
                             Text(
                                 CurrencyUtils.formatPaiseToRupees(state.totalExpensesPaise),
                                 style = MaterialTheme.typography.titleLarge,
@@ -275,7 +275,7 @@ fun ReportGeneratorScreen(
                             )
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("Total Income", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textSecondary)
+                            Text("Personal Income", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textSecondary)
                             Text(
                                 CurrencyUtils.formatPaiseToRupees(state.totalIncomePaise),
                                 style = MaterialTheme.typography.titleLarge,
@@ -289,17 +289,48 @@ fun ReportGeneratorScreen(
                     HorizontalDivider(color = AppTheme.colors.divider)
                     Spacer(modifier = Modifier.height(10.dp))
 
+                    if (state.totalRefundsPaise > 0L) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Personal Refunds", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                            Text(
+                                "+ ${CurrencyUtils.formatPaiseToRupees(state.totalRefundsPaise)}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (AppTheme.isDark) EmeraldMint else Color(0xFF059669)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Net Spending", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                        Text("Net Personal Spending", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
                         Text(
                             CurrencyUtils.formatPaiseToRupees(state.netSpendingPaise),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
                             color = AppTheme.colors.textPrimary
                         )
+                    }
+
+                    if (state.grossBillsPaise > 0L && state.grossBillsPaise != state.totalExpensesPaise) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Total Bills (All Participants)", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textTertiary)
+                            Text(
+                                CurrencyUtils.formatPaiseToRupees(state.grossBillsPaise),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AppTheme.colors.textTertiary
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(6.dp))

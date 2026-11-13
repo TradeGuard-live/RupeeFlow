@@ -158,19 +158,7 @@ data class Transaction(
         } else null
 
     val userExpensePaise: Long
-        get() {
-            if (transactionStatus == TransactionStatus.IGNORED) return 0L
-            // Top-ups are wallet funding events, not expenses.
-            // Transfers and debt settlements are tracked separately.
-            if (transactionType != TransactionType.EXPENSE && transactionType != TransactionType.UPI_LITE_PAYMENT) return 0L
-
-            return if (participants.isNotEmpty()) {
-                val me = participants.firstOrNull { it.friendId == null }
-                me?.shareAmountPaise ?: 0L
-            } else {
-                if (paidByFriendId == null) amountPaise else 0L
-            }
-        }
+        get() = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpense(this)
 }
 
 // Production hardening: default values for backward compatibility and clean construction

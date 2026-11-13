@@ -40,6 +40,7 @@ data class ReportGeneratorUiState(
     val netSpendingPaise: Long = 0L,
     val cashSpendingPaise: Long = 0L,
     val onlineSpendingPaise: Long = 0L,
+    val grossBillsPaise: Long = 0L,
     val categoryBreakdown: List<CategoryReportItem> = emptyList(),
     val expenseGroupBreakdown: List<ExpenseGroupReportItem> = emptyList(),
     val savedDrafts: List<ReportDraft> = emptyList(),
@@ -202,6 +203,7 @@ class ReportGeneratorViewModel(
                     netSpendingPaise = state.netSpendingPaise,
                     cashSpendingPaise = state.cashSpendingPaise,
                     onlineSpendingPaise = state.onlineSpendingPaise,
+                    grossBillsPaise = state.grossBillsPaise,
                     categoryBreakdown = state.categoryBreakdown,
                     expenseGroupBreakdown = state.expenseGroupBreakdown
                 )
@@ -252,38 +254,41 @@ class ReportGeneratorViewModel(
             !state.excludedTransactionIds.contains(txn.id) && !txn.isIgnored
         }
 
-        val expenses = included.filter { it.transactionType == TransactionType.EXPENSE }
-        val income = included.filter { it.transactionType == TransactionType.INCOME }
-        val refunds = included.filter { it.transactionType == TransactionType.REFUND }
+        val totalExpensesPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalExpense(included)
+        val totalIncomePaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalIncome(included)
+        val totalRefundsPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalRefund(included)
+        val netSpendingPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalNetSpending(included)
+        val cashSpendingPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalCashSpending(included)
+        val onlineSpendingPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalOnlineSpending(included)
+        val grossBillsPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateGrossBillAmount(included)
 
-        val totalExpensesPaise = expenses.sumOf { it.amountPaise }
-        val totalIncomePaise = income.sumOf { it.amountPaise }
-        val totalRefundsPaise = refunds.sumOf { it.amountPaise }
-        val netSpendingPaise = (totalExpensesPaise - totalRefundsPaise - totalIncomePaise).coerceAtLeast(0L)
+        // Category breakdown using personal shares
+        val categoryBreakdown = included
+            .filter { com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpense(it) > 0L }
+            .groupBy { it.category?.name ?: "Other" }
+            .map { (catName, txns) ->
+                val sumPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalExpense(txns)
+                val pct = if (totalExpensesPaise > 0L) (sumPaise.toDouble() / totalExpensesPaise.toDouble()) * 100.0 else 0.0
+                CategoryReportItem(
+                    categoryName = catName,
+                    amountPaise = sumPaise,
+                    percentage = pct,
+                    transactionCount = txns.size
+                )
+            }.sortedByDescending { it.amountPaise }
 
-        val cashSpendingPaise = expenses.filter { it.paymentMethod == PaymentMethod.CASH }.sumOf { it.amountPaise }
-        val onlineSpendingPaise = expenses.filter { it.paymentMethod != PaymentMethod.CASH }.sumOf { it.amountPaise }
-
-        // Category breakdown
-        val categoryBreakdown = expenses.groupBy { it.category?.name ?: "Other" }.map { (catName, txns) ->
-            val sumPaise = txns.sumOf { it.amountPaise }
-            val pct = if (totalExpensesPaise > 0L) (sumPaise.toDouble() / totalExpensesPaise.toDouble()) * 100.0 else 0.0
-            CategoryReportItem(
-                categoryName = catName,
-                amountPaise = sumPaise,
-                percentage = pct,
-                transactionCount = txns.size
-            )
-        }.sortedByDescending { it.amountPaise }
-
-        // Expense group breakdown
-        val expenseGroupBreakdown = expenses.filter { it.hasExpenseGroup }.groupBy { it.expenseGroupName ?: "Group" }.map { (groupName, txns) ->
-            ExpenseGroupReportItem(
-                groupName = groupName,
-                amountPaise = txns.sumOf { it.amountPaise },
-                transactionCount = txns.size
-            )
-        }.sortedByDescending { it.amountPaise }
+        // Expense group breakdown using personal shares
+        val expenseGroupBreakdown = included
+            .filter { it.hasExpenseGroup && com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpense(it) > 0L }
+            .groupBy { it.expenseGroupName ?: "Group" }
+            .map { (groupName, txns) ->
+                val sumPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalExpense(txns)
+                ExpenseGroupReportItem(
+                    groupName = groupName,
+                    amountPaise = sumPaise,
+                    transactionCount = txns.size
+                )
+            }.sortedByDescending { it.amountPaise }
 
         return state.copy(
             rawTransactionsInRange = inRange,
@@ -294,6 +299,7 @@ class ReportGeneratorViewModel(
             netSpendingPaise = netSpendingPaise,
             cashSpendingPaise = cashSpendingPaise,
             onlineSpendingPaise = onlineSpendingPaise,
+            grossBillsPaise = grossBillsPaise,
             categoryBreakdown = categoryBreakdown,
             expenseGroupBreakdown = expenseGroupBreakdown
         )

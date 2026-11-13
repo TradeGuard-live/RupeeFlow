@@ -7,7 +7,17 @@ import com.naman.rupeeflow.data.repository.FriendRepository
 import com.naman.rupeeflow.data.repository.SettlementRepository
 import com.naman.rupeeflow.data.repository.TransactionRepository
 import com.naman.rupeeflow.domain.ledger.LedgerCalculator
-import com.naman.rupeeflow.domain.model.*
+import com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator
+import com.naman.rupeeflow.domain.model.AnalyticsData
+import com.naman.rupeeflow.domain.model.Category
+import com.naman.rupeeflow.domain.model.CategorySpending
+import com.naman.rupeeflow.domain.model.DailySpending
+import com.naman.rupeeflow.domain.model.Friend
+import com.naman.rupeeflow.domain.model.PaymentMethod
+import com.naman.rupeeflow.domain.model.Settlement
+import com.naman.rupeeflow.domain.model.Transaction
+import com.naman.rupeeflow.domain.model.TransactionStatus
+import com.naman.rupeeflow.domain.model.TransactionType
 import com.naman.rupeeflow.domain.util.DatePeriodHelper
 import com.naman.rupeeflow.domain.util.PeriodRange
 import com.naman.rupeeflow.domain.util.PeriodType
@@ -147,55 +157,23 @@ class AnalyticsViewModel(
                     it.transactionDate < currentEndExclusive
         }
 
-        // Previous period transactions strictly within previous half-open interval
-        val prevExpTxns = allTxns.filter {
+        // Previous period net spending
+        val prevTxns = allTxns.filter {
             it.transactionStatus == TransactionStatus.ACTIVE &&
                     it.transactionDate >= previousStart &&
-                    it.transactionDate < previousEndExclusive &&
-                    it.transactionType == TransactionType.EXPENSE
+                    it.transactionDate < previousEndExclusive
         }
-        val prevRefundTxns = allTxns.filter {
-            it.transactionStatus == TransactionStatus.ACTIVE &&
-                    it.transactionDate >= previousStart &&
-                    it.transactionDate < previousEndExclusive &&
-                    it.transactionType == TransactionType.REFUND
-        }
-        val prevGrossSpent = prevExpTxns.safeSumOf { it.userExpensePaise }
-        val prevRefunds = prevRefundTxns.safeSumOf { it.amountPaise }
-        val prevSpent = (prevGrossSpent - prevRefunds).coerceAtLeast(0L)
+        val prevSpent = PersonalFinancialAggregator.calculatePersonalNetSpending(prevTxns)
 
-        var totalSpent = 0L
-        var totalIncome = 0L
-        var totalRefund = 0L
-        var cashSpending = 0L
-        var onlineSpending = 0L
-        val categoryMap = mutableMapOf<Long, Long>()
-
-        for (t in currentTxns) {
-            when (t.transactionType) {
-                TransactionType.EXPENSE -> {
-                    val userExpense = t.userExpensePaise
-                    totalSpent = SafeMath.safeAdd(totalSpent, userExpense)
-                    if (t.paymentMethod == PaymentMethod.CASH) {
-                        cashSpending = SafeMath.safeAdd(cashSpending, userExpense)
-                    } else {
-                        onlineSpending = SafeMath.safeAdd(onlineSpending, userExpense)
-                    }
-                    val catTotal = categoryMap.getOrDefault(t.categoryId, 0L)
-                    categoryMap[t.categoryId] = SafeMath.safeAdd(catTotal, userExpense)
-                }
-                TransactionType.INCOME -> {
-                    totalIncome = SafeMath.safeAdd(totalIncome, t.amountPaise)
-                }
-                TransactionType.REFUND -> {
-                    totalRefund = SafeMath.safeAdd(totalRefund, t.amountPaise)
-                }
-                else -> {}
-            }
-        }
+        val totalSpent = PersonalFinancialAggregator.calculateTotalPersonalExpense(currentTxns)
+        val totalIncome = PersonalFinancialAggregator.calculateTotalPersonalIncome(currentTxns)
+        val totalRefund = PersonalFinancialAggregator.calculateTotalPersonalRefund(currentTxns)
+        val cashSpending = PersonalFinancialAggregator.calculatePersonalCashSpending(currentTxns)
+        val onlineSpending = PersonalFinancialAggregator.calculatePersonalOnlineSpending(currentTxns)
+        val categoryMap = PersonalFinancialAggregator.calculatePersonalCategoryTotals(currentTxns)
 
         // Net spending accounting for refunds
-        val netSpending = (totalSpent - totalRefund).coerceAtLeast(0L)
+        val netSpending = PersonalFinancialAggregator.calculatePersonalNetSpending(currentTxns)
         val netSavings = totalIncome - netSpending
         val savingsRate = if (totalIncome > 0L) {
             ((netSavings.toFloat() / totalIncome.toFloat()) * 100f).coerceIn(-100f, 100f)
@@ -217,71 +195,33 @@ class AnalyticsViewModel(
 
         val (trendPoints, periodInfo) = when (period) {
             "WEEKLY" -> {
-                val refDate = Instant.ofEpochMilli(currentStart).atZone(zoneId).toLocalDate()
-                val monday = refDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-
-                val daysList = (0..6).map { i ->
-                    val dayDate = monday.plusDays(i.toLong())
-                    val dayStart = dayDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
-                    val dayEndExclusive = dayDate.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
-
-                    val dayTotal = currentTxns
-                        .filter {
-                            it.transactionType == TransactionType.EXPENSE &&
-                                    it.transactionDate >= dayStart &&
-                                    it.transactionDate < dayEndExclusive
-                        }
-                        .safeSumOf { it.userExpensePaise }
-
-                    val dayLabel = dayDate.dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
-                    val dateRange = dayDate.format(DateTimeFormatter.ofPattern("d MMM", locale))
-                    DailySpending(dayStart, dayLabel, dayTotal, dateRange)
-                }
-                Pair(daysList, currentRange.label)
+                val trend = PersonalFinancialAggregator.calculatePersonalDailyTotals(
+                    transactions = currentTxns,
+                    currentStartMillis = currentStart,
+                    zoneId = zoneId,
+                    locale = locale
+                )
+                Pair(trend, currentRange.label)
             }
             "YEARLY" -> {
                 val year = Instant.ofEpochMilli(currentStart).atZone(zoneId).toLocalDate().year
-
-                val monthList = (1..12).map { m ->
-                    val ym = YearMonth.of(year, m)
-                    val mStart = ym.atDay(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
-                    val mEndExclusive = ym.plusMonths(1).atDay(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
-
-                    val mTotal = currentTxns
-                        .filter {
-                            it.transactionType == TransactionType.EXPENSE &&
-                                    it.transactionDate >= mStart &&
-                                    it.transactionDate < mEndExclusive
-                        }
-                        .safeSumOf { it.userExpensePaise }
-
-                    val mLabel = ym.month.getDisplayName(TextStyle.SHORT, locale)
-                    val fullLabel = ym.month.getDisplayName(TextStyle.FULL, locale)
-                    DailySpending(mStart, mLabel, mTotal, fullLabel)
-                }
-                Pair(monthList, currentRange.label)
+                val trend = PersonalFinancialAggregator.calculatePersonalMonthlyTotals(
+                    transactions = currentTxns,
+                    year = year,
+                    zoneId = zoneId,
+                    locale = locale
+                )
+                Pair(trend, currentRange.label)
             }
             else -> { // "MONTHLY"
                 val yearMonth = YearMonth.from(Instant.ofEpochMilli(currentStart).atZone(zoneId))
-                val buckets = DatePeriodHelper.getMonthlyWeeks(yearMonth, TimeZone.getDefault(), locale)
-
-                val weekList = buckets.map { bucket ->
-                    val total = currentTxns
-                        .filter {
-                            it.transactionType == TransactionType.EXPENSE &&
-                                    it.transactionDate >= bucket.calendarWeekStartMillis &&
-                                    it.transactionDate < bucket.calendarWeekEndMillisExclusive
-                        }
-                        .safeSumOf { it.userExpensePaise }
-
-                    DailySpending(
-                        timestamp = bucket.calendarWeekStartMillis,
-                        dayLabel = bucket.weekLabel,
-                        amountPaise = total,
-                        dateRangeLabel = bucket.dateRangeLabel
-                    )
-                }
-                Pair(weekList, currentRange.label)
+                val trend = PersonalFinancialAggregator.calculatePersonalWeeklyTotals(
+                    transactions = currentTxns,
+                    yearMonth = yearMonth,
+                    timeZone = TimeZone.getDefault(),
+                    locale = locale
+                )
+                Pair(trend, currentRange.label)
             }
         }
 

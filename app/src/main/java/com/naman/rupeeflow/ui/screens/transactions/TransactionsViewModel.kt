@@ -10,10 +10,26 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
+data class ExpenseGroupTransactionCluster(
+    val key: String,
+    val groupId: Long?,
+    val name: String,
+    val iconName: String? = null,
+    val colorHex: String? = null,
+    val transactions: List<Transaction>,
+    val totalPersonalExpensePaise: Long,
+    val transactionCount: Int,
+    val dateRangeLabel: String,
+    val isExpanded: Boolean = false
+)
+
 data class TransactionsUiState(
     val isLoading: Boolean = true,
     val allTransactions: List<Transaction> = emptyList(),
     val filteredTransactions: List<Transaction> = emptyList(),
+    val isGroupedByExpenseGroup: Boolean = true,
+    val expandedGroupKeys: Set<String> = emptySet(),
+    val transactionClusters: List<ExpenseGroupTransactionCluster> = emptyList(),
     val searchQuery: String = "",
     val selectedTypeFilter: String = "ALL", // "ALL", "EXPENSE", "INCOME", "REFUND", "TRANSFER", "IGNORED"
     val selectedDateFilter: String = "ALL", // "ALL", "MONTHLY", "WEEKLY", "THIS_MONTH", "LAST_MONTH"
@@ -69,6 +85,7 @@ class TransactionsViewModel(
                         methodFilter = current.selectedPaymentMethodFilter,
                         categoryFilter = current.selectedCategoryFilter
                     )
+                    val clusters = clusterTransactions(filtered, bundle.expGroups, current.expandedGroupKeys)
                     val rankedCategories = inputRankingRepository?.rankOptions("CATEGORY", bundle.categories) { it.id.toString() } ?: bundle.categories
                     val rankedGroups = inputRankingRepository?.rankOptions("GROUP", bundle.groups) { it.id.toString() } ?: bundle.groups
                     val rankedFriends = inputRankingRepository?.rankOptions("FRIEND", bundle.friends) { it.id.toString() } ?: bundle.friends
@@ -77,6 +94,7 @@ class TransactionsViewModel(
                         isLoading = false,
                         allTransactions = bundle.txns,
                         filteredTransactions = filtered,
+                        transactionClusters = clusters,
                         categories = rankedCategories,
                         friends = rankedFriends,
                         friendGroups = rankedGroups,
@@ -101,152 +119,199 @@ class TransactionsViewModel(
         val expGroups: List<com.naman.rupeeflow.domain.model.ExpenseGroup>
     )
 
-    fun onSearchQueryChanged(query: String) {
+    fun setGroupingMode(isGrouped: Boolean) {
+        _uiState.update { it.copy(isGroupedByExpenseGroup = isGrouped) }
+    }
+
+    fun toggleGroupExpansion(key: String) {
         _uiState.update { current ->
-            val filtered = applyFilters(
-                txns = current.allTransactions,
-                query = query,
-                typeFilter = current.selectedTypeFilter,
-                dateFilter = current.selectedDateFilter,
-                dateOffset = current.datePeriodOffset,
-                methodFilter = current.selectedPaymentMethodFilter,
-                categoryFilter = current.selectedCategoryFilter
-            )
-            current.copy(searchQuery = query, filteredTransactions = filtered)
+            val updatedKeys = if (current.expandedGroupKeys.contains(key)) {
+                current.expandedGroupKeys - key
+            } else {
+                current.expandedGroupKeys + key
+            }
+            val updatedClusters = current.transactionClusters.map { cluster ->
+                if (cluster.key == key) cluster.copy(isExpanded = updatedKeys.contains(key)) else cluster
+            }
+            current.copy(expandedGroupKeys = updatedKeys, transactionClusters = updatedClusters)
         }
+    }
+
+    fun expandAllGroups() {
+        _uiState.update { current ->
+            val allKeys = current.transactionClusters.map { it.key }.toSet()
+            val updatedClusters = current.transactionClusters.map { it.copy(isExpanded = true) }
+            current.copy(expandedGroupKeys = allKeys, transactionClusters = updatedClusters)
+        }
+    }
+
+    fun collapseAllGroups() {
+        _uiState.update { current ->
+            val updatedClusters = current.transactionClusters.map { it.copy(isExpanded = false) }
+            current.copy(expandedGroupKeys = emptySet(), transactionClusters = updatedClusters)
+        }
+    }
+
+    fun onSearchQueryChanged(query: String) {
+        _uiState.update { updateFilterState(it, query = query) }
     }
 
     fun onTypeFilterSelected(filter: String) {
-        _uiState.update { current ->
-            val filtered = applyFilters(
-                txns = current.allTransactions,
-                query = current.searchQuery,
-                typeFilter = filter,
-                dateFilter = current.selectedDateFilter,
-                dateOffset = current.datePeriodOffset,
-                methodFilter = current.selectedPaymentMethodFilter,
-                categoryFilter = current.selectedCategoryFilter
-            )
-            current.copy(selectedTypeFilter = filter, filteredTransactions = filtered)
-        }
+        _uiState.update { updateFilterState(it, typeFilter = filter) }
     }
 
     fun onPaymentMethodFilterSelected(method: PaymentMethod?) {
-        _uiState.update { current ->
-            val filtered = applyFilters(
-                txns = current.allTransactions,
-                query = current.searchQuery,
-                typeFilter = current.selectedTypeFilter,
-                dateFilter = current.selectedDateFilter,
-                dateOffset = current.datePeriodOffset,
-                methodFilter = method,
-                categoryFilter = current.selectedCategoryFilter
-            )
-            current.copy(selectedPaymentMethodFilter = method, filteredTransactions = filtered)
-        }
+        _uiState.update { updateFilterState(it, methodFilter = method) }
     }
 
     fun onCategoryFilterSelected(category: Category?) {
-        _uiState.update { current ->
-            val filtered = applyFilters(
-                txns = current.allTransactions,
-                query = current.searchQuery,
-                typeFilter = current.selectedTypeFilter,
-                dateFilter = current.selectedDateFilter,
-                dateOffset = current.datePeriodOffset,
-                methodFilter = current.selectedPaymentMethodFilter,
-                categoryFilter = category
-            )
-            current.copy(selectedCategoryFilter = category, filteredTransactions = filtered)
-        }
+        _uiState.update { updateFilterState(it, categoryFilter = category) }
     }
 
     fun onDateFilterSelected(filter: String) {
-        _uiState.update { current ->
-            val newOffset = 0
-            val label = getDatePeriodLabel(filter, newOffset)
-            val filtered = applyFilters(
-                txns = current.allTransactions,
-                query = current.searchQuery,
-                typeFilter = current.selectedTypeFilter,
-                dateFilter = filter,
-                dateOffset = newOffset,
-                methodFilter = current.selectedPaymentMethodFilter,
-                categoryFilter = current.selectedCategoryFilter
-            )
-            current.copy(
-                selectedDateFilter = filter,
-                datePeriodOffset = newOffset,
-                datePeriodLabel = label,
-                canNavigateNextDate = false,
-                filteredTransactions = filtered
-            )
-        }
+        _uiState.update { updateFilterState(it, dateFilter = filter, dateOffset = 0) }
     }
 
     fun previousDatePeriod() {
-        _uiState.update { current ->
-            val newOffset = current.datePeriodOffset - 1
-            val label = getDatePeriodLabel(current.selectedDateFilter, newOffset)
-            val filtered = applyFilters(
-                txns = current.allTransactions,
-                query = current.searchQuery,
-                typeFilter = current.selectedTypeFilter,
-                dateFilter = current.selectedDateFilter,
-                dateOffset = newOffset,
-                methodFilter = current.selectedPaymentMethodFilter,
-                categoryFilter = current.selectedCategoryFilter
-            )
-            current.copy(
-                datePeriodOffset = newOffset,
-                datePeriodLabel = label,
-                canNavigateNextDate = newOffset < 0,
-                filteredTransactions = filtered
-            )
-        }
+        _uiState.update { updateFilterState(it, dateOffset = it.datePeriodOffset - 1) }
     }
 
     fun nextDatePeriod() {
-        _uiState.update { current ->
-            val newOffset = (current.datePeriodOffset + 1).coerceAtMost(0)
-            val label = getDatePeriodLabel(current.selectedDateFilter, newOffset)
-            val filtered = applyFilters(
-                txns = current.allTransactions,
-                query = current.searchQuery,
-                typeFilter = current.selectedTypeFilter,
-                dateFilter = current.selectedDateFilter,
-                dateOffset = newOffset,
-                methodFilter = current.selectedPaymentMethodFilter,
-                categoryFilter = current.selectedCategoryFilter
-            )
-            current.copy(
-                datePeriodOffset = newOffset,
-                datePeriodLabel = label,
-                canNavigateNextDate = newOffset < 0,
-                filteredTransactions = filtered
-            )
-        }
+        _uiState.update { updateFilterState(it, dateOffset = (it.datePeriodOffset + 1).coerceAtMost(0)) }
     }
 
     fun currentDatePeriod() {
-        _uiState.update { current ->
-            val newOffset = 0
-            val label = getDatePeriodLabel(current.selectedDateFilter, newOffset)
-            val filtered = applyFilters(
-                txns = current.allTransactions,
-                query = current.searchQuery,
-                typeFilter = current.selectedTypeFilter,
-                dateFilter = current.selectedDateFilter,
-                dateOffset = newOffset,
-                methodFilter = current.selectedPaymentMethodFilter,
-                categoryFilter = current.selectedCategoryFilter
+        _uiState.update { updateFilterState(it, dateOffset = 0) }
+    }
+
+    private fun updateFilterState(
+        current: TransactionsUiState,
+        query: String = current.searchQuery,
+        typeFilter: String = current.selectedTypeFilter,
+        dateFilter: String = current.selectedDateFilter,
+        dateOffset: Int = current.datePeriodOffset,
+        methodFilter: PaymentMethod? = current.selectedPaymentMethodFilter,
+        categoryFilter: Category? = current.selectedCategoryFilter
+    ): TransactionsUiState {
+        val filtered = applyFilters(
+            txns = current.allTransactions,
+            query = query,
+            typeFilter = typeFilter,
+            dateFilter = dateFilter,
+            dateOffset = dateOffset,
+            methodFilter = methodFilter,
+            categoryFilter = categoryFilter
+        )
+        val expandedKeys = if (query.isNotBlank()) {
+            val matchingKeys = filtered.mapNotNull { txn ->
+                if (txn.expenseGroupId != null) "group_${txn.expenseGroupId}"
+                else if (!txn.expenseGroupName.isNullOrBlank()) "named_${txn.expenseGroupName}"
+                else "ungrouped"
+            }.toSet()
+            current.expandedGroupKeys + matchingKeys
+        } else {
+            current.expandedGroupKeys
+        }
+        val clusters = clusterTransactions(filtered, current.expenseGroups, expandedKeys)
+        val dateLabel = getDatePeriodLabel(dateFilter, dateOffset)
+
+        return current.copy(
+            searchQuery = query,
+            selectedTypeFilter = typeFilter,
+            selectedDateFilter = dateFilter,
+            datePeriodOffset = dateOffset,
+            datePeriodLabel = dateLabel,
+            canNavigateNextDate = dateOffset < 0,
+            selectedPaymentMethodFilter = methodFilter,
+            selectedCategoryFilter = categoryFilter,
+            filteredTransactions = filtered,
+            transactionClusters = clusters,
+            expandedGroupKeys = expandedKeys
+        )
+    }
+
+    private fun clusterTransactions(
+        txns: List<Transaction>,
+        expenseGroups: List<com.naman.rupeeflow.domain.model.ExpenseGroup>,
+        expandedKeys: Set<String>
+    ): List<ExpenseGroupTransactionCluster> {
+        if (txns.isEmpty()) return emptyList()
+
+        val groupMap = expenseGroups.associateBy { it.id }
+
+        val (groupedTxns, ungroupedTxns) = txns.partition {
+            it.expenseGroupId != null || !it.expenseGroupName.isNullOrBlank()
+        }
+
+        val clusters = mutableListOf<ExpenseGroupTransactionCluster>()
+
+        val groupedByGroup = groupedTxns.groupBy { txn ->
+            if (txn.expenseGroupId != null) "group_${txn.expenseGroupId}"
+            else "named_${txn.expenseGroupName}"
+        }
+
+        for ((key, groupTxns) in groupedByGroup) {
+            val first = groupTxns.first()
+            val groupObj = first.expenseGroupId?.let { groupMap[it] }
+            val name = groupObj?.name ?: first.expenseGroupName ?: "Expense Group"
+            val iconName = groupObj?.iconName ?: "flight"
+            val colorHex = groupObj?.colorHex ?: "#3B82F6"
+            val sortedTxns = groupTxns.sortedByDescending { it.transactionDate }
+
+            val totalPersonal = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalExpense(sortedTxns)
+            val minDate = sortedTxns.minOf { it.transactionDate }
+            val maxDate = sortedTxns.maxOf { it.transactionDate }
+            val dateLabel = if (minDate == maxDate) {
+                DateTimeUtils.formatDate(minDate, "dd MMM yyyy")
+            } else {
+                "${DateTimeUtils.formatDate(minDate, "dd MMM")} – ${DateTimeUtils.formatDate(maxDate, "dd MMM yyyy")}"
+            }
+
+            clusters.add(
+                ExpenseGroupTransactionCluster(
+                    key = key,
+                    groupId = first.expenseGroupId,
+                    name = name,
+                    iconName = iconName,
+                    colorHex = colorHex,
+                    transactions = sortedTxns,
+                    totalPersonalExpensePaise = totalPersonal,
+                    transactionCount = sortedTxns.size,
+                    dateRangeLabel = dateLabel,
+                    isExpanded = expandedKeys.contains(key)
+                )
             )
-            current.copy(
-                datePeriodOffset = newOffset,
-                datePeriodLabel = label,
-                canNavigateNextDate = false,
-                filteredTransactions = filtered
+        }
+
+        if (ungroupedTxns.isNotEmpty()) {
+            val sortedUngrouped = ungroupedTxns.sortedByDescending { it.transactionDate }
+            val totalPersonal = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalExpense(sortedUngrouped)
+            val minDate = sortedUngrouped.minOf { it.transactionDate }
+            val maxDate = sortedUngrouped.maxOf { it.transactionDate }
+            val dateLabel = if (minDate == maxDate) {
+                DateTimeUtils.formatDate(minDate, "dd MMM yyyy")
+            } else {
+                "${DateTimeUtils.formatDate(minDate, "dd MMM")} – ${DateTimeUtils.formatDate(maxDate, "dd MMM yyyy")}"
+            }
+
+            clusters.add(
+                ExpenseGroupTransactionCluster(
+                    key = "ungrouped",
+                    groupId = null,
+                    name = "Other Expenses",
+                    iconName = "receipt_long",
+                    colorHex = "#64748B",
+                    transactions = sortedUngrouped,
+                    totalPersonalExpensePaise = totalPersonal,
+                    transactionCount = sortedUngrouped.size,
+                    dateRangeLabel = dateLabel,
+                    isExpanded = expandedKeys.contains("ungrouped")
+                )
             )
+        }
+
+        return clusters.sortedByDescending { cluster ->
+            cluster.transactions.firstOrNull()?.transactionDate ?: 0L
         }
     }
 
@@ -273,7 +338,8 @@ class TransactionsViewModel(
                     txn.title.contains(query, ignoreCase = true) ||
                     txn.description.contains(query, ignoreCase = true) ||
                     (txn.merchantName?.contains(query, ignoreCase = true) == true) ||
-                    (txn.referenceNumber?.contains(query, ignoreCase = true) == true)
+                    (txn.referenceNumber?.contains(query, ignoreCase = true) == true) ||
+                    (txn.expenseGroupName?.contains(query, ignoreCase = true) == true)
 
             // Status & Type filter
             val matchesType = when (typeFilter) {

@@ -43,6 +43,7 @@ data class ReportGenerationData(
     val netSpendingPaise: Long,
     val cashSpendingPaise: Long,
     val onlineSpendingPaise: Long,
+    val grossBillsPaise: Long = 0L,
     val categoryBreakdown: List<CategoryReportItem>,
     val expenseGroupBreakdown: List<ExpenseGroupReportItem>
 )
@@ -169,26 +170,26 @@ object PdfReportGenerator {
         val cardWidth = (USABLE_WIDTH - 24f) / 4f
         val cardHeight = 44f
 
-        // 1. Total Expenses
+        // 1. Personal Expenses
         val card1Rect = RectF(MARGIN_X, y, MARGIN_X + cardWidth, y + cardHeight)
         canvas.drawRoundRect(card1Rect, 6f, 6f, bgCardPaint)
         canvas.drawRoundRect(card1Rect, 6f, 6f, cardBorderPaint)
-        canvas.drawText("TOTAL EXPENSES", MARGIN_X + 8f, y + 14f, secondaryPaint)
+        canvas.drawText("PERSONAL EXPENSES", MARGIN_X + 8f, y + 14f, secondaryPaint)
         boldPaint.color = Color.rgb(220, 38, 38) // Coral red
         canvas.drawText(CurrencyUtils.formatPaiseToRupees(data.totalExpensesPaise), MARGIN_X + 8f, y + 32f, boldPaint)
         boldPaint.color = Color.rgb(15, 23, 42)
 
-        // 2. Total Income
+        // 2. Personal Income
         val x2 = MARGIN_X + cardWidth + 8f
         val card2Rect = RectF(x2, y, x2 + cardWidth, y + cardHeight)
         canvas.drawRoundRect(card2Rect, 6f, 6f, bgCardPaint)
         canvas.drawRoundRect(card2Rect, 6f, 6f, cardBorderPaint)
-        canvas.drawText("TOTAL INCOME", x2 + 8f, y + 14f, secondaryPaint)
+        canvas.drawText("PERSONAL INCOME", x2 + 8f, y + 14f, secondaryPaint)
         boldPaint.color = Color.rgb(16, 185, 129) // Emerald
         canvas.drawText(CurrencyUtils.formatPaiseToRupees(data.totalIncomePaise), x2 + 8f, y + 32f, boldPaint)
         boldPaint.color = Color.rgb(15, 23, 42)
 
-        // 3. Net Spending
+        // 3. Net Personal Spending
         val x3 = x2 + cardWidth + 8f
         val card3Rect = RectF(x3, y, x3 + cardWidth, y + cardHeight)
         canvas.drawRoundRect(card3Rect, 6f, 6f, bgCardPaint)
@@ -320,11 +321,24 @@ object PdfReportGenerator {
             }
 
             val dateStr = DateTimeUtils.formatDate(txn.transactionDate, "dd/MM/yy")
-            val titleStr = (txn.merchantName ?: txn.title).take(38)
+            val isIncome = txn.transactionType == TransactionType.INCOME || txn.transactionType == TransactionType.REFUND
+            val personalExpense = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpense(txn)
+            val personalIncome = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalIncome(txn)
+            val personalRefund = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalRefund(txn)
+            val displayPaise = when (txn.transactionType) {
+                TransactionType.EXPENSE, TransactionType.UPI_LITE_PAYMENT -> personalExpense
+                TransactionType.REFUND -> if (txn.isSplit) personalRefund else txn.amountPaise
+                TransactionType.INCOME -> if (txn.isSplit) personalIncome else txn.amountPaise
+                else -> txn.amountPaise
+            }
+            val amountStr = (if (isIncome) "+ " else "- ") + CurrencyUtils.formatPaiseToRupees(displayPaise)
+            val titleStr = if (txn.isSplit) {
+                "${(txn.merchantName ?: txn.title).take(28)} (Split)"
+            } else {
+                (txn.merchantName ?: txn.title).take(38)
+            }
             val catStr = (txn.category?.name ?: "Other").take(18)
             val methodStr = txn.paymentMethod.displayName.take(12)
-            val isIncome = txn.transactionType == TransactionType.INCOME || txn.transactionType == TransactionType.REFUND
-            val amountStr = (if (isIncome) "+ " else "- ") + CurrencyUtils.formatPaiseToRupees(txn.amountPaise)
 
             canvas.drawText(dateStr, MARGIN_X + 4f, y + 11f, secondaryPaint)
             canvas.drawText(titleStr, MARGIN_X + 64f, y + 11f, textPaint)

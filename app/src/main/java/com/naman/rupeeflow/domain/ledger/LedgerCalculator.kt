@@ -279,39 +279,12 @@ object LedgerCalculator {
                     it.transactionDate <= now
         }
 
-        var totalExpensePaise = 0L
-        var totalIncomePaise = 0L
-        var totalRefundPaise = 0L
-        var cashSpendingPaise = 0L
-        var onlineSpendingPaise = 0L
-
-        for (txn in activeThisMonth) {
-            when (txn.transactionType) {
-                TransactionType.EXPENSE -> {
-                    // Only count the user's personal expense share; exclude friends' portion
-                    val myShare = txn.userExpensePaise
-                    totalExpensePaise = Math.addExact(totalExpensePaise, myShare)
-
-                    if (txn.paymentMethod == PaymentMethod.CASH) {
-                        cashSpendingPaise = Math.addExact(cashSpendingPaise, myShare)
-                    } else {
-                        onlineSpendingPaise = Math.addExact(onlineSpendingPaise, myShare)
-                    }
-                }
-                TransactionType.INCOME -> {
-                    totalIncomePaise = Math.addExact(totalIncomePaise, txn.amountPaise)
-                }
-                TransactionType.REFUND -> {
-                    totalRefundPaise = Math.addExact(totalRefundPaise, txn.amountPaise)
-                }
-                else -> {
-                    // Transfers and adjustments are excluded from spending/income
-                }
-            }
-        }
-
-        // Net spending accounts for refunds received with overflow protection
-        val netSpending = SafeMath.safeSubtract(totalExpensePaise, totalRefundPaise).coerceAtLeast(0L)
+        val totalExpensePaise = PersonalFinancialAggregator.calculateTotalPersonalExpense(activeThisMonth)
+        val totalIncomePaise = PersonalFinancialAggregator.calculateTotalPersonalIncome(activeThisMonth)
+        val totalRefundPaise = PersonalFinancialAggregator.calculateTotalPersonalRefund(activeThisMonth)
+        val cashSpendingPaise = PersonalFinancialAggregator.calculatePersonalCashSpending(activeThisMonth)
+        val onlineSpendingPaise = PersonalFinancialAggregator.calculatePersonalOnlineSpending(activeThisMonth)
+        val netSpending = PersonalFinancialAggregator.calculatePersonalNetSpending(activeThisMonth)
 
         val totalOwedToMe = friends.filter { it.netBalancePaise > 0L }.safeSumOf { it.netBalancePaise }
         val totalIOwe = friends.filter { it.netBalancePaise < 0L }.safeSumOf { SafeMath.safeAbs(it.netBalancePaise) }

@@ -61,6 +61,9 @@ interface TransactionDao {
     @Query("DELETE FROM transactions WHERE id = :id")
     suspend fun deleteTransactionById(id: Long)
 
+    @Query("UPDATE transactions SET expenseGroupName = :newName WHERE expenseGroupId = :expenseGroupId")
+    suspend fun updateExpenseGroupNameForGroup(expenseGroupId: Long, newName: String)
+
     @Query("UPDATE transactions SET transactionStatus = :status WHERE id = :id")
     suspend fun updateTransactionStatus(id: Long, status: TransactionStatus)
 
