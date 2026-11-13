@@ -92,7 +92,8 @@ class ReportGeneratorViewModel(
     fun initTripReport(groupId: Long) {
         viewModelScope.launch {
             val group = expenseGroupRepository?.getExpenseGroupById(groupId)
-            val tripTxns = allTransactions.filter { it.expenseGroupId == groupId }
+            val txns = if (allTransactions.isNotEmpty()) allTransactions else transactionRepository.getAllTransactions().first()
+            val tripTxns = txns.filter { it.expenseGroupId == groupId }
             val (tripStart, tripEnd) = when {
                 group?.startDate != null && group.endDate != null -> {
                     val zone = ZoneId.systemDefault()

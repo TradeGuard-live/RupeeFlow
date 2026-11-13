@@ -689,7 +689,7 @@ class TripGroupingAndReportFixQATest {
         val vm = createReportViewModel()
         vm.initTripReport(100L)
 
-        val state = vm.uiState.first { it.isTripReport }
+        val state = vm.uiState.first { it.isTripReport && !it.isLoading }
         assertEquals(1, state.includedTransactions.size)
         assertEquals("Permit", state.includedTransactions[0].title)
         assertEquals(100L, state.targetExpenseGroupId)
@@ -708,7 +708,7 @@ class TripGroupingAndReportFixQATest {
 
         val vm = createReportViewModel()
         vm.initTripReport(50L)
-        val state = vm.uiState.first { it.isTripReport }
+        val state = vm.uiState.first { it.isTripReport && !it.isLoading }
 
         assertEquals(1, state.includedTransactions.size)
         assertEquals(100000L, state.totalExpensesPaise)
@@ -728,7 +728,7 @@ class TripGroupingAndReportFixQATest {
 
         val vm = createReportViewModel()
         vm.initTripReport(1L)
-        val state = vm.uiState.first { it.isTripReport }
+        val state = vm.uiState.first { it.isTripReport && !it.isLoading }
 
         assertEquals(1, state.includedTransactions.size)
         assertEquals(60000L, state.totalExpensesPaise)
