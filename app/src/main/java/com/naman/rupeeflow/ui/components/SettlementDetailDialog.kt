@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -171,109 +172,122 @@ fun SettlementDetailDialog(
                 HorizontalDivider(color = AppTheme.colors.divider)
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Responsive action button layout consistent with TransactionDetailDialog
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    // Row 1: Primary action (Edit) & State action (Reverse / Restore)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        // Edit Settlement Button
+                // Responsive Action Button Layout (Phase 3: Zero Text Clipping)
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val isNarrow = maxWidth < 280.dp
+
+                    val editButton: @Composable (Modifier) -> Unit = { modifier ->
                         Button(
                             onClick = {
                                 onDismiss()
                                 onEdit(settlement)
                             },
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp),
+                            modifier = modifier.heightIn(min = 48.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = AppTheme.colors.primaryAccent,
                                 contentColor = Color.White
                             ),
                             shape = RoundedCornerShape(14.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
                         ) {
-                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Edit",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
-                                softWrap = false
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
+                    }
 
-                        // Reverse / Restore Button
+                    val reverseRestoreButton: @Composable (Modifier) -> Unit = { modifier ->
                         if (!settlement.isReversed) {
                             OutlinedButton(
                                 onClick = { showReverseConfirm = true },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .heightIn(min = 48.dp),
+                                modifier = modifier.heightIn(min = 48.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = AmberGold),
                                 border = BorderStroke(1.dp, AmberGold),
                                 shape = RoundedCornerShape(14.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
                             ) {
-                                Icon(Icons.Default.Undo, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(Icons.Default.Undo, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "Reverse",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 1,
-                                    softWrap = false
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         } else {
                             Button(
                                 onClick = { showUnreverseConfirm = true },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .heightIn(min = 48.dp),
+                                modifier = modifier.heightIn(min = 48.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.incomeGreen, contentColor = Color.White),
                                 shape = RoundedCornerShape(14.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
                             ) {
-                                Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(Icons.Default.Restore, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "Restore",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1,
-                                    softWrap = false
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
                     }
 
-                    // Row 2: Delete Settlement
-                    OutlinedButton(
-                        onClick = { showDeleteConfirm = true },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralRed),
-                        border = BorderStroke(1.dp, CoralRed),
-                        shape = RoundedCornerShape(14.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp)
-                    ) {
-                        Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Delete Settlement",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = CoralRed,
-                            maxLines = 1,
-                            softWrap = false
-                        )
+                    val deleteButton: @Composable (Modifier) -> Unit = { modifier ->
+                        OutlinedButton(
+                            onClick = { showDeleteConfirm = true },
+                            modifier = modifier.heightIn(min = 48.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralRed),
+                            border = BorderStroke(1.dp, CoralRed),
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
+                        ) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Delete Settlement",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = CoralRed,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    if (isNarrow) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            editButton(Modifier.fillMaxWidth())
+                            reverseRestoreButton(Modifier.fillMaxWidth())
+                            deleteButton(Modifier.fillMaxWidth())
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                editButton(Modifier.weight(1f))
+                                reverseRestoreButton(Modifier.weight(1f))
+                            }
+                            deleteButton(Modifier.fillMaxWidth())
+                        }
                     }
                 }
             }

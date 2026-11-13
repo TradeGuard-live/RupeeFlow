@@ -33,7 +33,15 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector?
         fun createRoute(groupId: Long) = "expense_group_detail/$groupId"
     }
 
-    object ReportGenerator : Screen("report_generator", "Expense Report")
+    object ReportGenerator : Screen("report_generator?groupId={groupId}", "Expense Report") {
+        fun createRoute(groupId: Long? = null): String {
+            return if (groupId != null && groupId > 0L) {
+                "report_generator?groupId=$groupId"
+            } else {
+                "report_generator"
+            }
+        }
+    }
 
     object PendingTransactions : Screen("pending_transactions", "Pending Review")
 

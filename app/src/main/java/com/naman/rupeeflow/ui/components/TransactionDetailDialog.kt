@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -316,26 +317,20 @@ fun TransactionDetailDialog(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 // Responsive 2-column, 2-row action button layout
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    // Row 1: Primary actions (Edit & Copy)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        // Edit Button (Filled primary cyan/blue)
+                // Responsive Action Button Layout (Phase 3: Zero Text Clipping, Two-Column / Vertical Layout)
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val isNarrow = maxWidth < 280.dp
+                    val ignoreColor = if (transaction.isIgnored) AppTheme.colors.incomeGreen else AmberGold
+
+                    val editButton: @Composable (Modifier) -> Unit = { modifier ->
                         Button(
                             onClick = {
                                 onDismiss()
                                 onEdit(transaction)
                             },
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp),
+                            modifier = modifier.heightIn(min = 48.dp),
                             shape = RoundedCornerShape(14.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = AppTheme.colors.primaryAccent,
                                 contentColor = Color.White
@@ -344,109 +339,133 @@ fun TransactionDetailDialog(
                             Icon(
                                 imageVector = Icons.Default.Edit,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Edit",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
-                                softWrap = false
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
+                    }
 
-                        // Copy Button (Outlined blue)
+                    val copyButton: @Composable (Modifier) -> Unit = { modifier ->
                         OutlinedButton(
                             onClick = {
                                 onDuplicate(transaction)
                                 onDismiss()
                             },
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp),
+                            modifier = modifier.heightIn(min = 48.dp),
                             shape = RoundedCornerShape(14.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = AppTheme.colors.primaryAccent),
                             border = BorderStroke(1.dp, AppTheme.colors.primaryAccent)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.ContentCopy,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Copy",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
-                                softWrap = false
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
 
-                    // Row 2: Secondary / State actions (Ignore/Restore & Delete)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        // Ignore / Restore Button
-                        val ignoreColor = if (transaction.isIgnored) AppTheme.colors.incomeGreen else AmberGold
+                    val ignoreRestoreButton: @Composable (Modifier) -> Unit = { modifier ->
                         OutlinedButton(
                             onClick = {
                                 onToggleIgnore(transaction)
                                 onDismiss()
                             },
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp),
+                            modifier = modifier.heightIn(min = 48.dp),
                             shape = RoundedCornerShape(14.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = ignoreColor),
                             border = BorderStroke(1.dp, ignoreColor)
                         ) {
                             Icon(
                                 imageVector = if (transaction.isIgnored) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(16.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = if (transaction.isIgnored) "Restore" else "Ignore",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
-                                softWrap = false
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
+                    }
 
-                        // Delete Button (Red destructive outlined)
+                    val deleteButton: @Composable (Modifier) -> Unit = { modifier ->
                         OutlinedButton(
                             onClick = { showDeleteConfirm = true },
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp),
+                            modifier = modifier.heightIn(min = 48.dp),
                             shape = RoundedCornerShape(14.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralRed),
                             border = BorderStroke(1.dp, CoralRed)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.DeleteOutline,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp),
+                                modifier = Modifier.size(16.dp),
                                 tint = CoralRed
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Delete",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold,
                                 color = CoralRed,
                                 maxLines = 1,
-                                softWrap = false
+                                overflow = TextOverflow.Ellipsis
                             )
+                        }
+                    }
+
+                    if (isNarrow) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            editButton(Modifier.fillMaxWidth())
+                            copyButton(Modifier.fillMaxWidth())
+                            ignoreRestoreButton(Modifier.fillMaxWidth())
+                            deleteButton(Modifier.fillMaxWidth())
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Row 1: Primary actions [ Edit ] [ Copy ]
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                editButton(Modifier.weight(1f))
+                                copyButton(Modifier.weight(1f))
+                            }
+                            // Row 2: Secondary actions [ Ignore/Restore ] [ Delete ]
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                ignoreRestoreButton(Modifier.weight(1f))
+                                deleteButton(Modifier.weight(1f))
+                            }
                         }
                     }
                 }

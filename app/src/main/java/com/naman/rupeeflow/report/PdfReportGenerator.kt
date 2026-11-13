@@ -210,7 +210,15 @@ object PdfReportGenerator {
         canvas.drawText(cashSummary, x4 + 8f, y + 32f, textPaint)
         textPaint.textSize = 10f
 
-        y += cardHeight + 18f
+        y += cardHeight + 14f
+
+        if (data.grossBillsPaise > 0L && data.grossBillsPaise != data.totalExpensesPaise) {
+            secondaryPaint.textAlign = Paint.Align.LEFT
+            canvas.drawText("Total Group Bills: ${CurrencyUtils.formatPaiseToRupees(data.grossBillsPaise)} • My Allocated Personal Share: ${CurrencyUtils.formatPaiseToRupees(data.totalExpensesPaise)}", MARGIN_X, y, secondaryPaint)
+            y += 12f
+        } else {
+            y += 4f
+        }
 
         // --- CATEGORY BREAKDOWN TABLE ---
         if (data.categoryBreakdown.isNotEmpty()) {

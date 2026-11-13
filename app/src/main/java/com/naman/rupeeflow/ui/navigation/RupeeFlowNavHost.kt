@@ -92,6 +92,9 @@ fun RupeeFlowApp(
                     viewModel = transactionsViewModel,
                     onNavigateToPending = {
                         navController.navigate(Screen.PendingTransactions.route)
+                    },
+                    onNavigateToTripDetail = { tripId ->
+                        navController.navigate(Screen.ExpenseGroupDetail.createRoute(tripId))
                     }
                 )
             }
@@ -138,7 +141,7 @@ fun RupeeFlowApp(
                         navController.navigate(Screen.PendingTransactions.route)
                     },
                     onNavigateToReportGenerator = {
-                        navController.navigate(Screen.ReportGenerator.route)
+                        navController.navigate(Screen.ReportGenerator.createRoute())
                     },
                     onNavigateToExpenseGroups = {
                         navController.navigate(Screen.ExpenseGroups.route)
@@ -172,15 +175,29 @@ fun RupeeFlowApp(
                     onNavigateToFriendDetail = { friendId ->
                         navController.navigate(Screen.FriendDetail.createRoute(friendId))
                     },
-                    onNavigateToReportGenerator = {
-                        navController.navigate(Screen.ReportGenerator.route)
+                    onNavigateToReportGenerator = { targetGroupId ->
+                        navController.navigate(Screen.ReportGenerator.createRoute(targetGroupId))
                     }
                 )
             }
 
             // PDF Expense Report Generator
-            composable(Screen.ReportGenerator.route) {
+            composable(
+                route = Screen.ReportGenerator.route,
+                arguments = listOf(
+                    navArgument("groupId") {
+                        type = NavType.LongType
+                        defaultValue = -1L
+                    }
+                )
+            ) { backStackEntry ->
+                val groupId = backStackEntry.arguments?.getLong("groupId") ?: -1L
                 val reportViewModel: com.naman.rupeeflow.ui.screens.report.ReportGeneratorViewModel = viewModel(factory = AppViewModelProvider.Factory)
+                androidx.compose.runtime.LaunchedEffect(groupId) {
+                    if (groupId > 0L) {
+                        reportViewModel.initTripReport(groupId)
+                    }
+                }
                 com.naman.rupeeflow.ui.screens.report.ReportGeneratorScreen(
                     viewModel = reportViewModel,
                     onNavigateBack = { navController.popBackStack() }

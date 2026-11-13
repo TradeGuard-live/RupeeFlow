@@ -55,12 +55,75 @@ fun ExpenseGroupDetailScreen(
     viewModel: ExpenseGroupViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToFriendDetail: (Long) -> Unit = {},
-    onNavigateToReportGenerator: () -> Unit = {}
+    onNavigateToReportGenerator: (Long) -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
     val groupFlow = remember(groupId) { viewModel.getGroupByIdFlow(groupId) }
     val groupFromFlow by groupFlow.collectAsState(initial = null)
     val group = groupFromFlow ?: (state.activeGroups + state.archivedGroups).firstOrNull { it.id == groupId }
+
+    if (group == null && !state.isLoading) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "Trip Details",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = AppTheme.colors.textPrimary
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                tint = AppTheme.colors.textPrimary
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = AppTheme.colors.surface)
+                )
+            },
+            containerColor = AppTheme.colors.background
+        ) { paddingValues ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = AppTheme.colors.textSecondary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Text(
+                        text = "Trip not found or has been removed.",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AppTheme.colors.textPrimary,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Button(
+                        onClick = onNavigateBack,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent)
+                    ) {
+                        Text("Return to Trips", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        return
+    }
 
     val transactionsFlow = remember(groupId) { viewModel.getTransactionsForGroup(groupId) }
     val transactions by transactionsFlow.collectAsState(initial = emptyList())
@@ -184,6 +247,7 @@ fun ExpenseGroupDetailScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
@@ -220,7 +284,8 @@ fun ExpenseGroupDetailScreen(
                                         fontWeight = FontWeight.Bold,
                                         color = AppTheme.colors.textPrimary
                                     )
-                                    if (!group.destination.isNullOrBlank()) {
+                                    val destination = group.destination
+                                    if (!destination.isNullOrBlank()) {
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
@@ -231,7 +296,7 @@ fun ExpenseGroupDetailScreen(
                                             )
                                             Spacer(modifier = Modifier.width(3.dp))
                                             Text(
-                                                text = group.destination!!,
+                                                text = destination,
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = AppTheme.colors.textSecondary
                                             )
@@ -255,13 +320,16 @@ fun ExpenseGroupDetailScreen(
                                 }
                             }
 
-                            if (group.startDate != null || group.endDate != null) {
+                            val startDate = group.startDate
+                            val endDate = group.endDate
+                            if (startDate != null || endDate != null) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 val dateStr = when {
-                                    group.startDate != null && group.endDate != null ->
-                                        "${dateFormat.format(group.startDate!!)} — ${dateFormat.format(group.endDate!!)}"
-                                    group.startDate != null -> "From ${dateFormat.format(group.startDate!!)}"
-                                    else -> "Until ${dateFormat.format(group.endDate!!)}"
+                                    startDate != null && endDate != null ->
+                                        "${dateFormat.format(startDate)} — ${dateFormat.format(endDate)}"
+                                    startDate != null -> "From ${dateFormat.format(startDate)}"
+                                    endDate != null -> "Until ${dateFormat.format(endDate)}"
+                                    else -> ""
                                 }
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
@@ -287,10 +355,11 @@ fun ExpenseGroupDetailScreen(
                                 }
                             }
 
-                            if (!group.description.isNullOrBlank()) {
+                            val description = group.description
+                            if (!description.isNullOrBlank()) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = group.description!!,
+                                    text = description,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = AppTheme.colors.textSecondary
                                 )
@@ -649,7 +718,10 @@ fun ExpenseGroupDetailScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Box(
                                 modifier = Modifier
                                     .size(40.dp)
@@ -675,15 +747,20 @@ fun ExpenseGroupDetailScreen(
                                 Text(
                                     text = "Export itemized statement with splits & categories",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = AppTheme.colors.textSecondary
+                                    color = AppTheme.colors.textSecondary,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
 
+                        Spacer(modifier = Modifier.width(10.dp))
+
                         Button(
-                            onClick = onNavigateToReportGenerator,
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            onClick = { onNavigateToReportGenerator(groupId) },
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                             shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.heightIn(min = 40.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent)
                         ) {
                             Text("Export", fontSize = 13.sp, fontWeight = FontWeight.Bold)

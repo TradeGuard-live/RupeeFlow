@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.naman.rupeeflow.domain.matching.HistoricalCandidateMatch
@@ -295,7 +296,7 @@ fun PendingTransactionsScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 48.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     items(displayList, key = { it.id }) { item ->
@@ -540,7 +541,9 @@ fun PendingTransactionsScreen(
                                                     Text(
                                                         text = if (isUpiLiteTopup) "Add Top-up" else "Add Expense",
                                                         fontWeight = FontWeight.Bold,
-                                                        style = MaterialTheme.typography.labelSmall
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
                                                     )
                                                 }
                                             }
@@ -561,7 +564,13 @@ fun PendingTransactionsScreen(
                                                     shape = RoundedCornerShape(10.dp),
                                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                                 ) {
-                                                    Text("Review & Add", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                                                    Text(
+                                                        text = "Review & Add",
+                                                        fontWeight = FontWeight.Bold,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
                                                 }
                                             }
                                             isIgnored -> {
@@ -579,7 +588,13 @@ fun PendingTransactionsScreen(
                                                 ) {
                                                     Icon(Icons.Default.Restore, contentDescription = "Restore", modifier = Modifier.size(16.dp))
                                                     Spacer(modifier = Modifier.width(4.dp))
-                                                    Text("Restore", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                                    Text(
+                                                        text = "Restore",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
                                                 }
                                             }
                                             isApproved -> {
@@ -591,7 +606,13 @@ fun PendingTransactionsScreen(
                                                     shape = RoundedCornerShape(10.dp),
                                                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                                                 ) {
-                                                    Text("Re-add", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textSecondary)
+                                                    Text(
+                                                        text = "Re-add",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = AppTheme.colors.textSecondary,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
                                                 }
                                             }
                                         }

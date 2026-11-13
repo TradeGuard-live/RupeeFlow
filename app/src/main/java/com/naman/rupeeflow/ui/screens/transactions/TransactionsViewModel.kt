@@ -23,10 +23,30 @@ data class ExpenseGroupTransactionCluster(
     val isExpanded: Boolean = false
 )
 
+sealed interface TransactionListItem {
+    data class Individual(val transaction: Transaction) : TransactionListItem {
+        val latestDate: Long get() = transaction.transactionDate
+    }
+
+    data class TripCard(
+        val expenseGroupId: Long,
+        val name: String,
+        val destination: String? = null,
+        val iconName: String? = null,
+        val colorHex: String? = null,
+        val transactionCount: Int,
+        val totalPersonalExpensePaise: Long,
+        val dateRangeLabel: String,
+        val latestDate: Long,
+        val matchingTransactions: List<Transaction>
+    ) : TransactionListItem
+}
+
 data class TransactionsUiState(
     val isLoading: Boolean = true,
     val allTransactions: List<Transaction> = emptyList(),
     val filteredTransactions: List<Transaction> = emptyList(),
+    val listItems: List<TransactionListItem> = emptyList(),
     val isGroupedByExpenseGroup: Boolean = true,
     val expandedGroupKeys: Set<String> = emptySet(),
     val transactionClusters: List<ExpenseGroupTransactionCluster> = emptyList(),
@@ -42,7 +62,8 @@ data class TransactionsUiState(
     val categories: List<Category> = emptyList(),
     val friends: List<Friend> = emptyList(),
     val friendGroups: List<FriendGroup> = emptyList(),
-    val expenseGroups: List<com.naman.rupeeflow.domain.model.ExpenseGroup> = emptyList()
+    val expenseGroups: List<com.naman.rupeeflow.domain.model.ExpenseGroup> = emptyList(),
+    val pendingCount: Int = 0
 )
 
 class TransactionsViewModel(
@@ -52,7 +73,8 @@ class TransactionsViewModel(
     private val settlementRepository: SettlementRepository,
     private val friendGroupRepository: FriendGroupRepository? = null,
     private val expenseGroupRepository: com.naman.rupeeflow.data.repository.ExpenseGroupRepository? = null,
-    private val inputRankingRepository: InputRankingRepository? = null
+    private val inputRankingRepository: InputRankingRepository? = null,
+    private val pendingTransactionRepository: PendingTransactionRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TransactionsUiState())
@@ -63,6 +85,13 @@ class TransactionsViewModel(
     }
 
     private fun loadData() {
+        if (pendingTransactionRepository != null) {
+            viewModelScope.launch {
+                pendingTransactionRepository.getPendingTransactions().collect { pending ->
+                    _uiState.update { it.copy(pendingCount = pending.size) }
+                }
+            }
+        }
         viewModelScope.launch {
             val groupsFlow = friendGroupRepository?.getAllGroups() ?: flowOf(emptyList())
             val expenseGroupsFlow = expenseGroupRepository?.getActiveExpenseGroups() ?: flowOf(emptyList())
@@ -86,6 +115,7 @@ class TransactionsViewModel(
                         categoryFilter = current.selectedCategoryFilter
                     )
                     val clusters = clusterTransactions(filtered, bundle.expGroups, current.expandedGroupKeys)
+                    val listItems = buildTransactionListItems(filtered, bundle.expGroups)
                     val rankedCategories = inputRankingRepository?.rankOptions("CATEGORY", bundle.categories) { it.id.toString() } ?: bundle.categories
                     val rankedGroups = inputRankingRepository?.rankOptions("GROUP", bundle.groups) { it.id.toString() } ?: bundle.groups
                     val rankedFriends = inputRankingRepository?.rankOptions("FRIEND", bundle.friends) { it.id.toString() } ?: bundle.friends
@@ -94,6 +124,7 @@ class TransactionsViewModel(
                         isLoading = false,
                         allTransactions = bundle.txns,
                         filteredTransactions = filtered,
+                        listItems = listItems,
                         transactionClusters = clusters,
                         categories = rankedCategories,
                         friends = rankedFriends,
@@ -213,6 +244,7 @@ class TransactionsViewModel(
             current.expandedGroupKeys
         }
         val clusters = clusterTransactions(filtered, current.expenseGroups, expandedKeys)
+        val listItems = buildTransactionListItems(filtered, current.expenseGroups)
         val dateLabel = getDatePeriodLabel(dateFilter, dateOffset)
 
         return current.copy(
@@ -225,9 +257,71 @@ class TransactionsViewModel(
             selectedPaymentMethodFilter = methodFilter,
             selectedCategoryFilter = categoryFilter,
             filteredTransactions = filtered,
+            listItems = listItems,
             transactionClusters = clusters,
             expandedGroupKeys = expandedKeys
         )
+    }
+
+    private fun buildTransactionListItems(
+        txns: List<Transaction>,
+        expenseGroups: List<com.naman.rupeeflow.domain.model.ExpenseGroup>
+    ): List<TransactionListItem> {
+        if (txns.isEmpty()) return emptyList()
+
+        val groupMap = expenseGroups.associateBy { it.id }
+        val (tripTxns, ungroupedTxns) = txns.partition { it.expenseGroupId != null }
+
+        val items = mutableListOf<TransactionListItem>()
+
+        for (txn in ungroupedTxns) {
+            items.add(TransactionListItem.Individual(txn))
+        }
+
+        val groupedByTrip = tripTxns.groupBy { it.expenseGroupId!! }
+        for ((groupId, groupTransactions) in groupedByTrip) {
+            val groupObj = groupMap[groupId]
+            val first = groupTransactions.first()
+            val name = groupObj?.name ?: first.expenseGroupName ?: "Trip"
+            val destination = groupObj?.destination
+            val iconName = groupObj?.iconName ?: "flight"
+            val colorHex = groupObj?.colorHex ?: "#3B82F6"
+            val sortedTxns = groupTransactions.sortedByDescending { it.transactionDate }
+            val latestDate = sortedTxns.first().transactionDate
+            val minDate = sortedTxns.last().transactionDate
+
+            val dateLabel = if (groupObj?.startDate != null && groupObj.endDate != null) {
+                "${DateTimeUtils.formatDate(groupObj.startDate!!, "dd MMM")} – ${DateTimeUtils.formatDate(groupObj.endDate!!, "dd MMM yyyy")}"
+            } else if (minDate == latestDate) {
+                DateTimeUtils.formatDate(minDate, "dd MMM yyyy")
+            } else {
+                "${DateTimeUtils.formatDate(minDate, "dd MMM")} – ${DateTimeUtils.formatDate(latestDate, "dd MMM yyyy")}"
+            }
+
+            val totalPersonal = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalExpense(sortedTxns)
+
+            items.add(
+                TransactionListItem.TripCard(
+                    expenseGroupId = groupId,
+                    name = name,
+                    destination = destination,
+                    iconName = iconName,
+                    colorHex = colorHex,
+                    transactionCount = sortedTxns.size,
+                    totalPersonalExpensePaise = totalPersonal,
+                    dateRangeLabel = dateLabel,
+                    latestDate = latestDate,
+                    matchingTransactions = sortedTxns
+                )
+            )
+        }
+
+        return items.sortedByDescending { item ->
+            when (item) {
+                is TransactionListItem.Individual -> item.transaction.transactionDate
+                is TransactionListItem.TripCard -> item.latestDate
+            }
+        }
     }
 
     private fun clusterTransactions(

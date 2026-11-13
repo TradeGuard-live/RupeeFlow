@@ -1,6 +1,5 @@
 package com.naman.rupeeflow.ui.screens.groups
 
-import android.app.DatePickerDialog
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -45,7 +44,11 @@ import com.naman.rupeeflow.ui.components.rememberBitmapFromPath
 import com.naman.rupeeflow.ui.components.rupeeFlowTextFieldColors
 import com.naman.rupeeflow.ui.theme.*
 import java.text.SimpleDateFormat
-import java.util.Calendar
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.Locale
 import kotlinx.coroutines.launch
 
@@ -180,6 +183,9 @@ fun TripCreationWizardDialog(
                     when (currentStep) {
                         1 -> {
                             Step1TripDetails(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(rememberScrollState()),
                                 name = name,
                                 onNameChange = { name = it },
                                 destination = destination,
@@ -267,7 +273,7 @@ fun TripCreationWizardDialog(
                             onClick = onDismiss,
                             modifier = Modifier
                                 .weight(1f)
-                                .height(48.dp),
+                                .heightIn(min = 48.dp),
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text("Cancel", color = AppTheme.colors.textSecondary)
@@ -284,8 +290,8 @@ fun TripCreationWizardDialog(
                                 }
                             },
                             modifier = Modifier
-                                .weight(1.5f)
-                                .height(48.dp),
+                                .weight(1.3f)
+                                .heightIn(min = 48.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = AppTheme.colors.primaryAccent,
@@ -293,7 +299,12 @@ fun TripCreationWizardDialog(
                             ),
                             enabled = if (currentStep == 1) name.isNotBlank() else true
                         ) {
-                            Text(if (currentStep == 1) "Next: Add Friends" else "Next: Review", fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (currentStep == 1) "Add Friends" else "Review",
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     } else {
                         Button(
@@ -314,8 +325,8 @@ fun TripCreationWizardDialog(
                                 }
                             },
                             modifier = Modifier
-                                .weight(1.5f)
-                                .height(48.dp),
+                                .weight(1.3f)
+                                .heightIn(min = 48.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = AppTheme.colors.primaryAccent,
@@ -323,7 +334,12 @@ fun TripCreationWizardDialog(
                             ),
                             enabled = !isCreating && name.isNotBlank()
                         ) {
-                            Text(if (isCreating) "Creating..." else "Create Trip", fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (isCreating) "Creating..." else "Create Trip",
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
@@ -344,8 +360,10 @@ fun TripCreationWizardDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Step1TripDetails(
+    modifier: Modifier = Modifier,
     name: String,
     onNameChange: (String) -> Unit,
     destination: String,
@@ -363,13 +381,12 @@ private fun Step1TripDetails(
     selectedColor: String,
     onSelectColor: (String) -> Unit
 ) {
-    val context = LocalContext.current
     val dateFormat = remember { SimpleDateFormat("dd MMM yyyy", Locale.getDefault()) }
+    var showStartDatePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
+        modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // Cover Image Section
@@ -522,22 +539,7 @@ private fun Step1TripDetails(
                 border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
                 modifier = Modifier
                     .weight(1f)
-                    .clickable {
-                        val cal = Calendar.getInstance()
-                        startDate?.let { cal.timeInMillis = it }
-                        DatePickerDialog(
-                            context,
-                            { _, y, m, d ->
-                                val selected = Calendar.getInstance().apply {
-                                    set(y, m, d, 0, 0, 0)
-                                }
-                                onStartDateChange(selected.timeInMillis)
-                            },
-                            cal.get(Calendar.YEAR),
-                            cal.get(Calendar.MONTH),
-                            cal.get(Calendar.DAY_OF_MONTH)
-                        ).show()
-                    }
+                    .clickable { showStartDatePicker = true }
             ) {
                 Row(
                     modifier = Modifier
@@ -581,22 +583,7 @@ private fun Step1TripDetails(
                 border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
                 modifier = Modifier
                     .weight(1f)
-                    .clickable {
-                        val cal = Calendar.getInstance()
-                        endDate?.let { cal.timeInMillis = it }
-                        DatePickerDialog(
-                            context,
-                            { _, y, m, d ->
-                                val selected = Calendar.getInstance().apply {
-                                    set(y, m, d, 23, 59, 59)
-                                }
-                                onEndDateChange(selected.timeInMillis)
-                            },
-                            cal.get(Calendar.YEAR),
-                            cal.get(Calendar.MONTH),
-                            cal.get(Calendar.DAY_OF_MONTH)
-                        ).show()
-                    }
+                    .clickable { showEndDatePicker = true }
             ) {
                 Row(
                     modifier = Modifier
@@ -631,6 +618,74 @@ private fun Step1TripDetails(
                         }
                     }
                 }
+            }
+        }
+
+        if (showStartDatePicker) {
+            val datePickerState = rememberDatePickerState(
+                initialSelectedDateMillis = startDate ?: System.currentTimeMillis()
+            )
+            DatePickerDialog(
+                onDismissRequest = { showStartDatePicker = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            datePickerState.selectedDateMillis?.let { utcMillis ->
+                                val localDate = Instant.ofEpochMilli(utcMillis).atZone(ZoneOffset.UTC).toLocalDate()
+                                val startOfDay = localDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                                onStartDateChange(startOfDay)
+                                if (endDate != null && startOfDay > endDate) {
+                                    val endOfDay = localDate.atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                                    onEndDateChange(endOfDay)
+                                }
+                            }
+                            showStartDatePicker = false
+                        }
+                    ) {
+                        Text("OK", color = AppTheme.colors.primaryAccent)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showStartDatePicker = false }) {
+                        Text("Cancel", color = AppTheme.colors.textSecondary)
+                    }
+                }
+            ) {
+                DatePicker(state = datePickerState)
+            }
+        }
+
+        if (showEndDatePicker) {
+            val datePickerState = rememberDatePickerState(
+                initialSelectedDateMillis = endDate ?: startDate ?: System.currentTimeMillis()
+            )
+            DatePickerDialog(
+                onDismissRequest = { showEndDatePicker = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            datePickerState.selectedDateMillis?.let { utcMillis ->
+                                val localDate = Instant.ofEpochMilli(utcMillis).atZone(ZoneOffset.UTC).toLocalDate()
+                                val endOfDay = localDate.atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                                if (startDate != null && endOfDay < startDate) {
+                                    val startOfDay = localDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                                    onStartDateChange(startOfDay)
+                                }
+                                onEndDateChange(endOfDay)
+                            }
+                            showEndDatePicker = false
+                        }
+                    ) {
+                        Text("OK", color = AppTheme.colors.primaryAccent)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showEndDatePicker = false }) {
+                        Text("Cancel", color = AppTheme.colors.textSecondary)
+                    }
+                }
+            ) {
+                DatePicker(state = datePickerState)
             }
         }
 
@@ -1269,6 +1324,7 @@ fun EditTripDetailsDialog(
 
     val coroutineScope = rememberCoroutineScope()
     var isManagingMembers by remember { mutableStateOf(false) }
+    var friendsSearchQuery by remember { mutableStateOf("") }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -1340,8 +1396,8 @@ fun EditTripDetailsDialog(
                             onClearAll = {
                                 selectedFriendIds = emptySet()
                             },
-                            searchQuery = "",
-                            onSearchQueryChange = {},
+                            searchQuery = friendsSearchQuery,
+                            onSearchQueryChange = { friendsSearchQuery = it },
                             onOpenAddFriendDialog = {}
                         )
                     } else {
@@ -1352,6 +1408,7 @@ fun EditTripDetailsDialog(
                             verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             Step1TripDetails(
+                                modifier = Modifier.fillMaxWidth(),
                                 name = name,
                                 onNameChange = { name = it },
                                 destination = destination,
@@ -1414,19 +1471,23 @@ fun EditTripDetailsDialog(
                     if (isManagingMembers) {
                         Button(
                             onClick = { isManagingMembers = false },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent)
                         ) {
-                            Text("Done Managing Members", fontWeight = FontWeight.Bold)
+                            Text("Done Managing Members", fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     } else {
                         OutlinedButton(
                             onClick = onDismiss,
-                            modifier = Modifier.weight(1f).height(48.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
                             shape = RoundedCornerShape(12.dp)
                         ) {
-                            Text("Cancel", color = AppTheme.colors.textSecondary)
+                            Text("Cancel", color = AppTheme.colors.textSecondary, style = MaterialTheme.typography.titleSmall)
                         }
 
                         Button(
@@ -1445,12 +1506,20 @@ fun EditTripDetailsDialog(
                                     onDismiss()
                                 }
                             },
-                            modifier = Modifier.weight(1.5f).height(48.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent),
                             enabled = name.isNotBlank()
                         ) {
-                            Text("Save Changes", fontWeight = FontWeight.Bold)
+                            Text(
+                                "Save Changes",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }

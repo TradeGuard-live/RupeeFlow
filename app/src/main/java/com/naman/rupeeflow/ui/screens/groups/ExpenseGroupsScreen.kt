@@ -178,17 +178,24 @@ fun ExpenseGroupsScreen(
                         Button(
                             onClick = { showCreateWizard = true },
                             colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.heightIn(min = 48.dp)
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Create Trip / Group", fontWeight = FontWeight.Bold)
+                            Text(
+                                "Create Trip / Group",
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
                         }
                     }
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(filteredGroups, key = { it.id }) { group ->

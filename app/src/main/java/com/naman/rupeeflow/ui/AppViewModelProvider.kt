@@ -38,7 +38,8 @@ object AppViewModelProvider {
                 settlementRepository = app.appContainer.settlementRepository,
                 friendGroupRepository = app.appContainer.friendGroupRepository,
                 expenseGroupRepository = app.appContainer.expenseGroupRepository,
-                inputRankingRepository = app.appContainer.inputRankingRepository
+                inputRankingRepository = app.appContainer.inputRankingRepository,
+                pendingTransactionRepository = app.appContainer.pendingTransactionRepository
             )
         }
         initializer {
@@ -116,7 +117,8 @@ object AppViewModelProvider {
             com.naman.rupeeflow.ui.screens.report.ReportGeneratorViewModel(
                 transactionRepository = app.appContainer.transactionRepository,
                 categoryRepository = app.appContainer.categoryRepository,
-                reportDraftRepository = app.appContainer.reportDraftRepository
+                reportDraftRepository = app.appContainer.reportDraftRepository,
+                expenseGroupRepository = app.appContainer.expenseGroupRepository
             )
         }
     }

@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -34,7 +35,11 @@ import com.naman.rupeeflow.ui.components.RupeeFlowCard
 import com.naman.rupeeflow.ui.components.rupeeFlowTextFieldColors
 import com.naman.rupeeflow.ui.theme.*
 import java.io.File
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 
@@ -50,13 +55,15 @@ fun ReportGeneratorScreen(
     var showManageTransactionsDialog by remember { mutableStateOf(false) }
     var showSaveDraftDialog by remember { mutableStateOf(false) }
     var showDraftsListDialog by remember { mutableStateOf(false) }
+    var showStartDatePicker by remember { mutableStateOf(false) }
+    var showEndDatePicker by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "Expense Report Generator",
+                        text = if (state.isTripReport) "${state.tripName ?: "Trip"} Report" else "Expense Report Generator",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = AppTheme.colors.textPrimary
@@ -99,8 +106,74 @@ fun ReportGeneratorScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            if (state.isTripReport) {
+                item {
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = AppTheme.colors.primaryAccent.copy(alpha = 0.12f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.primaryAccent.copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(AppTheme.colors.primaryAccent.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CardTravel,
+                                    contentDescription = null,
+                                    tint = AppTheme.colors.primaryAccent,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = state.tripName ?: "Trip Report",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = AppTheme.colors.textPrimary
+                                )
+                                val tripDest = state.tripDestination
+                                if (!tripDest.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = tripDest,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = AppTheme.colors.textSecondary
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = AppTheme.colors.primaryAccent.copy(alpha = 0.18f)
+                                ) {
+                                    Text(
+                                        text = "Filtered strictly to this trip",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = AppTheme.colors.primaryAccent,
+                                        fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Period Type Chips
             item {
                 Spacer(modifier = Modifier.height(4.dp))
@@ -201,47 +274,183 @@ fun ReportGeneratorScreen(
                         }
                         ReportPeriodType.CUSTOM -> {
                             Column(modifier = Modifier.fillMaxWidth()) {
-                                Text(
-                                    text = "Custom Date Range",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = AppTheme.colors.textPrimary
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    text = "${DateTimeUtils.formatDate(state.customStartDate, "dd MMM yyyy")} to ${DateTimeUtils.formatDate(state.customEndDate, "dd MMM yyyy")}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = AppTheme.colors.primaryAccent,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Custom Date Range",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AppTheme.colors.textPrimary
+                                    )
+                                    if (state.customStartDate != null || state.customEndDate != null) {
+                                        TextButton(
+                                            onClick = { viewModel.clearCustomDates() },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text("Clear Dates", style = MaterialTheme.typography.labelSmall, color = CoralRed)
+                                        }
+                                    }
+                                }
+
                                 Spacer(modifier = Modifier.height(10.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    // Start Date Button
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Start Date",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = AppTheme.colors.textSecondary,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = AppTheme.colors.surfaceElevated,
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { showStartDatePicker = true }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.CalendarToday,
+                                                    contentDescription = null,
+                                                    tint = AppTheme.colors.primaryAccent,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = state.customStartDate?.let { DateTimeUtils.formatDate(it, "dd MMM yyyy") } ?: "Select Start Date",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = if (state.customStartDate != null) FontWeight.SemiBold else FontWeight.Normal,
+                                                    color = if (state.customStartDate != null) AppTheme.colors.textPrimary else AppTheme.colors.textTertiary,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // End Date Button
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "End Date",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = AppTheme.colors.textSecondary,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = AppTheme.colors.surfaceElevated,
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable { showEndDatePicker = true }
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Event,
+                                                    contentDescription = null,
+                                                    tint = AppTheme.colors.primaryAccent,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = state.customEndDate?.let { DateTimeUtils.formatDate(it, "dd MMM yyyy") } ?: "Select End Date",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = if (state.customEndDate != null) FontWeight.SemiBold else FontWeight.Normal,
+                                                    color = if (state.customEndDate != null) AppTheme.colors.textPrimary else AppTheme.colors.textTertiary,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (state.isCustomRangeIncomplete) {
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = AmberGold.copy(alpha = 0.15f),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, AmberGold.copy(alpha = 0.4f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.Info, contentDescription = null, tint = AmberGold, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Select both start and end dates.",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = AppTheme.colors.textPrimary,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
+                                    val zone = ZoneId.systemDefault()
                                     OutlinedButton(
                                         onClick = {
-                                            // Quick preset: Last 30 days
-                                            val end = System.currentTimeMillis()
-                                            val start = end - 30L * 24 * 60 * 60 * 1000L
-                                            viewModel.setCustomDateRange(start, end)
+                                            val today = LocalDate.now()
+                                            val s = today.minusDays(29).atStartOfDay(zone).toInstant().toEpochMilli()
+                                            val e = today.atTime(LocalTime.MAX).atZone(zone).toInstant().toEpochMilli()
+                                            viewModel.setCustomDateRange(s, e)
                                         },
                                         modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(10.dp)
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
                                     ) {
-                                        Text("Last 30 Days", fontSize = 11.sp)
+                                        Text("Last 30 Days", fontSize = 11.sp, maxLines = 1)
                                     }
                                     OutlinedButton(
                                         onClick = {
-                                            // Quick preset: Last 90 days
-                                            val end = System.currentTimeMillis()
-                                            val start = end - 90L * 24 * 60 * 60 * 1000L
-                                            viewModel.setCustomDateRange(start, end)
+                                            val today = LocalDate.now()
+                                            val s = today.minusDays(89).atStartOfDay(zone).toInstant().toEpochMilli()
+                                            val e = today.atTime(LocalTime.MAX).atZone(zone).toInstant().toEpochMilli()
+                                            viewModel.setCustomDateRange(s, e)
                                         },
                                         modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(10.dp)
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
                                     ) {
-                                        Text("Last 90 Days", fontSize = 11.sp)
+                                        Text("Last 90 Days", fontSize = 11.sp, maxLines = 1)
+                                    }
+                                    OutlinedButton(
+                                        onClick = {
+                                            val today = LocalDate.now()
+                                            val s = today.with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay(zone).toInstant().toEpochMilli()
+                                            val e = today.atTime(LocalTime.MAX).atZone(zone).toInstant().toEpochMilli()
+                                            viewModel.setCustomDateRange(s, e)
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        shape = RoundedCornerShape(10.dp),
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp)
+                                    ) {
+                                        Text("This Month", fontSize = 11.sp, maxLines = 1)
                                     }
                                 }
                             }
@@ -542,7 +751,7 @@ fun ReportGeneratorScreen(
                     onClick = { viewModel.generatePdf(context) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp),
+                        .heightIn(min = 54.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = AppTheme.colors.primaryAccent,
@@ -561,7 +770,13 @@ fun ReportGeneratorScreen(
                     } else {
                         Icon(Icons.Default.PictureAsPdf, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Generate Expense Report (PDF)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = "Generate Expense Report (PDF)",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.height(20.dp))
@@ -808,6 +1023,66 @@ fun ReportGeneratorScreen(
                     }
                 }
             }
+        }
+    }
+
+    if (showStartDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = state.customStartDate ?: System.currentTimeMillis()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showStartDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { utcMillis ->
+                            val localDate = Instant.ofEpochMilli(utcMillis).atZone(ZoneOffset.UTC).toLocalDate()
+                            val startOfDay = localDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                            viewModel.setCustomStartDate(startOfDay)
+                        }
+                        showStartDatePicker = false
+                    }
+                ) {
+                    Text("OK", color = AppTheme.colors.primaryAccent)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartDatePicker = false }) {
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    if (showEndDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = state.customEndDate ?: state.customStartDate ?: System.currentTimeMillis()
+        )
+        DatePickerDialog(
+            onDismissRequest = { showEndDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { utcMillis ->
+                            val localDate = Instant.ofEpochMilli(utcMillis).atZone(ZoneOffset.UTC).toLocalDate()
+                            val endOfDay = localDate.atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                            viewModel.setCustomEndDate(endOfDay)
+                        }
+                        showEndDatePicker = false
+                    }
+                ) {
+                    Text("OK", color = AppTheme.colors.primaryAccent)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEndDatePicker = false }) {
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 }

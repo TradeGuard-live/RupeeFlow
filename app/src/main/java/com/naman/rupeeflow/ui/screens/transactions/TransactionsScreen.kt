@@ -32,7 +32,8 @@ import com.naman.rupeeflow.voice.ui.VoiceAssistantSheet
 @Composable
 fun TransactionsScreen(
     viewModel: TransactionsViewModel,
-    onNavigateToPending: (() -> Unit)? = null
+    onNavigateToPending: (() -> Unit)? = null,
+    onNavigateToTripDetail: (Long) -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
 
@@ -96,34 +97,10 @@ fun TransactionsScreen(
                     color = AppTheme.colors.textPrimary
                 )
                 if (onNavigateToPending != null) {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isDark) CharcoalCard else AppTheme.colors.surface,
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (isDark) GlassBorder else AppTheme.colors.cardBorder
-                        ),
-                        modifier = Modifier.clickable { onNavigateToPending() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Sms,
-                                contentDescription = "Detected",
-                                tint = AmberGold,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Detected",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = AmberGold,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                    DetectedTransactionsBadge(
+                        pendingCount = state.pendingCount,
+                        onClick = onNavigateToPending
+                    )
                 }
             }
 
@@ -158,11 +135,9 @@ fun TransactionsScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Group A: Transaction Type Filters (All, Expenses, Income, Refunds, Transfers, Ignored)
+            // Group A: Transaction Type Filters (All, Refunds, Transfers, Ignored)
             val typeFilters = listOf(
                 "ALL" to "All",
-                "EXPENSE" to "Expenses",
-                "INCOME" to "Income",
                 "REFUND" to "Refunds",
                 "TRANSFER" to "Transfers",
                 "IGNORED" to "Ignored"
@@ -274,11 +249,9 @@ fun TransactionsScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Group C: Payment Method Filters (UPI, UPI Lite, Cash, Debit Card, Credit Card)
+            // Group C: Payment Method Filters (UPI Lite, Debit Card, Credit Card)
             val paymentMethods = listOf(
-                PaymentMethod.UPI,
                 PaymentMethod.UPI_LITE,
-                PaymentMethod.CASH,
                 PaymentMethod.DEBIT_CARD,
                 PaymentMethod.CREDIT_CARD
             )
@@ -329,111 +302,13 @@ fun TransactionsScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Display Mode Toggle: Group by Expense Group vs Individual Transactions
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = if (isDark) CharcoalCard else AppTheme.colors.surface,
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        if (isDark) GlassBorder else AppTheme.colors.cardBorder
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(3.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        // Group by Trip button
-                        Surface(
-                            shape = RoundedCornerShape(9.dp),
-                            color = if (state.isGroupedByExpenseGroup) {
-                                AppTheme.colors.primaryAccent
-                            } else Color.Transparent,
-                            modifier = Modifier.clickable { viewModel.setGroupingMode(true) }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Folder,
-                                    contentDescription = null,
-                                    tint = if (state.isGroupedByExpenseGroup) Color.White else AppTheme.colors.textSecondary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = "Group by Trip",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (state.isGroupedByExpenseGroup) Color.White else AppTheme.colors.textSecondary,
-                                    fontWeight = if (state.isGroupedByExpenseGroup) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        }
-
-                        // Individual Transactions button
-                        Surface(
-                            shape = RoundedCornerShape(9.dp),
-                            color = if (!state.isGroupedByExpenseGroup) {
-                                AppTheme.colors.primaryAccent
-                            } else Color.Transparent,
-                            modifier = Modifier.clickable { viewModel.setGroupingMode(false) }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ViewList,
-                                    contentDescription = null,
-                                    tint = if (!state.isGroupedByExpenseGroup) Color.White else AppTheme.colors.textSecondary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(5.dp))
-                                Text(
-                                    text = "Individual",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (!state.isGroupedByExpenseGroup) Color.White else AppTheme.colors.textSecondary,
-                                    fontWeight = if (!state.isGroupedByExpenseGroup) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (state.isGroupedByExpenseGroup && state.transactionClusters.isNotEmpty()) {
-                    val anyExpanded = state.transactionClusters.any { it.isExpanded }
-                    TextButton(
-                        onClick = {
-                            if (anyExpanded) viewModel.collapseAllGroups() else viewModel.expandAllGroups()
-                        },
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = if (anyExpanded) "Collapse All" else "Expand All",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AppTheme.colors.primaryAccent,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
             // Transactions List
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (state.filteredTransactions.isEmpty()) {
+                if (state.listItems.isEmpty()) {
                     item {
                         Box(
                             modifier = Modifier
@@ -448,20 +323,30 @@ fun TransactionsScreen(
                             )
                         }
                     }
-                } else if (state.isGroupedByExpenseGroup) {
-                    items(state.transactionClusters, key = { it.key }) { cluster ->
-                        ExpenseGroupTransactionCard(
-                            cluster = cluster,
-                            onToggleExpand = { viewModel.toggleGroupExpansion(cluster.key) },
-                            onTransactionClick = { selectedTransaction = it }
-                        )
-                    }
                 } else {
-                    items(state.filteredTransactions, key = { it.id }) { txn ->
-                        TransactionItemCard(
-                            transaction = txn,
-                            onClick = { selectedTransaction = txn }
-                        )
+                    items(
+                        items = state.listItems,
+                        key = { item ->
+                            when (item) {
+                                is TransactionListItem.Individual -> "txn_${item.transaction.id}"
+                                is TransactionListItem.TripCard -> "trip_${item.expenseGroupId}"
+                            }
+                        }
+                    ) { item ->
+                        when (item) {
+                            is TransactionListItem.Individual -> {
+                                TransactionItemCard(
+                                    transaction = item.transaction,
+                                    onClick = { selectedTransaction = item.transaction }
+                                )
+                            }
+                            is TransactionListItem.TripCard -> {
+                                TripTransactionSummaryCard(
+                                    tripCard = item,
+                                    onClick = { onNavigateToTripDetail(item.expenseGroupId) }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -643,6 +528,147 @@ fun ExpenseGroupTransactionCard(
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun TripTransactionSummaryCard(
+    tripCard: TransactionListItem.TripCard,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val themeColor = try {
+        Color(android.graphics.Color.parseColor(tripCard.colorHex ?: "#3B82F6"))
+    } catch (_: Exception) {
+        AppTheme.colors.primaryAccent
+    }
+
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = AppTheme.colors.surfaceElevated,
+        border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.cardBorder),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(themeColor.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CardTravel,
+                        contentDescription = tripCard.name,
+                        tint = themeColor,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = tripCard.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = AppTheme.colors.textPrimary,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+
+                    val dest = tripCard.destination
+                    if (!dest.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = AppTheme.colors.textSecondary,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = dest,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AppTheme.colors.textSecondary,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = themeColor.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = if (tripCard.transactionCount == 1) "1 transaction" else "${tripCard.transactionCount} transactions",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = themeColor,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        if (tripCard.dateRangeLabel.isNotBlank()) {
+                            Text(
+                                text = "•  ${tripCard.dateRangeLabel}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AppTheme.colors.textSecondary,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "My Spend",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AppTheme.colors.textSecondary,
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        text = CurrencyUtils.formatPaiseToRupees(tripCard.totalPersonalExpensePaise),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = if (tripCard.totalPersonalExpensePaise > 0L) CoralRed else AppTheme.colors.textPrimary
+                    )
+                }
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = "View Trip",
+                    tint = AppTheme.colors.textTertiary,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }

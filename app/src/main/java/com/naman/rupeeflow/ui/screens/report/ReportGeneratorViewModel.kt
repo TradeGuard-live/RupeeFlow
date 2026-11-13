@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.naman.rupeeflow.data.repository.CategoryRepository
+import com.naman.rupeeflow.data.repository.ExpenseGroupRepository
 import com.naman.rupeeflow.data.repository.ReportDraftRepository
 import com.naman.rupeeflow.data.repository.TransactionRepository
 import com.naman.rupeeflow.domain.model.Category
@@ -29,8 +30,12 @@ data class ReportGeneratorUiState(
     val selectedYear: Int = LocalDate.now().year,
     val selectedMonth: Int = LocalDate.now().monthValue,
     val selectedWeekStart: LocalDate = LocalDate.now().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)),
-    val customStartDate: Long = LocalDate.now().with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-    val customEndDate: Long = LocalDate.now().atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+    val customStartDate: Long? = LocalDate.now().with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+    val customEndDate: Long? = LocalDate.now().atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
+    val targetExpenseGroupId: Long? = null,
+    val isTripReport: Boolean = false,
+    val tripName: String? = null,
+    val tripDestination: String? = null,
     val excludedTransactionIds: Set<Long> = emptySet(),
     val rawTransactionsInRange: List<Transaction> = emptyList(),
     val includedTransactions: List<Transaction> = emptyList(),
@@ -47,12 +52,16 @@ data class ReportGeneratorUiState(
     val generatedPdfFile: File? = null,
     val isGeneratingPdf: Boolean = false,
     val errorMessage: String? = null
-)
+) {
+    val isCustomRangeIncomplete: Boolean
+        get() = periodType == ReportPeriodType.CUSTOM && (customStartDate == null || customEndDate == null)
+}
 
 class ReportGeneratorViewModel(
     private val transactionRepository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
-    private val reportDraftRepository: ReportDraftRepository
+    private val reportDraftRepository: ReportDraftRepository,
+    private val expenseGroupRepository: ExpenseGroupRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ReportGeneratorUiState())
@@ -80,14 +89,106 @@ class ReportGeneratorViewModel(
         }
     }
 
+    fun initTripReport(groupId: Long) {
+        viewModelScope.launch {
+            val group = expenseGroupRepository?.getExpenseGroupById(groupId)
+            val tripTxns = allTransactions.filter { it.expenseGroupId == groupId }
+            val (tripStart, tripEnd) = when {
+                group?.startDate != null && group.endDate != null -> {
+                    val zone = ZoneId.systemDefault()
+                    val s = Instant.ofEpochMilli(group.startDate!!).atZone(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
+                    val e = Instant.ofEpochMilli(group.endDate!!).atZone(zone).toLocalDate().atTime(LocalTime.MAX).atZone(zone).toInstant().toEpochMilli()
+                    Pair(s, e)
+                }
+                tripTxns.isNotEmpty() -> {
+                    val zone = ZoneId.systemDefault()
+                    val minT = tripTxns.minOf { it.transactionDate }
+                    val maxT = tripTxns.maxOf { it.transactionDate }
+                    val s = Instant.ofEpochMilli(minT).atZone(zone).toLocalDate().atStartOfDay(zone).toInstant().toEpochMilli()
+                    val e = Instant.ofEpochMilli(maxT).atZone(zone).toLocalDate().atTime(LocalTime.MAX).atZone(zone).toInstant().toEpochMilli()
+                    Pair(s, e)
+                }
+                else -> {
+                    val now = LocalDate.now()
+                    val zone = ZoneId.systemDefault()
+                    val s = now.with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay(zone).toInstant().toEpochMilli()
+                    val e = now.atTime(LocalTime.MAX).atZone(zone).toInstant().toEpochMilli()
+                    Pair(s, e)
+                }
+            }
+
+            _uiState.update { current ->
+                recomputeMetrics(
+                    current.copy(
+                        targetExpenseGroupId = groupId,
+                        isTripReport = true,
+                        tripName = group?.name,
+                        tripDestination = group?.destination,
+                        periodType = ReportPeriodType.CUSTOM,
+                        customStartDate = tripStart,
+                        customEndDate = tripEnd,
+                        generatedPdfFile = null
+                    )
+                )
+            }
+        }
+    }
+
     fun setPeriodType(type: ReportPeriodType) {
         _uiState.update { current ->
             recomputeMetrics(current.copy(periodType = type, generatedPdfFile = null))
         }
     }
 
-    fun setCustomDateRange(startMillis: Long, endMillis: Long) {
-        if (startMillis > endMillis) {
+    fun setCustomStartDate(startMillis: Long?) {
+        val current = _uiState.value
+        if (startMillis != null && current.customEndDate != null && startMillis > current.customEndDate) {
+            _uiState.update { it.copy(errorMessage = "Start date must be before or equal to end date") }
+            return
+        }
+        _uiState.update { curr ->
+            recomputeMetrics(
+                curr.copy(
+                    customStartDate = startMillis,
+                    errorMessage = null,
+                    generatedPdfFile = null
+                )
+            )
+        }
+    }
+
+    fun setCustomEndDate(endMillis: Long?) {
+        val current = _uiState.value
+        if (endMillis != null && current.customStartDate != null && endMillis < current.customStartDate) {
+            _uiState.update { it.copy(errorMessage = "End date cannot be earlier than start date") }
+            return
+        }
+        _uiState.update { curr ->
+            recomputeMetrics(
+                curr.copy(
+                    customEndDate = endMillis,
+                    errorMessage = null,
+                    generatedPdfFile = null
+                )
+            )
+        }
+    }
+
+    fun clearCustomDates() {
+        _uiState.update { curr ->
+            recomputeMetrics(
+                curr.copy(
+                    customStartDate = null,
+                    customEndDate = null,
+                    errorMessage = null,
+                    generatedPdfFile = null
+                )
+            )
+        }
+    }
+
+    fun setCustomDateRange(startMillis: Long?, endMillis: Long?) {
+        if (startMillis != null && endMillis != null && startMillis > endMillis) {
             _uiState.update { it.copy(errorMessage = "Start date must be before or equal to end date") }
             return
         }
@@ -180,21 +281,35 @@ class ReportGeneratorViewModel(
 
     fun generatePdf(context: Context) {
         viewModelScope.launch {
+            val state = _uiState.value
+            if (state.isCustomRangeIncomplete) {
+                _uiState.update { it.copy(errorMessage = "Select both start and end dates.") }
+                return@launch
+            }
+
             _uiState.update { it.copy(isGeneratingPdf = true, errorMessage = null) }
             try {
-                val state = _uiState.value
                 val (startMillis, endMillis) = computeDateBounds(state)
                 val dateRangeLabel = "${DateTimeUtils.formatDate(startMillis, "dd MMM yyyy")} - ${DateTimeUtils.formatDate(endMillis, "dd MMM yyyy")}"
-                val title = when (state.periodType) {
-                    ReportPeriodType.WEEKLY -> "Weekly Financial Statement"
-                    ReportPeriodType.MONTHLY -> "Monthly Financial Statement"
-                    ReportPeriodType.YEARLY -> "Annual Financial Statement"
-                    ReportPeriodType.CUSTOM -> "Expense Report"
+                val title = if (state.isTripReport) {
+                    "${state.tripName ?: "Trip"} Statement"
+                } else {
+                    when (state.periodType) {
+                        ReportPeriodType.WEEKLY -> "Weekly Financial Statement"
+                        ReportPeriodType.MONTHLY -> "Monthly Financial Statement"
+                        ReportPeriodType.YEARLY -> "Annual Financial Statement"
+                        ReportPeriodType.CUSTOM -> "Expense Report"
+                    }
+                }
+                val periodLabel = if (state.isTripReport) {
+                    "Trip: ${state.tripName ?: "Trip"}"
+                } else {
+                    state.periodType.displayName
                 }
 
                 val data = ReportGenerationData(
                     title = title,
-                    periodLabel = state.periodType.displayName,
+                    periodLabel = periodLabel,
                     dateRangeLabel = dateRangeLabel,
                     transactions = state.includedTransactions,
                     totalExpensesPaise = state.totalExpensesPaise,
@@ -236,16 +351,41 @@ class ReportGeneratorViewModel(
                 Pair(start, end)
             }
             ReportPeriodType.CUSTOM -> {
-                Pair(state.customStartDate, state.customEndDate)
+                val start = state.customStartDate ?: 0L
+                val end = state.customEndDate ?: Long.MAX_VALUE
+                Pair(start, end)
             }
         }
     }
 
     private fun recomputeMetrics(state: ReportGeneratorUiState): ReportGeneratorUiState {
+        // If this is a trip report with targetExpenseGroupId, filter strictly to this trip permanently!
+        val baseTxns = if (state.targetExpenseGroupId != null) {
+            allTransactions.filter { it.expenseGroupId == state.targetExpenseGroupId }
+        } else {
+            allTransactions
+        }
+
+        if (state.isCustomRangeIncomplete) {
+            return state.copy(
+                rawTransactionsInRange = emptyList(),
+                includedTransactions = emptyList(),
+                totalExpensesPaise = 0L,
+                totalIncomePaise = 0L,
+                totalRefundsPaise = 0L,
+                netSpendingPaise = 0L,
+                cashSpendingPaise = 0L,
+                onlineSpendingPaise = 0L,
+                grossBillsPaise = 0L,
+                categoryBreakdown = emptyList(),
+                expenseGroupBreakdown = emptyList()
+            )
+        }
+
         val (startMillis, endMillis) = computeDateBounds(state)
 
         // Filter transactions strictly within date range
-        val inRange = allTransactions.filter { txn ->
+        val inRange = baseTxns.filter { txn ->
             txn.transactionDate in startMillis..endMillis
         }
 
@@ -305,4 +445,3 @@ class ReportGeneratorViewModel(
         )
     }
 }
-

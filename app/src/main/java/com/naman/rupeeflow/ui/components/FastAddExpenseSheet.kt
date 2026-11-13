@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.naman.rupeeflow.domain.ledger.LedgerCalculator
@@ -459,7 +460,7 @@ fun FastAddExpenseSheet(
                         },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(54.dp),
+                            .heightIn(min = 54.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = AppTheme.colors.primaryAccent,
@@ -470,7 +471,9 @@ fun FastAddExpenseSheet(
                         Text(
                             text = "Save Settlement",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -1040,7 +1043,7 @@ fun FastAddExpenseSheet(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp),
+                        .heightIn(min = 54.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (selectedEntryType == SheetEntryType.INCOME) AppTheme.colors.incomeGreen else AppTheme.colors.primaryAccent,
@@ -1051,7 +1054,9 @@ fun FastAddExpenseSheet(
                     Text(
                         text = if (selectedEntryType == SheetEntryType.INCOME) "Save Income" else "Save Expense",
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

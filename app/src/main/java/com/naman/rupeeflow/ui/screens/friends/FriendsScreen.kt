@@ -97,9 +97,13 @@ fun FriendsScreen(
                     ),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Create Group",
+                        modifier = Modifier.size(16.dp)
+                    )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("+ Group", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Text("Group", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -351,7 +355,7 @@ fun FriendsScreen(
             // Friends List
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 if (state.filteredFriends.isEmpty()) {
@@ -1008,10 +1012,10 @@ fun CreateGroupDialog(
                         onClick = onDismiss,
                         modifier = Modifier
                             .weight(1f)
-                            .height(50.dp),
+                            .heightIn(min = 48.dp),
                         shape = RoundedCornerShape(14.dp)
                     ) {
-                        Text("Cancel", color = AppTheme.colors.textSecondary)
+                        Text("Cancel", color = AppTheme.colors.textSecondary, style = MaterialTheme.typography.titleSmall)
                     }
 
                     Button(
@@ -1028,8 +1032,8 @@ fun CreateGroupDialog(
                             }
                         },
                         modifier = Modifier
-                            .weight(1.5f)
-                            .height(50.dp),
+                            .weight(1f)
+                            .heightIn(min = 48.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = AppTheme.colors.primaryAccent,
@@ -1037,7 +1041,7 @@ fun CreateGroupDialog(
                         ),
                         enabled = groupName.isNotBlank()
                     ) {
-                        Text("Create Group", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Create Group", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -1313,16 +1317,63 @@ fun EditGroupDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Action Buttons: Delete, Cancel, Save Changes
-                Row(
+                // Action Buttons: Cancel, Save Changes & Delete Group
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text("Cancel", color = AppTheme.colors.textSecondary, style = MaterialTheme.typography.titleSmall)
+                        }
+
+                        Button(
+                            onClick = {
+                                if (groupName.isNotBlank()) {
+                                    onSave(
+                                        group.copy(
+                                            name = groupName.trim(),
+                                            description = groupDescription.trim().ifBlank { null },
+                                            groupImagePath = groupImagePath
+                                        ),
+                                        selectedFriendIds.toList()
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AppTheme.colors.primaryAccent,
+                                contentColor = Color.White
+                            ),
+                            enabled = groupName.isNotBlank()
+                        ) {
+                            Text(
+                                "Save Changes",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
                     OutlinedButton(
                         onClick = onDelete,
                         modifier = Modifier
-                            .weight(1f)
-                            .height(50.dp),
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = if (isDark) CoralRed else Color(0xFFDC2626)
@@ -1332,45 +1383,9 @@ fun EditGroupDialog(
                             if (isDark) CoralRed else Color(0xFFFCA5A5)
                         )
                     ) {
-                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Delete", fontWeight = FontWeight.Bold)
-                    }
-
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(50.dp),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Text("Cancel", color = AppTheme.colors.textSecondary)
-                    }
-
-                    Button(
-                        onClick = {
-                            if (groupName.isNotBlank()) {
-                                onSave(
-                                    group.copy(
-                                        name = groupName.trim(),
-                                        description = groupDescription.trim().ifBlank { null },
-                                        groupImagePath = groupImagePath
-                                    ),
-                                    selectedFriendIds.toList()
-                                )
-                            }
-                        },
-                        modifier = Modifier
-                            .weight(1.5f)
-                            .height(50.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AppTheme.colors.primaryAccent,
-                            contentColor = Color.White
-                        ),
-                        enabled = groupName.isNotBlank()
-                    ) {
-                        Text("Save", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Delete Group", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
                     }
                 }
             }

@@ -91,7 +91,7 @@ fun OverviewScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             // Header: Greeting & Date
@@ -115,57 +115,10 @@ fun OverviewScreen(
                         )
                     }
 
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (state.pendingTransactions.isNotEmpty()) {
-                            if (isDark) AmberGold.copy(alpha = 0.2f) else Color(0xFFFEF3C7)
-                        } else {
-                            if (isDark) CharcoalCard else AppTheme.colors.surface
-                        },
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (state.pendingTransactions.isNotEmpty()) {
-                                if (isDark) AmberGold.copy(alpha = 0.6f) else Color(0xFFF59E0B)
-                            } else {
-                                if (isDark) GlassBorder else AppTheme.colors.cardBorder
-                            }
-                        ),
-                        modifier = Modifier.clickable { onNavigateToPending() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (state.pendingTransactions.isNotEmpty()) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .clip(CircleShape)
-                                        .background(if (isDark) AmberGold else Color(0xFFD97706))
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "${state.pendingTransactions.size} SMS",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (isDark) AmberGold else Color(0xFFD97706),
-                                    fontWeight = FontWeight.Bold
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Sms,
-                                    contentDescription = "Detected",
-                                    tint = AppTheme.colors.textSecondary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Detected",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = AppTheme.colors.textSecondary
-                                )
-                            }
-                        }
-                    }
+                    DetectedTransactionsBadge(
+                        pendingCount = state.pendingTransactions.size,
+                        onClick = onNavigateToPending
+                    )
                 }
             }
 

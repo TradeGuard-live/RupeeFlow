@@ -98,7 +98,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Title
@@ -388,31 +388,6 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Reset App to Initial State", fontWeight = FontWeight.Bold)
                     }
-                }
-            }
-
-            // Privacy & Architecture Info
-            item {
-                SettingsSectionHeader("About RupeeFlow")
-                RupeeFlowCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = "100% Offline & Private",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = AppTheme.colors.incomeGreen,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Your financial data never leaves this device. No servers, no tracking, no paid APIs. All SMS parsing and ledger accounting happen locally.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = AppTheme.colors.textSecondary
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    DetailRow("Version", "1.0.0 (Release)")
-                    DetailRow("Architecture", "Clean Architecture + MVVM + Room")
-                    DetailRow("Target Phone", "Samsung Galaxy S24 Ultra")
                 }
             }
         }
