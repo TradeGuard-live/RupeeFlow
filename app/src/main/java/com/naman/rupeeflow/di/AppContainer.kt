@@ -20,6 +20,7 @@ interface AppContainer {
     val inputRankingRepository: InputRankingRepository
     val imageStorageManager: ImageStorageManager
     val appLockManager: com.naman.rupeeflow.security.AppLockManager
+    val pendingAttachmentManager: com.naman.rupeeflow.attachment.PendingAttachmentManager
     val merchantPreferenceRepository: MerchantPreferenceRepository
     val smartTransactionMatcher: com.naman.rupeeflow.domain.matching.SmartTransactionMatcher
 }
@@ -101,6 +102,15 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val appLockManager: com.naman.rupeeflow.security.AppLockManager by lazy {
         com.naman.rupeeflow.security.AppLockManager(userPreferencesRepository)
+    }
+
+    // ✅ Application-scoped pending attachment manager with automatic biometric unlock resumption
+    override val pendingAttachmentManager: com.naman.rupeeflow.attachment.PendingAttachmentManager by lazy {
+        com.naman.rupeeflow.attachment.PendingAttachmentManager.getInstance(context).also { mgr ->
+            appLockManager.addUnlockListener {
+                mgr.onBiometricUnlocked(context)
+            }
+        }
     }
 
     override val merchantPreferenceRepository: MerchantPreferenceRepository by lazy {

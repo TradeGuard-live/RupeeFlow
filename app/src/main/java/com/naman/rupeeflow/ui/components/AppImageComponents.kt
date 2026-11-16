@@ -37,9 +37,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
+import com.naman.rupeeflow.RupeeFlowApplication
+import com.naman.rupeeflow.attachment.AttachmentOperationState
+import com.naman.rupeeflow.attachment.PendingAttachmentManager
 import com.naman.rupeeflow.data.local.ImageStorageManager
 import com.naman.rupeeflow.domain.model.Friend
 import com.naman.rupeeflow.domain.model.FriendGroup
+import com.naman.rupeeflow.security.AppLockState
 import com.naman.rupeeflow.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -362,34 +366,39 @@ fun BillAttachmentSection(
 ) {
     val isDark = AppTheme.isDark
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var showFullscreenReceipt by remember { mutableStateOf(false) }
+
+    val pendingAttachmentManager = remember { PendingAttachmentManager.getInstance(context) }
+    val attachmentState by pendingAttachmentManager.state.collectAsState()
+    val errorMessage by pendingAttachmentManager.errorMessage.collectAsState()
+    val appLockManager = remember {
+        (context.applicationContext as? RupeeFlowApplication)?.appContainer?.appLockManager
+    }
+
+    // ✅ Deliver ready attachment to caller once finalized
+    LaunchedEffect(attachmentState) {
+        if (attachmentState == AttachmentOperationState.ATTACHMENT_READY) {
+            val readyPath = pendingAttachmentManager.consumeReadyAttachment()
+            if (readyPath != null) {
+                onImageSelected(readyPath)
+            }
+        }
+    }
 
     // ✅ Storage Access Framework document picker supporting images and PDFs
     val documentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        if (uri != null) {
-            scope.launch {
-                val path = ImageStorageManager.saveBillAttachment(context, uri)
-                if (path != null) {
-                    onImageSelected(path)
-                }
-            }
-        }
+        val isLocked = appLockManager?.lockState?.value == AppLockState.LOCKED
+        pendingAttachmentManager.onPickerResult(context, uri, isLocked)
     }
 
+    // ✅ Full-resolution camera capture with pre-created FileProvider URI
     val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap: Bitmap? ->
-        if (bitmap != null) {
-            scope.launch {
-                val path = ImageStorageManager.saveBillBitmap(context, bitmap)
-                if (path != null) {
-                    onImageSelected(path)
-                }
-            }
-        }
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        val isLocked = appLockManager?.lockState?.value == AppLockState.LOCKED
+        pendingAttachmentManager.onCameraResult(context, success, isLocked)
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -416,11 +425,84 @@ fun BillAttachmentSection(
                 TextButton(
                     onClick = {
                         ImageStorageManager.deleteImage(billImagePath)
+                        pendingAttachmentManager.cancelOperation()
                         onImageSelected(null)
                     },
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     Text("Remove", color = if (isDark) CoralRed else Color(0xFFDC2626), style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+
+        // ✅ Show processing indicator while attachment is being saved/compressed
+        if (attachmentState == AttachmentOperationState.PROCESSING_ATTACHMENT) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (isDark) CharcoalCard else AppTheme.colors.surface,
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    if (isDark) GlassBorder else AppTheme.colors.cardBorder
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = AppTheme.colors.primaryAccent
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Processing bill attachment...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.textSecondary
+                    )
+                }
+            }
+        }
+
+        // ✅ Show error message if attachment failed
+        if (!errorMessage.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = CoralRed.copy(alpha = 0.12f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, CoralRed.copy(alpha = 0.3f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = CoralRed,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = errorMessage ?: "",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = CoralRed,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(
+                        onClick = { pendingAttachmentManager.clearError() },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Dismiss",
+                            tint = CoralRed,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }
@@ -539,7 +621,10 @@ fun BillAttachmentSection(
                     }
 
                     // Action to replace
-                    IconButton(onClick = { documentLauncher.launch(arrayOf("image/*", "application/pdf")) }) {
+                    IconButton(onClick = {
+                        pendingAttachmentManager.preparePicker(isPdfOnly = false)
+                        documentLauncher.launch(arrayOf("image/*", "application/pdf"))
+                    }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Replace", tint = AppTheme.colors.textSecondary)
                     }
                 }
@@ -559,7 +644,14 @@ fun BillAttachmentSection(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 OutlinedButton(
-                    onClick = { cameraLauncher.launch(null) },
+                    onClick = {
+                        try {
+                            val uri = pendingAttachmentManager.prepareCameraCapture(context)
+                            cameraLauncher.launch(uri)
+                        } catch (e: Exception) {
+                            android.util.Log.e("BillAttachment", "Failed to launch camera", e)
+                        }
+                    },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
@@ -581,7 +673,10 @@ fun BillAttachmentSection(
                 }
 
                 OutlinedButton(
-                    onClick = { documentLauncher.launch(arrayOf("image/*", "application/pdf")) },
+                    onClick = {
+                        pendingAttachmentManager.preparePicker(isPdfOnly = false)
+                        documentLauncher.launch(arrayOf("image/*", "application/pdf"))
+                    },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(

@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +38,8 @@ fun TransactionsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    var showFastAddSheet by remember { mutableStateOf(false) }
+    // ✅ rememberSaveable keeps the sheet open across biometric lock/unlock and activity recreation
+    var showFastAddSheet by rememberSaveable { mutableStateOf(false) }
     var showVoiceAssistant by remember { mutableStateOf(false) }
     var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }

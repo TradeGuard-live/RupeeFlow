@@ -28,6 +28,17 @@ object ImageStorageManager {
 
     // ✅ Save bill attachment supporting both image and PDF documents
     suspend fun saveBillAttachment(context: Context, sourceUri: Uri): String? = withContext(Dispatchers.IO) {
+        // Enforce 15MB limit for all bill attachments
+        val fileSize = runCatching {
+            context.contentResolver.openFileDescriptor(sourceUri, "r")?.use { it.statSize }
+        }.getOrNull() ?: runCatching {
+            if (sourceUri.scheme == "file") File(sourceUri.path ?: "").length() else -1L
+        }.getOrDefault(-1L)
+
+        if (fileSize > MAX_BILL_FILE_BYTES) {
+            return@withContext null
+        }
+
         val mimeType = runCatching { context.contentResolver.getType(sourceUri)?.lowercase() }.getOrNull()
         val uriStr = sourceUri.toString().lowercase()
         val isPdf = mimeType == "application/pdf" || uriStr.endsWith(".pdf")
@@ -226,6 +237,50 @@ object ImageStorageManager {
             targetWidth = (maxDimension * ratio).toInt()
         }
         return Bitmap.createScaledBitmap(bitmap, targetWidth.coerceAtLeast(1), targetHeight.coerceAtLeast(1), true)
+    }
+
+    // ✅ Create unique destination file for camera captures before launching camera intent
+    fun createTempCameraFile(context: Context): File {
+        val dir = File(context.filesDir, DIRECTORY_RECEIPTS).apply { if (!exists()) mkdirs() }
+        val fileName = "temp_camera_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}.jpg"
+        val file = File(dir, fileName)
+        if (!file.exists()) {
+            file.createNewFile()
+        }
+        return file
+    }
+
+    // ✅ Process, optimize, and save captured camera file to durable receipt storage
+    suspend fun finalizeCameraCapture(context: Context, tempFilePath: String): String? = withContext(Dispatchers.IO) {
+        try {
+            val tempFile = File(tempFilePath)
+            if (!tempFile.exists() || tempFile.length() <= 0L) {
+                tempFile.delete()
+                return@withContext null
+            }
+            val uri = Uri.fromFile(tempFile)
+            val finalPath = saveImageToDirectory(context, uri, DIRECTORY_RECEIPTS, "bill", MAX_BILL_DIMENSION)
+            tempFile.delete()
+            finalPath
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // ✅ Clean up any stale or abandoned temporary camera files
+    fun cleanTempCameraFiles(context: Context) {
+        try {
+            val dir = File(context.filesDir, DIRECTORY_RECEIPTS)
+            if (dir.exists()) {
+                dir.listFiles { file -> file.name.startsWith("temp_camera_") }?.forEach { file ->
+                    if (file.length() == 0L || System.currentTimeMillis() - file.lastModified() > 30 * 60 * 1000L) {
+                        file.delete()
+                    }
+                }
+            }
+        } catch (_: Exception) {
+            // Ignore cleanup failures
+        }
     }
 
     private fun fixExifOrientation(context: Context, uri: Uri, bitmap: Bitmap): Bitmap {

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -111,7 +112,8 @@ fun EditTransactionDialog(
         mutableStateOf(defaultFriendIds)
     }
     var selectedGroupFilterId by remember { mutableStateOf(transaction.groupId) }
-    var billImagePath by remember { mutableStateOf(transaction.billImagePath) }
+    // ✅ Preserve edited bill attachment path across biometric prompt and external pickers
+    var billImagePath by rememberSaveable { mutableStateOf(transaction.billImagePath) }
     var splitMethod by remember { mutableStateOf(transaction.splitMethod) }
 
     // Participant inputs for Percentage & Custom ₹

@@ -29,6 +29,12 @@ class AppLockManager(
     @Volatile
     var isBiometricPromptActive = false
 
+    // ✅ Track when an external camera or document picker activity is in flight
+    @Volatile
+    var isExternalActivityInFlight = false
+
+    private val unlockListeners = mutableListOf<() -> Unit>()
+
     private var startedActivityCount = 0
     private var appWentToBackground = false
     private var lastBackgroundTime = 0L
@@ -56,11 +62,32 @@ class AppLockManager(
         collectionJob.cancel()
     }
 
+    // ✅ Register listener to be notified when biometric authentication unlocks the session
+    fun addUnlockListener(listener: () -> Unit) {
+        synchronized(unlockListeners) {
+            if (!unlockListeners.contains(listener)) {
+                unlockListeners.add(listener)
+            }
+        }
+    }
+
+    fun removeUnlockListener(listener: () -> Unit) {
+        synchronized(unlockListeners) {
+            unlockListeners.remove(listener)
+        }
+    }
+
+    // ✅ Unlock session and notify listeners to resume pending operations
     fun unlockSession() {
         Log.d(TAG, "unlockSession() called: setting lockState=UNLOCKED")
         isSessionUnlocked = true
         isBiometricPromptActive = false
         _lockState.value = AppLockState.UNLOCKED
+
+        val listenersCopy = synchronized(unlockListeners) { unlockListeners.toList() }
+        listenersCopy.forEach { listener ->
+            runCatching { listener() }.onFailure { Log.e(TAG, "Error in unlock listener", it) }
+        }
     }
 
     fun relockSession() {

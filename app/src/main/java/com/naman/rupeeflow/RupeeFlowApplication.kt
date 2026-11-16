@@ -17,6 +17,8 @@ class RupeeFlowApplication : Application() {
         super.onCreate()
         appContainer = DefaultAppContainer(this)
         registerActivityLifecycleCallbacks(appContainer.appLockManager)
+        // ✅ Ensure pending attachment manager is initialized with registered unlock listener
+        appContainer.pendingAttachmentManager
 
         TransactionNotificationHelper.createNotificationChannel(this)
 

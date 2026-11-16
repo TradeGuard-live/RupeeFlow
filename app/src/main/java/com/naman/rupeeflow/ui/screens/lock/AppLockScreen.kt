@@ -1,6 +1,9 @@
 package com.naman.rupeeflow.ui.screens.lock
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,6 +13,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,16 +29,26 @@ fun AppLockScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val activity = context as? FragmentActivity
+
+    // ✅ When locked, back button minimizes the app to prevent unauthorized access
+    BackHandler(enabled = true) {
+        activity?.moveTaskToBack(true)
+    }
 
     LaunchedEffect(Unit) {
-        val activity = context as? FragmentActivity
         if (activity != null) {
             viewModel.triggerBiometricPrompt(activity)
         }
     }
 
     Surface(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }
+            ) { /* ✅ Absorb all touch events to prevent touch pass-through */ },
         color = AppTheme.colors.background
     ) {
         Column(

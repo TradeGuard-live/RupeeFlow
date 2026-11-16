@@ -53,30 +53,18 @@ class MainActivity : FragmentActivity() {
 
             val lockState by appLockViewModel.lockState.collectAsStateWithLifecycle()
             val isBiometricEnabled by appLockViewModel.isBiometricEnabled.collectAsStateWithLifecycle()
+            val navController = rememberNavController()
 
             RupeeFlowTheme(themeMode = userPrefs.themeMode) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = AppTheme.colors.background
                 ) {
-                    when {
-                        // Protected state: While locked and biometric is enabled, show lock screen
-                        isBiometricEnabled && lockState == AppLockState.LOCKED -> {
-                            AppLockScreen(viewModel = appLockViewModel)
-                        }
-                        // Splash/Init state: while resolving preference on cold launch, keep background clean
-                        lockState == AppLockState.INITIALIZING -> {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(AppTheme.colors.background)
-                            )
-                        }
-                        // Unlocked state: render main application and navigation
-                        else -> {
-                            val navController = rememberNavController()
-
-                            // Handle notification deep link if present
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        // ✅ Mount main application whenever initialized so that
+                        // navigation backstack, open modal sheets, and active form
+                        // states survive biometric authentication and external pickers
+                        if (lockState != AppLockState.INITIALIZING) {
                             LaunchedEffect(intent) {
                                 val target = intent?.getStringExtra("EXTRA_NAVIGATE_TO")
                                 if (target == "pending_review") {
@@ -85,6 +73,18 @@ class MainActivity : FragmentActivity() {
                             }
 
                             RupeeFlowApp(navController = navController)
+                        }
+
+                        // ✅ When locked and biometric enabled, display the full-screen AppLockScreen on top
+                        // completely obscuring all protected financial data until authenticated
+                        if (isBiometricEnabled && lockState == AppLockState.LOCKED) {
+                            AppLockScreen(viewModel = appLockViewModel)
+                        } else if (lockState == AppLockState.INITIALIZING) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(AppTheme.colors.background)
+                            )
                         }
                     }
                 }

@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,8 +62,8 @@ fun FastAddExpenseSheet(
     initialLocation: TransactionLocation? = null,
     onSearchMerchantLocation: (suspend (String) -> TransactionLocation?)? = null
 ) {
-    // Mode: Expense, Income, or Settlement
-    var selectedEntryType by remember {
+    // ✅ Mode: Expense, Income, or Settlement (rememberSaveable survives recreation)
+    var selectedEntryType by rememberSaveable {
         mutableStateOf(
             when (initialType) {
                 TransactionType.INCOME -> SheetEntryType.INCOME
@@ -71,9 +72,10 @@ fun FastAddExpenseSheet(
         )
     }
 
-    var title by remember { mutableStateOf(initialTitle ?: "") }
-    var description by remember { mutableStateOf("") }
-    var amountText by remember {
+    // ✅ Form inputs preserved across biometric prompt, camera, and picker
+    var title by rememberSaveable { mutableStateOf(initialTitle ?: "") }
+    var description by rememberSaveable { mutableStateOf("") }
+    var amountText by rememberSaveable {
         mutableStateOf(
             if (initialAmountPaise != null && initialAmountPaise > 0L) {
                 (initialAmountPaise / 100.0).toString()
@@ -82,8 +84,8 @@ fun FastAddExpenseSheet(
     }
     var selectedCategory by remember { mutableStateOf(initialCategory ?: categories.firstOrNull()) }
     var isSuggestedActive by remember { mutableStateOf(suggestedFromPrevious) }
-    var selectedPaymentMethod by remember { mutableStateOf(initialPaymentMethod ?: PaymentMethod.UPI) }
-    var selectedPayerId by remember { mutableStateOf<Long?>(null) } // null = Me
+    var selectedPaymentMethod by rememberSaveable { mutableStateOf(initialPaymentMethod ?: PaymentMethod.UPI) }
+    var selectedPayerId by rememberSaveable { mutableStateOf<Long?>(null) } // null = Me
     var selectedExpenseGroup by remember { mutableStateOf<ExpenseGroup?>(null) }
 
     // Location state & merchant location memory
@@ -106,17 +108,18 @@ fun FastAddExpenseSheet(
             } else true
         )
     }
-    var settlementRefNumber by remember { mutableStateOf("") }
+    var settlementRefNumber by rememberSaveable { mutableStateOf("") }
 
     // Splitting state
-    var isSplitEnabled by remember { mutableStateOf(false) }
-    var isMeIncluded by remember { mutableStateOf(true) }
+    var isSplitEnabled by rememberSaveable { mutableStateOf(false) }
+    var isMeIncluded by rememberSaveable { mutableStateOf(true) }
     var selectedFriendIds by remember { mutableStateOf(setOf<Long>()) }
     var selectedGroupFilterId by remember { mutableStateOf<Long?>(null) }
-    var splitMethod by remember { mutableStateOf(SplitMethod.EQUAL) }
+    var splitMethod by rememberSaveable { mutableStateOf(SplitMethod.EQUAL) }
     var customRupeeInputs by remember { mutableStateOf(mapOf<Long?, String>()) } // null = Me
     var percentageInputs by remember { mutableStateOf(mapOf<Long?, String>()) } // null = Me
-    var billImagePath by remember { mutableStateOf<String?>(null) }
+    // ✅ Bill attachment path preserved across biometric prompt, camera, and picker
+    var billImagePath by rememberSaveable { mutableStateOf<String?>(null) }
     var showVoiceSheet by remember { mutableStateOf(false) }
 
     val amountPaise = remember(amountText) { CurrencyUtils.parseInputToPaise(amountText) }
