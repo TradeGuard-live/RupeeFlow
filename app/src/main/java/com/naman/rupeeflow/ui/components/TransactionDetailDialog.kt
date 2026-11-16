@@ -196,7 +196,7 @@ fun TransactionDetailDialog(
                     }
                 }
 
-                // Attached Bill / Receipt Photo Preview
+                // Attached Bill / Receipt Photo Preview (Image or PDF)
                 if (!transaction.billImagePath.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
@@ -206,7 +206,8 @@ fun TransactionDetailDialog(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     var showFullscreenReceipt by remember { mutableStateOf(false) }
-                    val receiptBitmap = rememberBitmapFromPath(transaction.billImagePath)
+                    val isPdf = com.naman.rupeeflow.data.local.ImageStorageManager.isPdfAttachment(transaction.billImagePath)
+                    val receiptBitmap = if (!isPdf) rememberBitmapFromPath(transaction.billImagePath) else null
 
                     Surface(
                         shape = RoundedCornerShape(14.dp),
@@ -214,13 +215,34 @@ fun TransactionDetailDialog(
                         border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { showFullscreenReceipt = true }
+                            .clickable {
+                                if (isPdf) {
+                                    openPdfAttachment(context, transaction.billImagePath)
+                                } else {
+                                    showFullscreenReceipt = true
+                                }
+                            }
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            if (receiptBitmap != null) {
+                            if (isPdf) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(60.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFEF4444).copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.PictureAsPdf,
+                                        contentDescription = "PDF Document",
+                                        tint = Color(0xFFEF4444),
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
+                            } else if (receiptBitmap != null) {
                                 Image(
                                     bitmap = receiptBitmap,
                                     contentDescription = "Receipt Preview",
@@ -243,22 +265,30 @@ fun TransactionDetailDialog(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "View Attached Receipt",
+                                    text = if (isPdf) com.naman.rupeeflow.data.local.ImageStorageManager.getAttachmentFileName(transaction.billImagePath) else "View Attached Receipt",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = AppTheme.colors.textPrimary
+                                    color = AppTheme.colors.textPrimary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
-                                    text = "Tap to view in fullscreen with zoom",
+                                    text = if (isPdf) "PDF Document • ${com.naman.rupeeflow.data.local.ImageStorageManager.getAttachmentFileSizeFormatted(transaction.billImagePath)} • Tap to open" else "Tap to view in fullscreen with zoom",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = AppTheme.colors.primaryAccent
+                                    color = AppTheme.colors.primaryAccent,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
-                            Icon(Icons.Default.ZoomIn, contentDescription = null, tint = AppTheme.colors.textSecondary)
+                            Icon(
+                                imageVector = if (isPdf) Icons.Default.OpenInNew else Icons.Default.ZoomIn,
+                                contentDescription = null,
+                                tint = AppTheme.colors.textSecondary
+                            )
                         }
                     }
 
-                    if (showFullscreenReceipt) {
+                    if (showFullscreenReceipt && !isPdf) {
                         FullScreenReceiptDialog(
                             imagePath = transaction.billImagePath,
                             title = "${transaction.title} - Receipt",

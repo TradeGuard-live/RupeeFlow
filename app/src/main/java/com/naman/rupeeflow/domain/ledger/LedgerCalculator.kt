@@ -311,4 +311,136 @@ object LedgerCalculator {
             pendingTransactionsCount = pendingCount
         )
     }
+
+    // ✅ Calculate outstanding/unsettled expenses for a friend using deterministic FIFO allocation
+    fun calculateUnsettledExpenses(
+        friendId: Long,
+        transactions: List<Transaction>,
+        settlements: List<Settlement>
+    ): List<UnsettledExpenseItem> {
+        // Filter active transactions
+        val activeTxns = transactions.filter {
+            it.transactionStatus == TransactionStatus.ACTIVE &&
+                    (it.transactionType == TransactionType.EXPENSE || it.transactionType == TransactionType.REFUND)
+        }
+        val validSettlements = settlements.filter { !it.isReversed }
+
+        // Group 1: Transactions where ME paid and Friend participated (Friend owes ME)
+        val friendOwesMeExpenses = mutableListOf<UnsettledExpenseEntry>()
+        // Group 2: Transactions where Friend paid and ME participated (ME owes Friend)
+        val iOweFriendExpenses = mutableListOf<UnsettledExpenseEntry>()
+
+        for (txn in activeTxns) {
+            val payerId = txn.paidByFriendId
+            if (txn.transactionType == TransactionType.EXPENSE) {
+                if (payerId == null) {
+                    val part = txn.participants.firstOrNull { it.friendId == friendId }
+                    if (part != null && part.shareAmountPaise > 0L) {
+                        friendOwesMeExpenses.add(
+                            UnsettledExpenseEntry(txn, part.shareAmountPaise, ExpenseObligationDirection.THEY_OWE_ME)
+                        )
+                    }
+                } else if (payerId == friendId) {
+                    val myPart = txn.participants.firstOrNull { it.friendId == null }
+                    if (myPart != null && myPart.shareAmountPaise > 0L) {
+                        iOweFriendExpenses.add(
+                            UnsettledExpenseEntry(txn, myPart.shareAmountPaise, ExpenseObligationDirection.I_OWE_THEM)
+                        )
+                    }
+                }
+            } else if (txn.transactionType == TransactionType.REFUND) {
+                if (payerId == null) {
+                    val part = txn.participants.firstOrNull { it.friendId == friendId }
+                    if (part != null && part.shareAmountPaise > 0L) {
+                        friendOwesMeExpenses.add(
+                            UnsettledExpenseEntry(txn, -part.shareAmountPaise, ExpenseObligationDirection.THEY_OWE_ME)
+                        )
+                    }
+                } else if (payerId == friendId) {
+                    val myPart = txn.participants.firstOrNull { it.friendId == null }
+                    if (myPart != null && myPart.shareAmountPaise > 0L) {
+                        iOweFriendExpenses.add(
+                            UnsettledExpenseEntry(txn, -myPart.shareAmountPaise, ExpenseObligationDirection.I_OWE_THEM)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Sort chronologically (oldest first for FIFO allocation)
+        friendOwesMeExpenses.sortBy { it.transaction.transactionDate }
+        iOweFriendExpenses.sortBy { it.transaction.transactionDate }
+
+        // Settlement pools
+        var poolFriendPaidMe = validSettlements
+            .filter { it.payerId == friendId && it.receiverId == null }
+            .sumOf { it.amountPaise }
+        var poolIPaidFriend = validSettlements
+            .filter { it.payerId == null && it.receiverId == friendId }
+            .sumOf { it.amountPaise }
+
+        // Handle mutual expense offsets
+        val grossTheyOweMeExpenses = friendOwesMeExpenses.filter { it.shareAmountPaise > 0L }.sumOf { it.shareAmountPaise }
+        val grossIOweThemExpenses = iOweFriendExpenses.filter { it.shareAmountPaise > 0L }.sumOf { it.shareAmountPaise }
+        val mutualOffset = minOf(grossTheyOweMeExpenses, grossIOweThemExpenses)
+        poolFriendPaidMe = SafeMath.safeAdd(poolFriendPaidMe, mutualOffset)
+        poolIPaidFriend = SafeMath.safeAdd(poolIPaidFriend, mutualOffset)
+
+        val result = mutableListOf<UnsettledExpenseItem>()
+
+        // Allocate to Group 1 (Friend owes ME)
+        for (entry in friendOwesMeExpenses) {
+            if (entry.shareAmountPaise <= 0L) continue
+            val share = entry.shareAmountPaise
+            val allocated = minOf(poolFriendPaidMe, share)
+            val remaining = SafeMath.safeSubtract(share, allocated)
+            poolFriendPaidMe = SafeMath.safeSubtract(poolFriendPaidMe, allocated)
+
+            if (remaining > 0L) {
+                result.add(
+                    UnsettledExpenseItem(
+                        transaction = entry.transaction,
+                        totalTransactionAmountPaise = entry.transaction.amountPaise,
+                        originalShareAmountPaise = share,
+                        settledAmountPaise = allocated,
+                        remainingOutstandingPaise = remaining,
+                        isPartiallySettled = allocated > 0L,
+                        direction = ExpenseObligationDirection.THEY_OWE_ME
+                    )
+                )
+            }
+        }
+
+        // Allocate to Group 2 (ME owes Friend)
+        for (entry in iOweFriendExpenses) {
+            if (entry.shareAmountPaise <= 0L) continue
+            val share = entry.shareAmountPaise
+            val allocated = minOf(poolIPaidFriend, share)
+            val remaining = SafeMath.safeSubtract(share, allocated)
+            poolIPaidFriend = SafeMath.safeSubtract(poolIPaidFriend, allocated)
+
+            if (remaining > 0L) {
+                result.add(
+                    UnsettledExpenseItem(
+                        transaction = entry.transaction,
+                        totalTransactionAmountPaise = entry.transaction.amountPaise,
+                        originalShareAmountPaise = share,
+                        settledAmountPaise = allocated,
+                        remainingOutstandingPaise = remaining,
+                        isPartiallySettled = allocated > 0L,
+                        direction = ExpenseObligationDirection.I_OWE_THEM
+                    )
+                )
+            }
+        }
+
+        // Return sorted by date descending for UI presentation
+        return result.sortedByDescending { it.transaction.transactionDate }
+    }
+
+    private data class UnsettledExpenseEntry(
+        val transaction: Transaction,
+        val shareAmountPaise: Long,
+        val direction: ExpenseObligationDirection
+    )
 }

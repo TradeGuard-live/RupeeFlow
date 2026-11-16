@@ -1,5 +1,7 @@
 package com.naman.rupeeflow.ui.components
 
+import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -28,11 +30,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.FileProvider
 import com.naman.rupeeflow.data.local.ImageStorageManager
 import com.naman.rupeeflow.domain.model.Friend
 import com.naman.rupeeflow.domain.model.FriendGroup
@@ -349,9 +353,7 @@ fun GroupMemberAvatarRow(
     }
 }
 
-/**
- * Reusable Bill / Receipt attachment component with camera & gallery launchers.
- */
+// ✅ Reusable Bill / Receipt attachment component supporting both Image and PDF documents
 @Composable
 fun BillAttachmentSection(
     billImagePath: String?,
@@ -363,12 +365,13 @@ fun BillAttachmentSection(
     val scope = rememberCoroutineScope()
     var showFullscreenReceipt by remember { mutableStateOf(false) }
 
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+    // ✅ Storage Access Framework document picker supporting images and PDFs
+    val documentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
-                val path = ImageStorageManager.saveBillImage(context, uri)
+                val path = ImageStorageManager.saveBillAttachment(context, uri)
                 if (path != null) {
                     onImageSelected(path)
                 }
@@ -404,7 +407,7 @@ fun BillAttachmentSection(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Receipt / Bill Photo",
+                    text = "Receipt / Bill Attachment (Image or PDF)",
                     style = MaterialTheme.typography.labelSmall,
                     color = AppTheme.colors.textSecondary
                 )
@@ -425,7 +428,10 @@ fun BillAttachmentSection(
         Spacer(modifier = Modifier.height(8.dp))
 
         if (billImagePath != null) {
-            val bitmap = rememberBitmapFromPath(billImagePath)
+            val isPdf = ImageStorageManager.isPdfAttachment(billImagePath)
+            val fileExists = ImageStorageManager.imageExists(billImagePath)
+            val bitmap = if (!isPdf && fileExists) rememberBitmapFromPath(billImagePath) else null
+
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = if (isDark) CharcoalCard else AppTheme.colors.surface,
@@ -435,13 +441,36 @@ fun BillAttachmentSection(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { showFullscreenReceipt = true }
+                    .clickable {
+                        if (isPdf) {
+                            openPdfAttachment(context, billImagePath)
+                        } else if (fileExists) {
+                            showFullscreenReceipt = true
+                        }
+                    }
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (bitmap != null) {
+                    if (isPdf) {
+                        // ✅ PDF Document Attachment Icon
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFEF4444).copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PictureAsPdf,
+                                contentDescription = "PDF Document",
+                                tint = Color(0xFFEF4444),
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+                    } else if (bitmap != null) {
+                        // ✅ Image Preview
                         Image(
                             bitmap = bitmap,
                             contentDescription = "Receipt Preview",
@@ -451,6 +480,7 @@ fun BillAttachmentSection(
                             contentScale = ContentScale.Crop
                         )
                     } else {
+                        // Inaccessible / Missing file placeholder
                         Box(
                             modifier = Modifier
                                 .size(56.dp)
@@ -465,27 +495,57 @@ fun BillAttachmentSection(
                     Spacer(modifier = Modifier.width(12.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Bill receipt attached",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = AppTheme.colors.textPrimary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "Tap to view full receipt",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AppTheme.colors.primaryAccent
-                        )
+                        if (isPdf) {
+                            Text(
+                                text = ImageStorageManager.getAttachmentFileName(billImagePath),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = AppTheme.colors.textPrimary,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "PDF Document • ${ImageStorageManager.getAttachmentFileSizeFormatted(billImagePath)} • Tap to view",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AppTheme.colors.primaryAccent,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        } else if (fileExists) {
+                            Text(
+                                text = "Bill receipt attached",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = AppTheme.colors.textPrimary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Tap to view full receipt",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AppTheme.colors.primaryAccent
+                            )
+                        } else {
+                            Text(
+                                text = "Attachment missing or deleted",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = CoralRed,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Tap replace to attach a new file",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AppTheme.colors.textSecondary
+                            )
+                        }
                     }
 
                     // Action to replace
-                    IconButton(onClick = { galleryLauncher.launch("image/*") }) {
+                    IconButton(onClick = { documentLauncher.launch(arrayOf("image/*", "application/pdf")) }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Replace", tint = AppTheme.colors.textSecondary)
                     }
                 }
             }
 
-            if (showFullscreenReceipt) {
+            if (showFullscreenReceipt && !isPdf) {
                 FullScreenReceiptDialog(
                     imagePath = billImagePath,
                     title = "Bill Receipt",
@@ -493,7 +553,7 @@ fun BillAttachmentSection(
                 )
             }
         } else {
-            // Pick options (Camera or Gallery)
+            // Pick options (Camera or Document Picker)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -521,7 +581,7 @@ fun BillAttachmentSection(
                 }
 
                 OutlinedButton(
-                    onClick = { galleryLauncher.launch("image/*") },
+                    onClick = { documentLauncher.launch(arrayOf("image/*", "application/pdf")) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
@@ -533,16 +593,37 @@ fun BillAttachmentSection(
                     )
                 ) {
                     Icon(
-                        Icons.Default.PhotoLibrary,
+                        Icons.Default.AttachFile,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                         tint = AppTheme.colors.primaryAccent
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Upload Bill", style = MaterialTheme.typography.labelSmall)
+                    Text("Image or PDF", style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
+    }
+}
+
+// ✅ Safe helper to launch PDF documents in external viewer via FileProvider
+fun openPdfAttachment(context: Context, filePath: String) {
+    try {
+        val file = File(filePath)
+        if (!file.exists()) return
+        val uri = androidx.core.content.FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+        )
+        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/pdf")
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(android.content.Intent.createChooser(intent, "Open Bill PDF"))
+    } catch (_: Exception) {
+        // Ignored or toast if no viewer installed
     }
 }
 

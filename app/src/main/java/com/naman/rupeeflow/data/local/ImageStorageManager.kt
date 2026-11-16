@@ -24,9 +24,82 @@ object ImageStorageManager {
     private const val MAX_PROFILE_DIMENSION = 512
     private const val MAX_TRIP_DIMENSION = 1280
     private const val JPEG_QUALITY = 80
+    private const val MAX_BILL_FILE_BYTES = 15L * 1024L * 1024L // 15MB limit for attachments
+
+    // ✅ Save bill attachment supporting both image and PDF documents
+    suspend fun saveBillAttachment(context: Context, sourceUri: Uri): String? = withContext(Dispatchers.IO) {
+        val mimeType = runCatching { context.contentResolver.getType(sourceUri)?.lowercase() }.getOrNull()
+        val uriStr = sourceUri.toString().lowercase()
+        val isPdf = mimeType == "application/pdf" || uriStr.endsWith(".pdf")
+
+        if (isPdf) {
+            savePdfToDirectory(context, sourceUri, DIRECTORY_RECEIPTS, "bill")
+        } else {
+            saveImageToDirectory(context, sourceUri, DIRECTORY_RECEIPTS, "bill", MAX_BILL_DIMENSION)
+        }
+    }
+
+    // ✅ Save PDF document attachment with file size safety check
+    private fun savePdfToDirectory(
+        context: Context,
+        sourceUri: Uri,
+        directoryName: String,
+        prefix: String
+    ): String? {
+        return try {
+            val dir = File(context.filesDir, directoryName).apply { if (!exists()) mkdirs() }
+            val fileName = "${prefix}_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}.pdf"
+            val destFile = File(dir, fileName)
+
+            val inputStream: InputStream = context.contentResolver.openInputStream(sourceUri) ?: return null
+            destFile.outputStream().use { output ->
+                val buffer = ByteArray(8192)
+                var bytesRead: Int
+                var totalBytes = 0L
+                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                    totalBytes += bytesRead
+                    if (totalBytes > MAX_BILL_FILE_BYTES) {
+                        inputStream.close()
+                        destFile.delete()
+                        return null // Size exceeded
+                    }
+                    output.write(buffer, 0, bytesRead)
+                }
+            }
+            inputStream.close()
+            destFile.absolutePath
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    // ✅ Identify if attachment is a PDF document
+    fun isPdfAttachment(filePath: String?): Boolean {
+        if (filePath.isNullOrBlank()) return false
+        return filePath.lowercase().endsWith(".pdf")
+    }
+
+    // ✅ Extract clean filename from attachment path
+    fun getAttachmentFileName(filePath: String?): String {
+        if (filePath.isNullOrBlank()) return ""
+        return File(filePath).name
+    }
+
+    // ✅ Format attachment file size for user display
+    fun getAttachmentFileSizeFormatted(filePath: String?): String {
+        if (filePath.isNullOrBlank()) return "0 KB"
+        val file = File(filePath)
+        if (!file.exists()) return "0 KB"
+        val bytes = file.length()
+        return when {
+            bytes >= 1024L * 1024L -> String.format(java.util.Locale.US, "%.1f MB", bytes / (1024.0 * 1024.0))
+            bytes >= 1024L -> "${bytes / 1024L} KB"
+            else -> "$bytes B"
+        }
+    }
 
     suspend fun saveBillImage(context: Context, sourceUri: Uri): String? = withContext(Dispatchers.IO) {
-        saveImageToDirectory(context, sourceUri, DIRECTORY_RECEIPTS, "bill", MAX_BILL_DIMENSION)
+        saveBillAttachment(context, sourceUri)
     }
 
     suspend fun saveBillBitmap(context: Context, bitmap: Bitmap): String? = withContext(Dispatchers.IO) {

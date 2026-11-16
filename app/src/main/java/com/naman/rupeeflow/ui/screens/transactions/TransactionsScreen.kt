@@ -133,57 +133,9 @@ fun TransactionsScreen(
                 colors = rupeeFlowTextFieldColors()
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Group A: Transaction Type Filters (All, Refunds, Transfers, Ignored)
-            val typeFilters = listOf(
-                "ALL" to "All",
-                "REFUND" to "Refunds",
-                "TRANSFER" to "Transfers",
-                "IGNORED" to "Ignored"
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Spacer(modifier = Modifier.width(8.dp))
-                typeFilters.forEach { (key, label) ->
-                    val isSelected = state.selectedTypeFilter == key
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = if (isSelected) {
-                            if (isDark) ElectricBlue.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer
-                        } else {
-                            if (isDark) CharcoalCard else AppTheme.colors.surface
-                        },
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (isSelected) AppTheme.colors.primaryAccent else (if (isDark) GlassBorder else AppTheme.colors.cardBorder)
-                        ),
-                        modifier = Modifier.clickable { viewModel.onTypeFilterSelected(key) }
-                    ) {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isSelected) {
-                                if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)
-                            } else {
-                                AppTheme.colors.textSecondary
-                            },
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Group B: Time Period Filters (All Time, Monthly, Weekly)
+            // ✅ Time Period Filters (All Time, Monthly, Weekly) - Group A and Group B removed for cleaner UI
             val dateFilters = listOf(
                 "ALL" to "All Time",
                 "MONTHLY" to "Monthly",
@@ -247,60 +199,7 @@ fun TransactionsScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Group C: Payment Method Filters (UPI Lite, Debit Card, Credit Card)
-            val paymentMethods = listOf(
-                PaymentMethod.UPI_LITE,
-                PaymentMethod.DEBIT_CARD,
-                PaymentMethod.CREDIT_CARD
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Spacer(modifier = Modifier.width(8.dp))
-                paymentMethods.forEach { method ->
-                    val isSelected = state.selectedPaymentMethodFilter == method
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = if (isSelected) {
-                            if (isDark) VibrantCyan.copy(alpha = 0.2f) else Color(0xFFCFFAFE)
-                        } else {
-                            if (isDark) CharcoalCard else AppTheme.colors.surface
-                        },
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (isSelected) {
-                                if (isDark) VibrantCyan else Color(0xFF0891B2)
-                            } else {
-                                if (isDark) GlassBorder else AppTheme.colors.cardBorder
-                            }
-                        ),
-                        modifier = Modifier.clickable {
-                            viewModel.onPaymentMethodFilterSelected(if (isSelected) null else method)
-                        }
-                    ) {
-                        Text(
-                            text = method.displayName,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isSelected) {
-                                if (isDark) VibrantCyan else Color(0xFF0E7490)
-                            } else {
-                                AppTheme.colors.textSecondary
-                            },
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Transactions List
             LazyColumn(

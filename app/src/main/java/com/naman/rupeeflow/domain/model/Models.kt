@@ -170,6 +170,23 @@ data class Transaction(
         get() = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpense(this)
 }
 
+// ✅ Direction of obligation for friend expenses
+enum class ExpenseObligationDirection {
+    THEY_OWE_ME,
+    I_OWE_THEM
+}
+
+// ✅ Detailed model for an unsettled/outstanding expense with a friend
+data class UnsettledExpenseItem(
+    val transaction: Transaction,
+    val totalTransactionAmountPaise: Long,
+    val originalShareAmountPaise: Long,
+    val settledAmountPaise: Long,
+    val remainingOutstandingPaise: Long,
+    val isPartiallySettled: Boolean,
+    val direction: ExpenseObligationDirection
+)
+
 // Production hardening: default values for backward compatibility and clean construction
 data class Settlement(
     val id: Long = 0,

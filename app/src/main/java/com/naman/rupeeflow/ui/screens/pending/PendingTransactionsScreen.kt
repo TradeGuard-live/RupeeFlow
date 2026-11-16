@@ -345,10 +345,11 @@ fun PendingTransactionsScreen(
                             borderColor = cardBorderColor,
                             backgroundColor = AppTheme.colors.cardBackground
                         ) {
-                            Column {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                // ✅ Top Section: Left Icon, Middle Payee/Details, Right Amount & Horizontal Status Badge
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.Top
                                 ) {
                                     Box(
                                         modifier = Modifier
@@ -367,98 +368,8 @@ fun PendingTransactionsScreen(
 
                                     Spacer(modifier = Modifier.width(12.dp))
 
+                                    // Middle Details Column
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Text(
-                                                text = CurrencyUtils.formatPaiseToRupees(item.detectedAmountPaise),
-                                                style = MaterialTheme.typography.titleLarge,
-                                                color = if (isApproved || isIgnored) AppTheme.colors.textSecondary else AppTheme.colors.textPrimary
-                                            )
-
-                                            // Status Badge
-                                            when {
-                                                isUpiLiteTopup -> {
-                                                    Surface(
-                                                        shape = RoundedCornerShape(6.dp),
-                                                        color = Color(0xFF8B5CF6).copy(alpha = 0.2f)
-                                                    ) {
-                                                        Text(
-                                                            text = "UPI LITE TOP-UP",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = Color(0xFF8B5CF6),
-                                                            fontWeight = FontWeight.Bold,
-                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                            fontSize = 11.sp
-                                                        )
-                                                    }
-                                                }
-                                                isPending -> {
-                                                    Surface(
-                                                        shape = RoundedCornerShape(6.dp),
-                                                        color = AmberGold.copy(alpha = 0.2f)
-                                                    ) {
-                                                        Text(
-                                                            text = "Pending",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = AmberGold,
-                                                            fontWeight = FontWeight.Bold,
-                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                            fontSize = 11.sp
-                                                        )
-                                                    }
-                                                }
-                                                isApproved -> {
-                                                    Surface(
-                                                        shape = RoundedCornerShape(6.dp),
-                                                        color = AppTheme.colors.incomeGreen.copy(alpha = 0.2f)
-                                                    ) {
-                                                        Text(
-                                                            text = "Added",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = AppTheme.colors.incomeGreen,
-                                                            fontWeight = FontWeight.Bold,
-                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                            fontSize = 11.sp
-                                                        )
-                                                    }
-                                                }
-                                                isUnknown -> {
-                                                    Surface(
-                                                        shape = RoundedCornerShape(6.dp),
-                                                        color = AppTheme.colors.surfaceSecondary
-                                                    ) {
-                                                        Text(
-                                                            text = "Unknown",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = AmberGold,
-                                                            fontWeight = FontWeight.Bold,
-                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                            fontSize = 11.sp
-                                                        )
-                                                    }
-                                                }
-                                                isIgnored -> {
-                                                    Surface(
-                                                        shape = RoundedCornerShape(6.dp),
-                                                        color = AppTheme.colors.surfaceSecondary
-                                                    ) {
-                                                        Text(
-                                                            text = "Ignored",
-                                                            style = MaterialTheme.typography.labelSmall,
-                                                            color = AppTheme.colors.textSecondary,
-                                                            fontWeight = FontWeight.Medium,
-                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                            fontSize = 11.sp
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        Spacer(modifier = Modifier.height(2.dp))
                                         val payeeDisplay = when {
                                             !item.detectedMerchant.isNullOrBlank() -> item.detectedMerchant
                                             !item.phoneNumber.isNullOrBlank() -> "To ${item.phoneNumber}"
@@ -467,12 +378,23 @@ fun PendingTransactionsScreen(
                                             else -> "Bank"
                                         }
                                         Text(
-                                            text = "$payeeDisplay • ${DateTimeUtils.formatRelativeDate(item.timestamp)}",
-                                            style = MaterialTheme.typography.bodyMedium,
+                                            text = payeeDisplay,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = AppTheme.colors.textPrimary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = DateTimeUtils.formatRelativeDate(item.timestamp),
+                                            style = MaterialTheme.typography.bodySmall,
                                             color = AppTheme.colors.textSecondary
                                         )
 
                                         if (isUpiLiteTopup) {
+                                            Spacer(modifier = Modifier.height(2.dp))
                                             Text(
                                                 text = "Wallet Funding • Not counted as expense",
                                                 style = MaterialTheme.typography.labelSmall,
@@ -484,7 +406,7 @@ fun PendingTransactionsScreen(
 
                                         // Offline Location Badge (if attached)
                                         if (item.hasLocation) {
-                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Spacer(modifier = Modifier.height(3.dp))
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 modifier = Modifier.clickable {
@@ -513,108 +435,43 @@ fun PendingTransactionsScreen(
                                         }
                                     }
 
-                                    // Action Buttons based on Status
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    // Right Amount and Status Badge
+                                    Column(
+                                        horizontalAlignment = Alignment.End,
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        when {
-                                            isPending -> {
-                                                // Delete Action
-                                                IconButton(onClick = { detectionToDelete = item }) {
-                                                    Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = AppTheme.colors.textMuted)
-                                                }
-                                                // Ignore Action
-                                                IconButton(onClick = { viewModel.ignorePending(item.id) }) {
-                                                    Icon(Icons.Default.Close, contentDescription = "Ignore", tint = AppTheme.colors.textMuted)
-                                                }
-                                                // Approve Action
-                                                Button(
-                                                    onClick = { onTriggerAddExpense(item) },
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = if (isUpiLiteTopup) Color(0xFF8B5CF6) else AppTheme.colors.primaryAccent,
-                                                        contentColor = Color.White
-                                                    ),
-                                                    shape = RoundedCornerShape(10.dp),
-                                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                                ) {
-                                                    Text(
-                                                        text = if (isUpiLiteTopup) "Add Top-up" else "Add Expense",
-                                                        fontWeight = FontWeight.Bold,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                }
-                                            }
-                                            isUnknown -> {
-                                                // Delete Action
-                                                IconButton(onClick = { detectionToDelete = item }) {
-                                                    Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = AppTheme.colors.textMuted)
-                                                }
-                                                IconButton(onClick = { viewModel.ignorePending(item.id) }) {
-                                                    Icon(Icons.Default.Close, contentDescription = "Ignore", tint = AppTheme.colors.textMuted)
-                                                }
-                                                Button(
-                                                    onClick = { onTriggerAddExpense(item) },
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = AppTheme.colors.primaryAccent,
-                                                        contentColor = Color.White
-                                                    ),
-                                                    shape = RoundedCornerShape(10.dp),
-                                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                                ) {
-                                                    Text(
-                                                        text = "Review & Add",
-                                                        fontWeight = FontWeight.Bold,
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                }
-                                            }
-                                            isIgnored -> {
-                                                // Delete Permanently Action
-                                                IconButton(onClick = { detectionToDelete = item }) {
-                                                    Icon(Icons.Default.DeleteOutline, contentDescription = "Delete Permanently", tint = AppTheme.colors.textMuted)
-                                                }
-                                                // Restore Action
-                                                OutlinedButton(
-                                                    onClick = { viewModel.restorePending(item.id) },
-                                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AppTheme.colors.primaryAccent),
-                                                    border = BorderStroke(1.dp, AppTheme.colors.primaryAccent.copy(alpha = 0.5f)),
-                                                    shape = RoundedCornerShape(10.dp),
-                                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                                ) {
-                                                    Icon(Icons.Default.Restore, contentDescription = "Restore", modifier = Modifier.size(16.dp))
-                                                    Spacer(modifier = Modifier.width(4.dp))
-                                                    Text(
-                                                        text = "Restore",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontWeight = FontWeight.Bold,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                }
-                                            }
-                                            isApproved -> {
-                                                // Re-add Action
-                                                OutlinedButton(
-                                                    onClick = { onTriggerAddExpense(item) },
-                                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AppTheme.colors.textSecondary),
-                                                    border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
-                                                    shape = RoundedCornerShape(10.dp),
-                                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                                                ) {
-                                                    Text(
-                                                        text = "Re-add",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = AppTheme.colors.textSecondary,
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                }
-                                            }
+                                        Text(
+                                            text = CurrencyUtils.formatPaiseToRupees(item.detectedAmountPaise),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isApproved || isIgnored) AppTheme.colors.textSecondary else AppTheme.colors.textPrimary
+                                        )
+
+                                        // ✅ Compact horizontal status badge with softWrap = false to prevent letter-by-letter wrapping
+                                        val (badgeText, badgeBgColor, badgeTextColor) = when {
+                                            isUpiLiteTopup -> Triple("UPI LITE TOP-UP", Color(0xFF8B5CF6).copy(alpha = 0.2f), Color(0xFF8B5CF6))
+                                            isPending -> Triple("Pending", AmberGold.copy(alpha = 0.2f), AmberGold)
+                                            isApproved -> Triple("Added", AppTheme.colors.incomeGreen.copy(alpha = 0.2f), AppTheme.colors.incomeGreen)
+                                            isUnknown -> Triple("Unknown", AmberGold.copy(alpha = 0.15f), AmberGold)
+                                            else -> Triple("Ignored", AppTheme.colors.surfaceSecondary, AppTheme.colors.textSecondary)
+                                        }
+
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = badgeBgColor
+                                        ) {
+                                            Text(
+                                                text = badgeText,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = badgeTextColor,
+                                                fontWeight = FontWeight.Bold,
+                                                softWrap = false,
+                                                maxLines = 1,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                fontSize = 11.sp
+                                            )
                                         }
                                     }
                                 }
@@ -626,8 +483,113 @@ fun PendingTransactionsScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = AppTheme.colors.textMuted,
                                     maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
                                     fontSize = 11.sp
                                 )
+
+                                // ✅ Bottom Section: Responsive action buttons placed cleanly on their own row
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    when {
+                                        isPending -> {
+                                            IconButton(onClick = { detectionToDelete = item }) {
+                                                Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = AppTheme.colors.textMuted)
+                                            }
+                                            IconButton(onClick = { viewModel.ignorePending(item.id) }) {
+                                                Icon(Icons.Default.Close, contentDescription = "Ignore", tint = AppTheme.colors.textMuted)
+                                            }
+                                            Button(
+                                                onClick = { onTriggerAddExpense(item) },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (isUpiLiteTopup) Color(0xFF8B5CF6) else AppTheme.colors.primaryAccent,
+                                                    contentColor = Color.White
+                                                ),
+                                                shape = RoundedCornerShape(10.dp),
+                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (isUpiLiteTopup) "Add Top-up" else "Add Expense",
+                                                    fontWeight = FontWeight.Bold,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    softWrap = false,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                        isUnknown -> {
+                                            IconButton(onClick = { detectionToDelete = item }) {
+                                                Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = AppTheme.colors.textMuted)
+                                            }
+                                            IconButton(onClick = { viewModel.ignorePending(item.id) }) {
+                                                Icon(Icons.Default.Close, contentDescription = "Ignore", tint = AppTheme.colors.textMuted)
+                                            }
+                                            Button(
+                                                onClick = { onTriggerAddExpense(item) },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = AppTheme.colors.primaryAccent,
+                                                    contentColor = Color.White
+                                                ),
+                                                shape = RoundedCornerShape(10.dp),
+                                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Review & Add",
+                                                    fontWeight = FontWeight.Bold,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    softWrap = false,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                        isIgnored -> {
+                                            IconButton(onClick = { detectionToDelete = item }) {
+                                                Icon(Icons.Default.DeleteOutline, contentDescription = "Delete Permanently", tint = AppTheme.colors.textMuted)
+                                            }
+                                            OutlinedButton(
+                                                onClick = { viewModel.restorePending(item.id) },
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = AppTheme.colors.primaryAccent),
+                                                border = BorderStroke(1.dp, AppTheme.colors.primaryAccent.copy(alpha = 0.5f)),
+                                                shape = RoundedCornerShape(10.dp),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                            ) {
+                                                Icon(Icons.Default.Restore, contentDescription = "Restore", modifier = Modifier.size(16.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "Restore",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    softWrap = false,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                        isApproved -> {
+                                            OutlinedButton(
+                                                onClick = { onTriggerAddExpense(item) },
+                                                colors = ButtonDefaults.outlinedButtonColors(contentColor = AppTheme.colors.textSecondary),
+                                                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                                                shape = RoundedCornerShape(10.dp),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Re-add",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = AppTheme.colors.textSecondary,
+                                                    softWrap = false,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

@@ -74,7 +74,8 @@ class BackupRestoreRepository(
      */
     object AttachmentFilenameValidator {
         private val ALLOWED_FILENAME_REGEX = Regex("^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
-        private val VALID_IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "bin")
+        // ✅ Support image and PDF document attachments in backup/restore validator
+        private val VALID_IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "bin", "pdf")
 
         fun isValidFilename(name: String?): Boolean {
             if (name.isNullOrBlank()) return false

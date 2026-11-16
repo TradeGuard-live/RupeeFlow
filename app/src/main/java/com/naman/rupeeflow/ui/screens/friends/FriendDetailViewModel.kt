@@ -16,12 +16,14 @@ data class FriendDetailUiState(
     val isLoading: Boolean = true,
     val friend: Friend? = null,
     val relatedTransactions: List<Transaction> = emptyList(),
+    // ✅ Outstanding / unsettled expenses for this friend
+    val unsettledExpenses: List<UnsettledExpenseItem> = emptyList(),
     val settlements: List<Settlement> = emptyList(),
     val totalSharedExpensesPaise: Long = 0L,
     val totalPaymentsReceivedPaise: Long = 0L,
     val totalPaymentsMadePaise: Long = 0L,
     val remainingBalancePaise: Long = 0L,
-    val filterType: String = "ALL", // "ALL", "EXPENSES", "SETTLEMENTS"
+    val filterType: String = "OUTSTANDING", // "OUTSTANDING", "SETTLEMENTS", "ALL"
     val allFriends: List<Friend> = emptyList(),
     val categories: List<Category> = emptyList(),
     val friendGroups: List<FriendGroup> = emptyList()
@@ -88,10 +90,14 @@ class FriendDetailViewModel(
                     .filter { it.payerId == null && it.receiverId == friendId }
                     .sumOf { it.amountPaise }
 
+                // ✅ Compute outstanding/unsettled expenses using FIFO settlement allocation
+                val unsettled = LedgerCalculator.calculateUnsettledExpenses(friendId, data.allTxns, data.settlements)
+
                 FriendDetailUiState(
                     isLoading = false,
                     friend = computedFriend,
                     relatedTransactions = relatedTxns,
+                    unsettledExpenses = unsettled,
                     settlements = data.settlements,
                     totalSharedExpensesPaise = totalShared,
                     totalPaymentsReceivedPaise = received,

@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.*
@@ -151,11 +152,12 @@ fun TransactionItemCard(
                     }
 
                     if (!transaction.billImagePath.isNullOrBlank()) {
+                        val isPdf = transaction.billImagePath.endsWith(".pdf", ignoreCase = true)
                         Text("•", color = AppTheme.colors.textTertiary, fontSize = 10.sp)
                         Icon(
-                            imageVector = Icons.Default.ReceiptLong,
-                            contentDescription = "Receipt attached",
-                            tint = AppTheme.colors.primaryAccent,
+                            imageVector = if (isPdf) Icons.Default.PictureAsPdf else Icons.Default.ReceiptLong,
+                            contentDescription = if (isPdf) "PDF Bill attached" else "Receipt attached",
+                            tint = if (isPdf) Color(0xFFEF4444) else AppTheme.colors.primaryAccent,
                             modifier = Modifier.size(12.dp)
                         )
                     }
