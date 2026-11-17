@@ -40,9 +40,12 @@ fun TransactionDetailDialog(
     onToggleIgnore: (Transaction) -> Unit,
     onDuplicate: (Transaction) -> Unit,
     onDelete: (Transaction) -> Unit,
-    onEdit: (Transaction) -> Unit
+    onEdit: (Transaction) -> Unit,
+    onSaveTransaction: ((Transaction) -> Unit)? = null
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showRemoveLocationConfirm by remember { mutableStateOf(false) }
+    var showEditLocationDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     val category = transaction.category
@@ -190,9 +193,57 @@ fun TransactionDetailDialog(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "View on Map",
+                            text = "View on Google Maps",
                             fontWeight = FontWeight.SemiBold
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showEditLocationDialog = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, AppTheme.colors.cardBorder)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.EditLocation,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = AppTheme.colors.primaryAccent
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Edit Location",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AppTheme.colors.primaryAccent
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = { showRemoveLocationConfirm = true },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, CoralRed.copy(alpha = 0.5f))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOff,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = CoralRed
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Remove Location",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = CoralRed
+                            )
+                        }
                     }
                 }
 
@@ -526,6 +577,93 @@ fun TransactionDetailDialog(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
+                }
+            },
+            containerColor = AppTheme.colors.surfaceElevated,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    if (showRemoveLocationConfirm) {
+        AlertDialog(
+            onDismissRequest = { showRemoveLocationConfirm = false },
+            title = { Text("Remove Payment Location?", color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "This will remove the saved location from this transaction. Transaction amount and accounting details remain unchanged.",
+                    color = AppTheme.colors.textSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showRemoveLocationConfirm = false
+                        val cleared = transaction.copy(
+                            latitude = null,
+                            longitude = null,
+                            accuracyMeters = null,
+                            locationCapturedAt = null,
+                            locationSource = null,
+                            locationLabel = null,
+                            googleMapsUrl = null,
+                            updatedAt = System.currentTimeMillis()
+                        )
+                        onSaveTransaction?.invoke(cleared)
+                        onDismiss()
+                    }
+                ) {
+                    Text("Remove", color = CoralRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRemoveLocationConfirm = false }) {
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
+                }
+            },
+            containerColor = AppTheme.colors.surfaceElevated,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    if (showEditLocationDialog) {
+        var tempLocation by remember { mutableStateOf(transaction.location) }
+        AlertDialog(
+            onDismissRequest = { showEditLocationDialog = false },
+            title = { Text("Edit Payment Location", color = AppTheme.colors.textPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    TransactionLocationPicker(
+                        location = tempLocation,
+                        onLocationChanged = { tempLocation = it },
+                        merchantName = transaction.merchantName ?: transaction.title
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showEditLocationDialog = false
+                        val updated = transaction.copy(
+                            latitude = tempLocation?.latitude,
+                            longitude = tempLocation?.longitude,
+                            accuracyMeters = tempLocation?.accuracyMeters,
+                            locationCapturedAt = tempLocation?.locationCapturedAt,
+                            locationSource = tempLocation?.locationSource,
+                            locationLabel = tempLocation?.locationLabel,
+                            googleMapsUrl = tempLocation?.googleMapsUrl,
+                            updatedAt = System.currentTimeMillis()
+                        )
+                        onSaveTransaction?.invoke(updated)
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent)
+                ) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditLocationDialog = false }) {
                     Text("Cancel", color = AppTheme.colors.textSecondary)
                 }
             },

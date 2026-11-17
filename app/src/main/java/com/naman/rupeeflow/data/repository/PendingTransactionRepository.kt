@@ -21,6 +21,7 @@ interface PendingTransactionRepository {
     suspend fun restorePendingTransaction(id: Long)
     suspend fun deletePendingTransaction(id: Long)
     suspend fun clearAllLocations()
+    suspend fun updateLocation(id: Long, location: com.naman.rupeeflow.domain.model.TransactionLocation?)
     // Contextual duplicate detection
     suspend fun isDuplicate(
         amountPaise: Long,
@@ -85,6 +86,19 @@ class PendingTransactionRepositoryImpl(
 
     override suspend fun clearAllLocations() {
         pendingDao.clearAllLocations()
+    }
+
+    override suspend fun updateLocation(id: Long, location: com.naman.rupeeflow.domain.model.TransactionLocation?) {
+        pendingDao.updateLocation(
+            id = id,
+            latitude = location?.latitude,
+            longitude = location?.longitude,
+            accuracyMeters = location?.accuracyMeters,
+            capturedAt = location?.locationCapturedAt,
+            source = location?.locationSource,
+            label = location?.locationLabel,
+            mapsUrl = location?.googleMapsUrl
+        )
     }
 
     /**

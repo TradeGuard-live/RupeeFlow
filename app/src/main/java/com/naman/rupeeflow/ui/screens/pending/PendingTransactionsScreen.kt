@@ -52,6 +52,7 @@ fun PendingTransactionsScreen(
 ) {
     val context = LocalContext.current
     val state by viewModel.uiState.collectAsState()
+    val locationCaptureMode by viewModel.locationCaptureMode.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     var selectedDetectedForAdd by remember { mutableStateOf<PendingTransaction?>(null) }
     var selectedDetectedForDetail by remember { mutableStateOf<PendingTransaction?>(null) }
@@ -66,10 +67,18 @@ fun PendingTransactionsScreen(
 
     val handleStartAddExpense: (PendingTransaction) -> Unit = { item ->
         coroutineScope.launch {
-            // Check if location capture on review is configured and item has no location yet
+            // Check if location capture is configured and item has no location yet
             var attachedLoc = item.location
-            if (attachedLoc == null && viewModel.getLocationCaptureMode() == LocationCaptureMode.ON_REVIEW) {
-                attachedLoc = com.naman.rupeeflow.location.OfflineLocationManager.getLastKnownLocation(context)
+            if (attachedLoc == null && locationCaptureMode != LocationCaptureMode.OFF) {
+                com.naman.rupeeflow.location.LocationDiagnostics.logCaptureRequested("Foreground review for pending #${item.id}")
+                if (com.naman.rupeeflow.location.OfflineLocationManager.hasPermission(context) &&
+                    com.naman.rupeeflow.location.OfflineLocationManager.isLocationEnabled(context)
+                ) {
+                    attachedLoc = com.naman.rupeeflow.location.OfflineLocationManager.requestFreshLocation(context, timeoutMs = 4000L)
+                    if (attachedLoc != null) {
+                        viewModel.updatePendingLocation(item.id, attachedLoc)
+                    }
+                }
             }
 
             val itemWithLoc = if (attachedLoc != null && !item.hasLocation) {
@@ -404,7 +413,7 @@ fun PendingTransactionsScreen(
                                             )
                                         }
 
-                                        // Offline Location Badge (if attached)
+                                        // Offline Location / Capture Status Badge
                                         if (item.hasLocation) {
                                             Spacer(modifier = Modifier.height(3.dp))
                                             Row(
@@ -425,12 +434,51 @@ fun PendingTransactionsScreen(
                                                     modifier = Modifier.size(13.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(3.dp))
+                                                val readableLoc = com.naman.rupeeflow.location.LocationNameResolver.resolveReadableLocation(
+                                                    context = context,
+                                                    locationLabel = item.locationLabel,
+                                                    latitude = item.latitude,
+                                                    longitude = item.longitude
+                                                )
                                                 Text(
-                                                    text = "${String.format(java.util.Locale.US, "%.4f, %.4f", item.latitude, item.longitude)}${if (item.accuracyMeters != null) " (±${item.accuracyMeters?.roundToInt()}m)" else ""}",
+                                                    text = readableLoc,
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = AppTheme.colors.primaryAccent,
-                                                    fontSize = 11.sp
+                                                    fontSize = 11.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
+                                            }
+                                        } else if (locationCaptureMode != LocationCaptureMode.OFF && item.status == PendingStatus.PENDING) {
+                                            val locStatus = com.naman.rupeeflow.location.OfflineLocationManager.resolvePendingLocationStatus(
+                                                context = context,
+                                                item = item,
+                                                mode = locationCaptureMode
+                                            )
+                                            if (locStatus != com.naman.rupeeflow.location.PendingLocationStatus.OFF) {
+                                                Spacer(modifier = Modifier.height(3.dp))
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.clickable {
+                                                        handleStartAddExpense(item)
+                                                    }
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.LocationOff,
+                                                        contentDescription = null,
+                                                        tint = AppTheme.colors.textSecondary,
+                                                        modifier = Modifier.size(12.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                    Text(
+                                                        text = locStatus.displayText,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = AppTheme.colors.textSecondary,
+                                                        fontSize = 10.sp,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -687,27 +735,24 @@ fun PendingTransactionsScreen(
                         }
                     }
                     if (item.hasLocation) {
+                        val readableLocation = com.naman.rupeeflow.location.LocationNameResolver.resolveReadableLocation(
+                            context = context,
+                            locationLabel = item.locationLabel,
+                            latitude = item.latitude,
+                            longitude = item.longitude
+                        )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Coordinates:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                            Text("Payment Location:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
                             Text(
-                                "${String.format(java.util.Locale.US, "%.5f, %.5f", item.latitude, item.longitude)}${if (item.accuracyMeters != null) " (±${item.accuracyMeters?.roundToInt()}m)" else ""}",
+                                readableLocation,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = AppTheme.colors.primaryAccent
                             )
-                        }
-                        if (item.locationSource != null) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Location Source:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
-                                Text(item.locationSource.name, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
-                            }
                         }
                         OutlinedButton(
                             onClick = {
@@ -724,7 +769,25 @@ fun PendingTransactionsScreen(
                         ) {
                             Icon(Icons.Default.Map, contentDescription = null, tint = AppTheme.colors.primaryAccent, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Open in Google Maps", color = AppTheme.colors.primaryAccent, fontWeight = FontWeight.Bold)
+                            Text("View on Google Maps", color = AppTheme.colors.primaryAccent, fontWeight = FontWeight.Bold)
+                        }
+                    } else if (locationCaptureMode != LocationCaptureMode.OFF) {
+                        val locStatus = com.naman.rupeeflow.location.OfflineLocationManager.resolvePendingLocationStatus(
+                            context = context,
+                            item = item,
+                            mode = locationCaptureMode
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Location Status:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                            Text(
+                                locStatus.displayText,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = AppTheme.colors.textSecondary
+                            )
                         }
                     }
                     Row(

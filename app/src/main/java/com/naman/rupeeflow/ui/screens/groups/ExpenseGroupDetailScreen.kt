@@ -849,7 +849,8 @@ fun ExpenseGroupDetailScreen(
             onEdit = {
                 editingTransaction = txn
                 selectedTransactionForDetail = null
-            }
+            },
+            onSaveTransaction = { viewModel.saveTransaction(it) }
         )
     }
 

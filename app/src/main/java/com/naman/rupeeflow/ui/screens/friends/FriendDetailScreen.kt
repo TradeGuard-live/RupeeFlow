@@ -728,7 +728,8 @@ fun FriendDetailScreen(
             onToggleIgnore = { viewModel.toggleIgnore(it) },
             onDuplicate = { viewModel.duplicateTransaction(it) },
             onDelete = { viewModel.deleteTransaction(it) },
-            onEdit = { toEdit -> editingTransaction = toEdit }
+            onEdit = { toEdit -> editingTransaction = toEdit },
+            onSaveTransaction = { viewModel.saveTransaction(it) }
         )
     }
 

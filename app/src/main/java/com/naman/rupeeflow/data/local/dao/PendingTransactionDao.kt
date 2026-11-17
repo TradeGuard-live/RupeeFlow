@@ -43,6 +43,28 @@ interface PendingTransactionDao {
     @Update
     suspend fun update(pending: PendingTransactionEntity)
 
+    @Query("""
+        UPDATE pending_transactions 
+        SET latitude = :latitude, 
+            longitude = :longitude, 
+            accuracyMeters = :accuracyMeters, 
+            locationCapturedAt = :capturedAt, 
+            locationSource = :source, 
+            locationLabel = :label, 
+            googleMapsUrl = :mapsUrl 
+        WHERE id = :id
+    """)
+    suspend fun updateLocation(
+        id: Long,
+        latitude: Double?,
+        longitude: Double?,
+        accuracyMeters: Float?,
+        capturedAt: Long?,
+        source: com.naman.rupeeflow.domain.model.LocationSource?,
+        label: String?,
+        mapsUrl: String?
+    )
+
     @Query("UPDATE pending_transactions SET status = :status WHERE id = :id")
     suspend fun updateStatus(id: Long, status: PendingStatus)
 

@@ -70,9 +70,17 @@ class SmsReceiver : BroadcastReceiver() {
                 if (isDup) return@launch
 
                 // Location capture on detection (if opted in)
-                val capturedLocation = if (prefs.locationCaptureMode == com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_DETECTION) {
-                    com.naman.rupeeflow.location.OfflineLocationManager.getLastKnownLocation(context)
-                } else null
+                val capturedLocation = when (prefs.locationCaptureMode) {
+                    com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_DETECTION -> {
+                        com.naman.rupeeflow.location.LocationDiagnostics.logCaptureRequested("SMS received")
+                        com.naman.rupeeflow.location.OfflineLocationManager.getLastKnownLocation(context)
+                    }
+                    com.naman.rupeeflow.domain.model.LocationCaptureMode.OFF -> {
+                        com.naman.rupeeflow.location.LocationDiagnostics.logCaptureSkippedOff()
+                        null
+                    }
+                    else -> null
+                }
 
                 val pendingStatus = if (parseResult.isValidTransaction) {
                     PendingStatus.PENDING
@@ -104,6 +112,10 @@ class SmsReceiver : BroadcastReceiver() {
                 )
 
                 val pendingId = app.appContainer.database.pendingTransactionDao().insert(entity)
+                com.naman.rupeeflow.location.LocationDiagnostics.logDatabaseSave(true, pendingId)
+                if (capturedLocation != null) {
+                    com.naman.rupeeflow.location.LocationDiagnostics.logAssociationSucceeded(pendingId)
+                }
 
                 // Trigger notification only for valid transactions needing review
                 if (pendingStatus == PendingStatus.PENDING) {

@@ -53,6 +53,9 @@ class PendingTransactionsViewModel(
     private val _uiState = MutableStateFlow(PendingUiState())
     val uiState: StateFlow<PendingUiState> = _uiState.asStateFlow()
 
+    val locationCaptureMode: StateFlow<LocationCaptureMode> = (userPreferencesRepository?.userPreferencesFlow?.map { it.locationCaptureMode } ?: flowOf(LocationCaptureMode.OFF))
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LocationCaptureMode.OFF)
+
     init {
         loadPending()
     }
@@ -129,9 +132,23 @@ class PendingTransactionsViewModel(
     fun saveTransaction(txn: Transaction, pendingId: Long? = null) {
         viewModelScope.launch {
             transactionRepository.saveTransaction(txn)
+            if (txn.hasLocation) {
+                com.naman.rupeeflow.location.LocationDiagnostics.logApprovalPreservedLocation(txn.id, pendingId)
+            }
             if (pendingId != null) {
                 pendingTransactionRepository.resolvePendingTransaction(pendingId)
             }
+        }
+    }
+
+    fun updatePendingLocation(id: Long, location: TransactionLocation?) {
+        viewModelScope.launch {
+            try {
+                pendingTransactionRepository.updateLocation(id, location)
+                if (location != null) {
+                    com.naman.rupeeflow.location.LocationDiagnostics.logAssociationSucceeded(id)
+                }
+            } catch (_: Exception) {}
         }
     }
 

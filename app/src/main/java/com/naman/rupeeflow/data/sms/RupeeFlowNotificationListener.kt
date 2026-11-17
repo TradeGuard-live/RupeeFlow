@@ -120,9 +120,17 @@ class RupeeFlowNotificationListener : NotificationListenerService() {
                     )
                     if (isDup) return@withLock
 
-                    val capturedLocation = if (prefs.locationCaptureMode == com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_DETECTION) {
-                        com.naman.rupeeflow.location.OfflineLocationManager.getLastKnownLocation(applicationContext)
-                    } else null
+                    val capturedLocation = when (prefs.locationCaptureMode) {
+                        com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_DETECTION -> {
+                            com.naman.rupeeflow.location.LocationDiagnostics.logCaptureRequested("Notification received")
+                            com.naman.rupeeflow.location.OfflineLocationManager.getLastKnownLocation(applicationContext)
+                        }
+                        com.naman.rupeeflow.domain.model.LocationCaptureMode.OFF -> {
+                            com.naman.rupeeflow.location.LocationDiagnostics.logCaptureSkippedOff()
+                            null
+                        }
+                        else -> null
+                    }
 
                     val pendingStatus = if (parseResult.isValidTransaction) {
                         PendingStatus.PENDING
@@ -153,6 +161,10 @@ class RupeeFlowNotificationListener : NotificationListenerService() {
                     )
 
                     val pendingId = app.appContainer.database.pendingTransactionDao().insert(entity)
+                    com.naman.rupeeflow.location.LocationDiagnostics.logDatabaseSave(true, pendingId)
+                    if (capturedLocation != null) {
+                        com.naman.rupeeflow.location.LocationDiagnostics.logAssociationSucceeded(pendingId)
+                    }
 
                     if (pendingStatus == PendingStatus.PENDING) {
                         TransactionNotificationHelper.showPendingTransactionNotification(

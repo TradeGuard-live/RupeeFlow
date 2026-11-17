@@ -7,6 +7,10 @@ import com.naman.rupeeflow.data.sms.ParsedSmsResult
 import com.naman.rupeeflow.data.sms.SmsParser
 import com.naman.rupeeflow.domain.model.Category
 import com.naman.rupeeflow.domain.model.LocationCaptureMode
+import com.naman.rupeeflow.domain.model.LocationSource
+import com.naman.rupeeflow.domain.model.PendingStatus
+import com.naman.rupeeflow.domain.model.PendingTransaction
+import com.naman.rupeeflow.domain.model.TransactionSource
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -96,6 +100,43 @@ class SettingsViewModel(
             transactionRepository?.clearAllLocations()
             pendingTransactionRepository?.clearAllLocations()
             _uiState.update { it.copy(exportStatusMessage = "All saved transaction locations have been deleted.") }
+        }
+    }
+
+    fun simulateDetectedTransaction(context: android.content.Context, onResult: (Long) -> Unit) {
+        viewModelScope.launch {
+            val mode = _uiState.value.locationCaptureMode
+            val capturedLocation = when (mode) {
+                LocationCaptureMode.ON_DETECTION -> {
+                    com.naman.rupeeflow.location.LocationDiagnostics.logCaptureRequested("Developer Simulation")
+                    com.naman.rupeeflow.location.OfflineLocationManager.getLastKnownLocation(context)
+                }
+                LocationCaptureMode.OFF -> {
+                    com.naman.rupeeflow.location.LocationDiagnostics.logCaptureSkippedOff()
+                    null
+                }
+                else -> null
+            }
+            val mockPending = PendingTransaction(
+                detectedAmountPaise = 25000L,
+                detectedBank = "Test Bank",
+                detectedMerchant = "Diagnostic Coffee Lab",
+                rawContent = "Test simulated transaction for location diagnostic verification",
+                timestamp = System.currentTimeMillis(),
+                status = PendingStatus.PENDING,
+                source = TransactionSource.SMS,
+                latitude = capturedLocation?.latitude,
+                longitude = capturedLocation?.longitude,
+                accuracyMeters = capturedLocation?.accuracyMeters,
+                locationCapturedAt = capturedLocation?.locationCapturedAt,
+                locationSource = if (capturedLocation != null) LocationSource.DEVICE_AT_DETECTION else null
+            )
+            val id = pendingTransactionRepository?.addPendingTransaction(mockPending) ?: -1L
+            com.naman.rupeeflow.location.LocationDiagnostics.logDatabaseSave(id > 0, id)
+            if (capturedLocation != null && id > 0) {
+                com.naman.rupeeflow.location.LocationDiagnostics.logAssociationSucceeded(id)
+            }
+            onResult(id)
         }
     }
 

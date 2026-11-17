@@ -35,10 +35,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
 import com.naman.rupeeflow.domain.util.CurrencyUtils
+import kotlinx.coroutines.launch
 import com.naman.rupeeflow.ui.components.CategoryIconHelper
 import com.naman.rupeeflow.ui.components.RupeeFlowCard
 import com.naman.rupeeflow.ui.components.rupeeFlowTextFieldColors
 import com.naman.rupeeflow.ui.theme.*
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,6 +52,7 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     var showSmsTesterDialog by remember { mutableStateOf(false) }
     var showAddCategoryDialog by remember { mutableStateOf(false) }
@@ -60,6 +63,7 @@ fun SettingsScreen(
     var showNotificationDisclosureDialog by remember { mutableStateOf(false) }
     var showLocationModeDialog by remember { mutableStateOf(false) }
     var showClearLocationsConfirmDialog by remember { mutableStateOf(false) }
+    var showLocationDiagnosticsDialog by remember { mutableStateOf(false) }
 
     var pendingLocationModeToSet by remember { mutableStateOf<com.naman.rupeeflow.domain.model.LocationCaptureMode?>(null) }
 
@@ -183,6 +187,15 @@ fun SettingsScreen(
                         subtitle = "Permanently remove GPS coordinates from all transactions",
                         icon = Icons.Default.LocationOff,
                         onClick = { showClearLocationsConfirmDialog = true }
+                    )
+
+                    HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 12.dp))
+
+                    SettingsActionRow(
+                        title = "Location Engine Diagnostics",
+                        subtitle = "Verify location capture, test GPS & inspect real-time events",
+                        icon = Icons.Default.BugReport,
+                        onClick = { showLocationDiagnosticsDialog = true }
                     )
                 }
             }
@@ -733,6 +746,169 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showClearLocationsConfirmDialog = false }) {
                     Text("Cancel", color = AppTheme.colors.textSecondary)
+                }
+            },
+            containerColor = AppTheme.colors.surfaceElevated,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    if (showLocationDiagnosticsDialog) {
+        var testResultText by remember { mutableStateOf<String?>(null) }
+        var isTestingGps by remember { mutableStateOf(false) }
+        val logs = remember { mutableStateOf(com.naman.rupeeflow.location.LocationDiagnostics.getRecentLogs()) }
+
+        AlertDialog(
+            onDismissRequest = { showLocationDiagnosticsDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.BugReport, contentDescription = null, tint = AppTheme.colors.primaryAccent, modifier = Modifier.size(22.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Location Diagnostics",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = AppTheme.colors.textPrimary
+                    )
+                }
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    val hasPerm = com.naman.rupeeflow.location.OfflineLocationManager.hasPermission(context)
+                    val isGpsEnabled = com.naman.rupeeflow.location.OfflineLocationManager.isLocationEnabled(context)
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = AppTheme.colors.surfaceSecondary,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Current Setting: ${state.locationCaptureMode.name}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = AppTheme.colors.textPrimary)
+                            Text("Location Permission: ${if (hasPerm) "Granted" else "Denied"}", style = MaterialTheme.typography.bodySmall, color = if (hasPerm) AppTheme.colors.incomeGreen else CoralRed)
+                            Text("Device GPS/Location Services: ${if (isGpsEnabled) "Enabled" else "Disabled"}", style = MaterialTheme.typography.bodySmall, color = if (isGpsEnabled) AppTheme.colors.incomeGreen else CoralRed)
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    isTestingGps = true
+                                    val start = System.currentTimeMillis()
+                                    val fix = com.naman.rupeeflow.location.OfflineLocationManager.requestFreshLocation(context, timeoutMs = 4000L)
+                                    val duration = System.currentTimeMillis() - start
+                                    isTestingGps = false
+                                    testResultText = if (fix != null) {
+                                        val acc = fix.accuracyMeters?.roundToInt()
+                                        "GPS Fix acquired in ${duration}ms (Accuracy: ±${acc ?: 0}m)"
+                                    } else {
+                                        "Location request failed or timed out (${duration}ms)"
+                                    }
+                                    logs.value = com.naman.rupeeflow.location.LocationDiagnostics.getRecentLogs()
+                                }
+                            },
+                            enabled = !isTestingGps,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent)
+                        ) {
+                            Text(if (isTestingGps) "Acquiring..." else "Test GPS Fix", style = MaterialTheme.typography.labelSmall)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.simulateDetectedTransaction(context) { id ->
+                                    testResultText = "Simulated pending transaction #$id created"
+                                    logs.value = com.naman.rupeeflow.location.LocationDiagnostics.getRecentLogs()
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, AppTheme.colors.cardBorder)
+                        ) {
+                            Text("Simulate Detection", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+
+                    if (testResultText != null) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = AppTheme.colors.accentContainer,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = testResultText!!,
+                                modifier = Modifier.padding(8.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = AppTheme.colors.primaryAccent,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    Text("Recent Diagnostic Logs (Sanitized):", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = AppTheme.colors.textPrimary)
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = AppTheme.colors.surfaceSecondary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 200.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(8.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            if (logs.value.isEmpty()) {
+                                Text("No diagnostic events logged yet.", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.textSecondary)
+                            } else {
+                                logs.value.reversed().forEach { entry ->
+                                    Column {
+                                        Text(
+                                            text = "${com.naman.rupeeflow.domain.util.DateTimeUtils.formatTime(entry.timestamp)} - ${entry.event}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AppTheme.colors.textPrimary
+                                        )
+                                        if (entry.details.isNotBlank()) {
+                                            Text(
+                                                text = entry.details,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = AppTheme.colors.textSecondary,
+                                                fontSize = 10.sp
+                                            )
+                                        }
+                                    }
+                                    HorizontalDivider(color = AppTheme.colors.divider.copy(alpha = 0.5f))
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showLocationDiagnosticsDialog = false }) {
+                    Text("Close", color = AppTheme.colors.primaryAccent)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        com.naman.rupeeflow.location.LocationDiagnostics.clearLogs()
+                        logs.value = emptyList()
+                    }
+                ) {
+                    Text("Clear Logs", color = CoralRed)
                 }
             },
             containerColor = AppTheme.colors.surfaceElevated,
