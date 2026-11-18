@@ -92,7 +92,13 @@ class ReportGeneratorViewModel(
     fun initTripReport(groupId: Long) {
         viewModelScope.launch {
             val group = expenseGroupRepository?.getExpenseGroupById(groupId)
-            val txns = if (allTransactions.isNotEmpty()) allTransactions else transactionRepository.getAllTransactions().first()
+            val txns = if (allTransactions.isNotEmpty()) {
+                allTransactions
+            } else {
+                val fetched = transactionRepository.getAllTransactions().first()
+                allTransactions = fetched
+                fetched
+            }
             val tripTxns = txns.filter { it.expenseGroupId == groupId }
             val (tripStart, tripEnd) = when {
                 group?.startDate != null && group.endDate != null -> {
@@ -128,7 +134,8 @@ class ReportGeneratorViewModel(
                         periodType = ReportPeriodType.CUSTOM,
                         customStartDate = tripStart,
                         customEndDate = tripEnd,
-                        generatedPdfFile = null
+                        generatedPdfFile = null,
+                        isLoading = false
                     )
                 )
             }
