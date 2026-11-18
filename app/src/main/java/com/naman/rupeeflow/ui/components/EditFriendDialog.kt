@@ -187,14 +187,14 @@ fun EditFriendDialog(
                             modifier = Modifier
                                 .size(76.dp)
                                 .clip(CircleShape)
-                                .background(if (isDark) ElectricBlue.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer)
+                                .background(AppTheme.colors.primaryAccentContainer)
                                 .clickable { galleryLauncher.launch("image/*") },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Person,
                                 contentDescription = null,
-                                tint = if (isDark) ElectricBlueLight else AppTheme.colors.primaryAccent,
+                                tint = AppTheme.colors.primaryAccent,
                                 modifier = Modifier.size(38.dp)
                             )
                         }

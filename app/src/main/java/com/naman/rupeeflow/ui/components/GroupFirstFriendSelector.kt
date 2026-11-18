@@ -129,7 +129,7 @@ fun GroupFirstFriendSelector(
                 Surface(
                     shape = RoundedCornerShape(14.dp),
                     color = if (isAllActive) {
-                        if (isDark) ElectricBlue.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer
+                        AppTheme.colors.primaryAccentContainer
                     } else {
                         if (isDark) CharcoalCard else AppTheme.colors.surface
                     },
@@ -150,13 +150,13 @@ fun GroupFirstFriendSelector(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(if (isDark) ElectricBlue.copy(alpha = 0.25f) else Color(0xFFDBEAFE)),
+                                .background(AppTheme.colors.primaryAccentContainer),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.People,
                                 contentDescription = null,
-                                tint = if (isDark) ElectricBlueLight else AppTheme.colors.primaryAccent,
+                                tint = AppTheme.colors.primaryAccent,
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -166,7 +166,7 @@ fun GroupFirstFriendSelector(
                                 text = "All Friends",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = if (isAllActive) FontWeight.Bold else FontWeight.SemiBold,
-                                color = if (isAllActive) (if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)) else AppTheme.colors.textPrimary
+                                color = if (isAllActive) AppTheme.colors.primaryAccent else AppTheme.colors.textPrimary
                             )
                             Text(
                                 text = "${allFriends.size} friends",
@@ -297,7 +297,7 @@ fun GroupFirstFriendSelector(
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = if (includeMe) {
-                    if (isDark) ElectricBlue.copy(alpha = 0.15f) else Color(0xFFEFF6FF)
+                    AppTheme.colors.primaryAccentContainer
                 } else {
                     if (isDark) CharcoalCard else AppTheme.colors.surface
                 },
@@ -317,13 +317,13 @@ fun GroupFirstFriendSelector(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(if (isDark) ElectricBlue.copy(alpha = 0.25f) else Color(0xFFDBEAFE)),
+                            .background(AppTheme.colors.primaryAccentContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             "ME",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (isDark) ElectricBlueLight else Color(0xFF1D4ED8),
+                            color = AppTheme.colors.primaryAccent,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -338,7 +338,7 @@ fun GroupFirstFriendSelector(
                         Text(
                             text = if (includeMe) "Your share counts in your spending" else "Excluded (others owe full amount)",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (includeMe) (if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)) else AppTheme.colors.textTertiary
+                            color = if (includeMe) AppTheme.colors.primaryAccent else AppTheme.colors.textTertiary
                         )
                     }
                     Checkbox(
@@ -360,7 +360,7 @@ fun GroupFirstFriendSelector(
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = if (isMePayer) {
-                    if (isDark) ElectricBlue.copy(alpha = 0.15f) else Color(0xFFEFF6FF)
+                    AppTheme.colors.primaryAccentContainer
                 } else {
                     if (isDark) CharcoalCard else AppTheme.colors.surface
                 },
@@ -380,13 +380,13 @@ fun GroupFirstFriendSelector(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(if (isDark) ElectricBlue.copy(alpha = 0.25f) else Color(0xFFDBEAFE)),
+                            .background(AppTheme.colors.primaryAccentContainer),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             "ME",
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (isDark) ElectricBlueLight else Color(0xFF1D4ED8),
+                            color = AppTheme.colors.primaryAccent,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -477,7 +477,7 @@ fun GroupFirstFriendSelector(
                             FriendAvatar(
                                 friend = friend,
                                 modifier = Modifier.size(36.dp),
-                                fallbackColor = if (isSelected) AppTheme.colors.primaryAccent else (if (isDark) ElectricBlue else Color(0xFF64748B))
+                                fallbackColor = if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary
                             )
 
                             Spacer(modifier = Modifier.width(12.dp))

@@ -14,7 +14,7 @@ import com.naman.rupeeflow.domain.model.LocationCaptureMode
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "rupeeflow_preferences")
 
 data class UserPreferences(
-    val themeMode: String = "PEACHY", // "PEACHY" (default), "DARK", "LIGHT", "SYSTEM"
+    val themeMode: String = "PEACHY", // "PEACHY" (default), "LAVENDER", "MIDNIGHT_MOCHI", "DARK", "LIGHT", "SYSTEM"
     val biometricLockEnabled: Boolean = false,
     val smsDetectionEnabled: Boolean = true,
     val notificationListenerEnabled: Boolean = false,

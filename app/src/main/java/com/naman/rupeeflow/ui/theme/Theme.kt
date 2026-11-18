@@ -112,20 +112,76 @@ private val LightColorScheme = lightColorScheme(
     onErrorContainer = Color(0xFF991B1B)
 )
 
+private val LavenderColorScheme = lightColorScheme(
+    primary = LavenderAppColors.primaryAccent,
+    onPrimary = LavenderAppColors.onPrimaryAccent,
+    primaryContainer = LavenderAppColors.primaryAccentContainer,
+    onPrimaryContainer = LavenderAppColors.textPrimary,
+    secondary = LavenderAppColors.info,
+    onSecondary = Color.White,
+    secondaryContainer = LavenderAppColors.surfaceSecondary,
+    onSecondaryContainer = LavenderAppColors.textPrimary,
+    tertiary = LavenderAppColors.accentPink,
+    onTertiary = LavenderAppColors.textPrimary,
+    tertiaryContainer = LavenderAppColors.surfaceSecondary,
+    onTertiaryContainer = LavenderAppColors.textPrimary,
+    background = LavenderAppColors.background,
+    onBackground = LavenderAppColors.textPrimary,
+    surface = LavenderAppColors.surface,
+    onSurface = LavenderAppColors.textPrimary,
+    surfaceVariant = LavenderAppColors.surfaceSecondary,
+    onSurfaceVariant = LavenderAppColors.textSecondary,
+    outline = LavenderAppColors.cardBorder,
+    outlineVariant = LavenderAppColors.divider,
+    error = LavenderAppColors.error,
+    onError = LavenderAppColors.onError,
+    errorContainer = LavenderAppColors.errorContainer,
+    onErrorContainer = LavenderAppColors.error
+)
+
+private val MidnightMochiColorScheme = darkColorScheme(
+    primary = MidnightMochiAppColors.primaryAccent,
+    onPrimary = MidnightMochiAppColors.onPrimaryAccent,
+    primaryContainer = MidnightMochiAppColors.primaryAccentContainer,
+    onPrimaryContainer = MidnightMochiAppColors.textPrimary,
+    secondary = MidnightMochiAppColors.info,
+    onSecondary = MidnightMochiAppColors.background,
+    secondaryContainer = MidnightMochiAppColors.surfaceSecondary,
+    onSecondaryContainer = MidnightMochiAppColors.info,
+    tertiary = MidnightMochiAppColors.accentPink,
+    onTertiary = MidnightMochiAppColors.background,
+    tertiaryContainer = MidnightMochiAppColors.surfaceSecondary,
+    onTertiaryContainer = MidnightMochiAppColors.textPrimary,
+    background = MidnightMochiAppColors.background,
+    onBackground = MidnightMochiAppColors.textPrimary,
+    surface = MidnightMochiAppColors.surface,
+    onSurface = MidnightMochiAppColors.textPrimary,
+    surfaceVariant = MidnightMochiAppColors.surfaceSecondary,
+    onSurfaceVariant = MidnightMochiAppColors.textSecondary,
+    outline = MidnightMochiAppColors.cardBorder,
+    outlineVariant = MidnightMochiAppColors.divider,
+    error = MidnightMochiAppColors.error,
+    onError = MidnightMochiAppColors.textPrimary,
+    errorContainer = MidnightMochiAppColors.errorContainer,
+    onErrorContainer = MidnightMochiAppColors.error
+)
+
 @Composable
 fun RupeeFlowTheme(
-    themeMode: String = "PEACHY", // "PEACHY" (default), "DARK", "LIGHT", "SYSTEM"
+    themeMode: String = "PEACHY", // "PEACHY" (default), "LAVENDER", "MIDNIGHT_MOCHI", "DARK", "LIGHT", "SYSTEM"
     content: @Composable () -> Unit
 ) {
     val isSystemDark = isSystemInDarkTheme()
     val isDark = when (themeMode) {
-        "DARK" -> true
-        "LIGHT", "PEACHY" -> false
+        "DARK", "MIDNIGHT_MOCHI" -> true
+        "LIGHT", "PEACHY", "LAVENDER" -> false
         "SYSTEM" -> isSystemDark
         else -> false // Default to Peachy Cozy
     }
 
     val (appColors, colorScheme) = when (themeMode) {
+        "LAVENDER" -> Pair(LavenderAppColors, LavenderColorScheme)
+        "MIDNIGHT_MOCHI" -> Pair(MidnightMochiAppColors, MidnightMochiColorScheme)
         "DARK" -> Pair(DarkAppColors, DarkColorScheme)
         "LIGHT" -> Pair(LightAppColors, LightColorScheme)
         "SYSTEM" -> if (isSystemDark) Pair(DarkAppColors, DarkColorScheme) else Pair(PeachyAppColors, PeachyColorScheme)

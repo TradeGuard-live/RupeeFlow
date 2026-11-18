@@ -138,45 +138,63 @@ fun SettingsScreen(
                     ThemePreviewCard(
                         title = "Peachy Cozy",
                         subtitle = "Warm, cute, minimal and modern peach aesthetic",
-                        paletteColors = listOf(Color(0xFFFFF8F1), Color(0xFFFFAD91), Color(0xFFF58B72), Color(0xFF4A3028)),
+                        paletteColors = listOf(Color(0xFFFFF8F1), Color(0xFFFFAD91), Color(0xFFF58B72), Color(0xFF268B65), Color(0xFF4A3028)),
+                        sampleBackground = Color(0xFFFFF0E6),
+                        sampleBorder = Color(0xFFF0DDD2),
+                        sampleTextPrimary = Color(0xFF4A3028),
+                        sampleTextSecondary = Color(0xFF92766B),
+                        sampleAccent = Color(0xFFF58B72),
+                        sampleExpenseColor = Color(0xFFD95757),
                         isSelected = isPeachySelected,
-                        badgeText = null,
                         onClick = { viewModel.setThemeMode("PEACHY") }
                     )
 
-                    // 2. Midnight Dark
+                    // 2. Lavender Dream
+                    val isLavenderSelected = state.themeMode == "LAVENDER"
+                    ThemePreviewCard(
+                        title = "Lavender Dream",
+                        subtitle = "Soft lavender, pastel purple, lilac & tranquil serenity",
+                        paletteColors = listOf(Color(0xFFF7F3FC), Color(0xFF9274C8), Color(0xFFB9A4E8), Color(0xFFE6BCEB), Color(0xFF342A45)),
+                        sampleBackground = Color(0xFFEEE7F7),
+                        sampleBorder = Color(0xFFE2D8EF),
+                        sampleTextPrimary = Color(0xFF342A45),
+                        sampleTextSecondary = Color(0xFF80748F),
+                        sampleAccent = Color(0xFF9274C8),
+                        sampleExpenseColor = Color(0xFFD95770),
+                        isSelected = isLavenderSelected,
+                        onClick = { viewModel.setThemeMode("LAVENDER") }
+                    )
+
+                    // 3. Midnight Mochi
+                    val isMidnightMochiSelected = state.themeMode == "MIDNIGHT_MOCHI"
+                    ThemePreviewCard(
+                        title = "Midnight Mochi",
+                        subtitle = "Deep midnight purple, dark plum surfaces & lavender glow",
+                        paletteColors = listOf(Color(0xFF100E19), Color(0xFF191626), Color(0xFFB49AEF), Color(0xFFF0A9D5), Color(0xFFF5F0FC)),
+                        sampleBackground = Color(0xFF211D31),
+                        sampleBorder = Color(0xFF393149),
+                        sampleTextPrimary = Color(0xFFF5F0FC),
+                        sampleTextSecondary = Color(0xFFB6ADC9),
+                        sampleAccent = Color(0xFFB49AEF),
+                        sampleExpenseColor = Color(0xFFF07891),
+                        isSelected = isMidnightMochiSelected,
+                        onClick = { viewModel.setThemeMode("MIDNIGHT_MOCHI") }
+                    )
+
+                    // 4. Midnight Dark
                     val isDarkSelected = state.themeMode == "DARK"
                     ThemePreviewCard(
                         title = "Midnight Dark",
-                        subtitle = "High-contrast dark mode with neon accents",
-                        paletteColors = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF38BDF8), Color(0xFFF8FAFC)),
+                        subtitle = "High-contrast dark mode with electric blue neon accents",
+                        paletteColors = listOf(Color(0xFF0A0E17), Color(0xFF111827), Color(0xFF3B82F6), Color(0xFF10B981), Color(0xFFF8FAFC)),
+                        sampleBackground = Color(0xFF1E293B),
+                        sampleBorder = Color(0x3394A3B8),
+                        sampleTextPrimary = Color(0xFFF8FAFC),
+                        sampleTextSecondary = Color(0xFF94A3B8),
+                        sampleAccent = Color(0xFF3B82F6),
+                        sampleExpenseColor = Color(0xFFEF4444),
                         isSelected = isDarkSelected,
-                        badgeText = null,
                         onClick = { viewModel.setThemeMode("DARK") }
-                    )
-
-                    // 3. Lavender Dream (Coming Soon)
-                    ThemePreviewCard(
-                        title = "Lavender Dream",
-                        subtitle = "Calm pastel floral aesthetic & serenity",
-                        paletteColors = listOf(Color(0xFFF5F3FF), Color(0xFFDDD6FE), Color(0xFF8B5CF6), Color(0xFF4C1D95)),
-                        isSelected = false,
-                        badgeText = "Coming Soon",
-                        onClick = {
-                            Toast.makeText(context, "Lavender Dream theme coming soon in a future release!", Toast.LENGTH_SHORT).show()
-                        }
-                    )
-
-                    // 4. Midnight Mochi (Coming Soon)
-                    ThemePreviewCard(
-                        title = "Midnight Mochi",
-                        subtitle = "Dark charcoal palette with cute vibrant pink pop",
-                        paletteColors = listOf(Color(0xFF18181B), Color(0xFF27272A), Color(0xFFF472B6), Color(0xFFFDF2F8)),
-                        isSelected = false,
-                        badgeText = "Coming Soon",
-                        onClick = {
-                            Toast.makeText(context, "Midnight Mochi theme coming soon in a future release!", Toast.LENGTH_SHORT).show()
-                        }
                     )
                 }
             }
@@ -1564,8 +1582,14 @@ private fun ThemePreviewCard(
     title: String,
     subtitle: String,
     paletteColors: List<Color>,
+    sampleBackground: Color,
+    sampleBorder: Color,
+    sampleTextPrimary: Color,
+    sampleTextSecondary: Color,
+    sampleAccent: Color,
+    sampleExpenseColor: Color,
     isSelected: Boolean,
-    badgeText: String?,
+    badgeText: String? = null,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -1580,17 +1604,22 @@ private fun ThemePreviewCard(
             .fillMaxWidth()
             .clickable(onClick = onClick)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            // Header: Title, Active Badge, Radio Button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.weight(1f, fill = false)
                 ) {
                     Text(
                         text = title,
@@ -1619,51 +1648,147 @@ private fun ThemePreviewCard(
                             shape = RoundedCornerShape(6.dp),
                             color = AppTheme.colors.primaryAccentContainer
                         ) {
-                            Text(
-                                text = "Active",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = AppTheme.colors.primaryAccent,
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(3.dp),
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(10.dp),
+                                    tint = AppTheme.colors.primaryAccent
+                                )
+                                Text(
+                                    text = "Active",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = AppTheme.colors.primaryAccent
+                                )
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AppTheme.colors.textSecondary
+                RadioButton(
+                    selected = isSelected,
+                    onClick = onClick,
+                    enabled = badgeText == null,
+                    colors = RadioButtonDefaults.colors(
+                        selectedColor = AppTheme.colors.primaryAccent,
+                        unselectedColor = AppTheme.colors.textSecondary
+                    )
                 )
+            }
 
-                Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = AppTheme.colors.textSecondary
+            )
 
-                // Color swatch dots preview
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    paletteColors.forEach { c ->
+            // Color swatch dots preview
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                paletteColors.forEach { c ->
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(c)
+                            .border(1.dp, AppTheme.colors.cardBorder, CircleShape)
+                    )
+                }
+            }
+
+            // Realistic Mini Transaction Sample Card Preview
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = sampleBackground,
+                border = BorderStroke(1.dp, sampleBorder),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.weight(1f, fill = false)
+                    ) {
                         Box(
                             modifier = Modifier
-                                .size(18.dp)
-                                .clip(CircleShape)
-                                .background(c)
-                                .border(1.dp, AppTheme.colors.cardBorder, CircleShape)
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(sampleAccent.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingCart,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = sampleAccent
+                            )
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = "Grocery Market",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = sampleTextPrimary
+                            )
+                            Text(
+                                text = "Food & Supplies • Today",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                color = sampleTextSecondary
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "-₹350.00",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = sampleExpenseColor
+                    )
+                }
+            }
+
+            // Apply Theme Action Button
+            if (!isSelected) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = AppTheme.colors.surfaceSecondary,
+                    border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onClick)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Apply Theme",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AppTheme.colors.primaryAccent
                         )
                     }
                 }
             }
-
-            RadioButton(
-                selected = isSelected,
-                onClick = onClick,
-                enabled = badgeText == null,
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = AppTheme.colors.primaryAccent,
-                    unselectedColor = AppTheme.colors.textSecondary
-                )
-            )
         }
     }
 }

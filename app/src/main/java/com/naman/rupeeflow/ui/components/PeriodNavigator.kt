@@ -83,7 +83,7 @@ fun PeriodNavigator(
             if (showCurrentPill && onCurrent != null) {
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = if (isDark) ElectricBlue.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer,
+                    color = AppTheme.colors.primaryAccentContainer,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { onCurrent() }
@@ -91,7 +91,7 @@ fun PeriodNavigator(
                     Text(
                         text = currentPillText,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isDark) ElectricBlueLight else Color(0xFF1D4ED8),
+                        color = AppTheme.colors.primaryAccent,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold

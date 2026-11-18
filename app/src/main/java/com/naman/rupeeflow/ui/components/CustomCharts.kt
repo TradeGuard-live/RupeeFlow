@@ -37,8 +37,8 @@ import com.naman.rupeeflow.ui.theme.*
 fun CustomBarChart(
     data: List<DailySpending>,
     modifier: Modifier = Modifier,
-    barColor: Color = ElectricBlue,
-    activeBarColor: Color = VibrantCyan
+    barColor: Color = AppTheme.colors.primaryAccent,
+    activeBarColor: Color = AppTheme.colors.info
 ) {
     val isDark = AppTheme.isDark
     if (data.isEmpty()) {
@@ -241,8 +241,8 @@ fun CustomBarChart(
 fun CustomLineChart(
     data: List<DailySpending>,
     modifier: Modifier = Modifier,
-    lineColor: Color = ElectricBlue,
-    fillGradientStart: Color = VibrantCyan.copy(alpha = 0.3f)
+    lineColor: Color = AppTheme.colors.primaryAccent,
+    fillGradientStart: Color = AppTheme.colors.primaryAccent.copy(alpha = 0.3f)
 ) {
     val isDark = AppTheme.isDark
     if (data.isEmpty() || data.size < 2) {

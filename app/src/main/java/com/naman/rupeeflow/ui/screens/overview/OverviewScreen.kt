@@ -588,13 +588,13 @@ fun OverviewScreen(
                             if (state.weekOffset != 0) {
                                 Surface(
                                     shape = RoundedCornerShape(8.dp),
-                                    color = if (isDark) ElectricBlue.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer,
+                                    color = AppTheme.colors.primaryAccentContainer,
                                     modifier = Modifier.clickable { viewModel.currentWeek() }
                                 ) {
                                     Text(
                                         text = "Today",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = if (isDark) ElectricBlueLight else Color(0xFF1D4ED8),
+                                        color = AppTheme.colors.primaryAccent,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold

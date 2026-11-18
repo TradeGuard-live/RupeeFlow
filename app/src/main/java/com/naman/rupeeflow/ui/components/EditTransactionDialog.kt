@@ -239,10 +239,10 @@ fun EditTransactionDialog(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 listOf(
-                    TransactionType.EXPENSE to CoralRed,
-                    TransactionType.INCOME to EmeraldMint,
-                    TransactionType.REFUND to VibrantCyan,
-                    TransactionType.TRANSFER to ElectricBlue
+                    TransactionType.EXPENSE to AppTheme.colors.expenseRed,
+                    TransactionType.INCOME to AppTheme.colors.incomeGreen,
+                    TransactionType.REFUND to AppTheme.colors.info,
+                    TransactionType.TRANSFER to AppTheme.colors.primaryAccent
                 ).forEach { (type, color) ->
                     val isSelected = selectedType == type
                     Box(

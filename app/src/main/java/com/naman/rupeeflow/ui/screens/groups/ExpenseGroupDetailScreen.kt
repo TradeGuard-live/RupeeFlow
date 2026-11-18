@@ -726,13 +726,13 @@ fun ExpenseGroupDetailScreen(
                                 modifier = Modifier
                                     .size(40.dp)
                                     .clip(CircleShape)
-                                    .background(ElectricBlue.copy(alpha = 0.15f)),
+                                    .background(AppTheme.colors.primaryAccentContainer),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.PictureAsPdf,
                                     contentDescription = "PDF Report",
-                                    tint = ElectricBlueLight,
+                                    tint = AppTheme.colors.primaryAccent,
                                     modifier = Modifier.size(22.dp)
                                 )
                             }

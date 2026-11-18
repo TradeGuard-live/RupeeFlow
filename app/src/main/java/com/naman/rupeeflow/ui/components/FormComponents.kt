@@ -131,9 +131,9 @@ fun PaymentMethodSelectorRow(
             Surface(
                 shape = RoundedCornerShape(20.dp),
                 color = if (isSelected) {
-                    if (isDark) ElectricBlue.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer
+                    AppTheme.colors.primaryAccentContainer
                 } else {
-                    if (isDark) CharcoalCard else AppTheme.colors.surfaceSecondary
+                    AppTheme.colors.surfaceSecondary
                 },
                 border = androidx.compose.foundation.BorderStroke(
                     width = 1.dp,
@@ -145,7 +145,7 @@ fun PaymentMethodSelectorRow(
                     text = method.displayName,
                     style = MaterialTheme.typography.labelSmall,
                     color = if (isSelected) {
-                        if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)
+                        AppTheme.colors.primaryAccent
                     } else {
                         AppTheme.colors.textSecondary
                     },
@@ -169,16 +169,16 @@ fun TransactionTypeSelectorRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(if (isDark) CharcoalCard else AppTheme.colors.surfaceSecondary)
+            .background(AppTheme.colors.surfaceSecondary)
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         types.forEach { type ->
             val isSelected = selectedType == type
             val activeColor = when (type) {
-                TransactionType.EXPENSE -> if (isDark) CoralRed else Color(0xFFDC2626)
-                TransactionType.INCOME -> if (isDark) EmeraldMint else Color(0xFF059669)
-                TransactionType.TRANSFER -> if (isDark) ElectricBlue else Color(0xFF2563EB)
+                TransactionType.EXPENSE -> AppTheme.colors.expenseRed
+                TransactionType.INCOME -> AppTheme.colors.incomeGreen
+                TransactionType.TRANSFER -> AppTheme.colors.primaryAccent
                 else -> AppTheme.colors.primaryAccent
             }
 

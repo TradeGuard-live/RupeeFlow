@@ -25,8 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.naman.rupeeflow.domain.model.Friend
 import com.naman.rupeeflow.ui.theme.AppTheme
-import com.naman.rupeeflow.ui.theme.ElectricBlue
-import com.naman.rupeeflow.ui.theme.ElectricBlueLight
 
 /**
  * Dedicated single-selection Payer Dropdown for Add & Edit Transaction screens.
@@ -111,13 +109,13 @@ fun PayerDropdownSelector(
                             modifier = Modifier
                                 .size(34.dp)
                                 .clip(CircleShape)
-                                .background(if (isDark) ElectricBlue.copy(alpha = 0.25f) else Color(0xFFDBEAFE)),
+                                .background(AppTheme.colors.primaryAccentContainer),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = "ME",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isDark) ElectricBlueLight else Color(0xFF1D4ED8),
+                                color = AppTheme.colors.primaryAccent,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp
                             )
@@ -255,13 +253,13 @@ fun PayerDropdownSelector(
                                 modifier = Modifier
                                     .size(30.dp)
                                     .clip(CircleShape)
-                                    .background(if (isDark) ElectricBlue.copy(alpha = 0.25f) else Color(0xFFDBEAFE)),
+                                    .background(AppTheme.colors.primaryAccentContainer),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = "ME",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (isDark) ElectricBlueLight else Color(0xFF1D4ED8),
+                                    color = AppTheme.colors.primaryAccent,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.sp
                                 )

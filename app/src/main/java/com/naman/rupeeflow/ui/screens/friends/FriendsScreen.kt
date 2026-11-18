@@ -193,9 +193,9 @@ fun FriendsScreen(
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = if (isAllSelected) {
-                        if (isDark) ElectricBlue.copy(alpha = 0.25f) else AppTheme.colors.primaryAccentContainer
+                        AppTheme.colors.primaryAccentContainer
                     } else {
-                        if (isDark) CharcoalCard else AppTheme.colors.surface
+                        AppTheme.colors.surface
                     },
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
@@ -207,7 +207,7 @@ fun FriendsScreen(
                         text = "All Friends ($activeCount)",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isAllSelected) {
-                            if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)
+                            AppTheme.colors.primaryAccent
                         } else {
                             AppTheme.colors.textSecondary
                         },
@@ -321,9 +321,9 @@ fun FriendsScreen(
                     Surface(
                         shape = RoundedCornerShape(20.dp),
                         color = if (isSelected) {
-                            if (isDark) ElectricBlue.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer
+                            AppTheme.colors.primaryAccentContainer
                         } else {
-                            if (isDark) CharcoalCard else AppTheme.colors.surface
+                            AppTheme.colors.surface
                         },
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
@@ -335,7 +335,7 @@ fun FriendsScreen(
                             text = label,
                             style = MaterialTheme.typography.labelSmall,
                             color = if (isSelected) {
-                                if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)
+                                AppTheme.colors.primaryAccent
                             } else {
                                 AppTheme.colors.textSecondary
                             },
@@ -623,14 +623,14 @@ fun AddFriendDialog(
                             modifier = Modifier
                                 .size(72.dp)
                                 .clip(CircleShape)
-                                .background(if (isDark) ElectricBlue.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer)
+                                .background(AppTheme.colors.primaryAccentContainer)
                                 .clickable { galleryLauncher.launch("image/*") },
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Person,
                                 contentDescription = null,
-                                tint = if (isDark) ElectricBlueLight else AppTheme.colors.primaryAccent,
+                                tint = AppTheme.colors.primaryAccent,
                                 modifier = Modifier.size(36.dp)
                             )
                         }

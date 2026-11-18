@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
-    val themeMode: String = "DARK",
+    val themeMode: String = "PEACHY",
     val biometricLockEnabled: Boolean = false,
     val smsDetectionEnabled: Boolean = true,
     val notificationListenerEnabled: Boolean = false,

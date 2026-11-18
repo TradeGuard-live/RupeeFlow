@@ -33,8 +33,6 @@ import com.naman.rupeeflow.ui.components.MascotPose
 import com.naman.rupeeflow.ui.components.RupeeFlowCard
 import com.naman.rupeeflow.ui.components.TransactionItemCard
 import com.naman.rupeeflow.ui.theme.AppTheme
-import com.naman.rupeeflow.ui.theme.CharcoalCard
-import com.naman.rupeeflow.ui.theme.ElectricBlue
 import com.naman.rupeeflow.ui.theme.GlassBorder
 
 @Composable
@@ -100,10 +98,10 @@ fun MonthlyTransactionCalendarView(
                             // Today Button
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (isDark) ElectricBlue.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer,
+                                color = AppTheme.colors.primaryAccentContainer,
                                 border = BorderStroke(
                                     1.dp,
-                                    if (isDark) ElectricBlue.copy(alpha = 0.5f) else AppTheme.colors.primaryAccent.copy(alpha = 0.5f)
+                                    AppTheme.colors.primaryAccent.copy(alpha = 0.5f)
                                 ),
                                 modifier = Modifier.clickable { onTodayClick() }
                             ) {
@@ -302,7 +300,7 @@ fun MonthlyTransactionCalendarView(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (isDark) Color(0xFF1E293B) else Color(0xFFF1F5F9))
+                                .background(AppTheme.colors.surfaceSecondary)
                                 .padding(horizontal = 10.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.SpaceAround,
                             verticalAlignment = Alignment.CenterVertically
@@ -416,8 +414,8 @@ private fun CalendarCellItem(
     }
 
     val cellBackground = when {
-        isSelected -> if (isDark) ElectricBlue.copy(alpha = 0.25f) else AppTheme.colors.primaryAccentContainer
-        else -> if (isDark) CharcoalCard else AppTheme.colors.surfaceElevated
+        isSelected -> AppTheme.colors.primaryAccentContainer
+        else -> AppTheme.colors.surfaceElevated
     }
 
     val cellBorder = when {

@@ -221,9 +221,9 @@ fun TransactionsScreen(
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = if (isSelected) {
-                            if (isDark) ElectricBlue.copy(alpha = 0.25f) else AppTheme.colors.primaryAccentContainer
+                            AppTheme.colors.primaryAccentContainer
                         } else {
-                            if (isDark) CharcoalCard else AppTheme.colors.surface
+                            AppTheme.colors.surface
                         },
                         border = BorderStroke(
                             1.dp,
@@ -235,7 +235,7 @@ fun TransactionsScreen(
                             text = label,
                             style = MaterialTheme.typography.labelSmall,
                             color = if (isSelected) {
-                                if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)
+                                AppTheme.colors.primaryAccent
                             } else {
                                 AppTheme.colors.textSecondary
                             },
@@ -284,9 +284,9 @@ fun TransactionsScreen(
                         Surface(
                             shape = RoundedCornerShape(16.dp),
                             color = if (isSelected) {
-                                if (isDark) ElectricBlue.copy(alpha = 0.25f) else AppTheme.colors.primaryAccentContainer
+                                AppTheme.colors.primaryAccentContainer
                             } else {
-                                if (isDark) CharcoalCard else AppTheme.colors.surface
+                                AppTheme.colors.surface
                             },
                             border = BorderStroke(
                                 1.dp,
@@ -298,7 +298,7 @@ fun TransactionsScreen(
                                 text = label,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (isSelected) {
-                                    if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)
+                                    AppTheme.colors.primaryAccent
                                 } else {
                                     AppTheme.colors.textSecondary
                                 },
