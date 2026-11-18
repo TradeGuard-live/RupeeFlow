@@ -52,4 +52,32 @@ class Converters {
     @TypeConverter
     fun toLocationSource(value: String?): LocationSource? =
         value?.let { runCatching { LocationSource.valueOf(it) }.getOrNull() }
+
+    @TypeConverter
+    fun fromSavingsGoalCategory(value: SavingsGoalCategory): String = value.name
+
+    @TypeConverter
+    fun toSavingsGoalCategory(value: String): SavingsGoalCategory =
+        runCatching { SavingsGoalCategory.valueOf(value) }.getOrDefault(SavingsGoalCategory.CUSTOM)
+
+    @TypeConverter
+    fun fromSavingsGoalStatus(value: SavingsGoalStatus): String = value.name
+
+    @TypeConverter
+    fun toSavingsGoalStatus(value: String): SavingsGoalStatus =
+        runCatching { SavingsGoalStatus.valueOf(value) }.getOrDefault(SavingsGoalStatus.ACTIVE)
+
+    @TypeConverter
+    fun fromSavingsGoalPriority(value: SavingsGoalPriority): String = value.name
+
+    @TypeConverter
+    fun toSavingsGoalPriority(value: String): SavingsGoalPriority =
+        runCatching { SavingsGoalPriority.valueOf(value) }.getOrDefault(SavingsGoalPriority.MEDIUM)
+
+    @TypeConverter
+    fun fromSavingsEntryType(value: SavingsEntryType): String = value.name
+
+    @TypeConverter
+    fun toSavingsEntryType(value: String): SavingsEntryType =
+        runCatching { SavingsEntryType.valueOf(value) }.getOrDefault(SavingsEntryType.DEPOSIT)
 }

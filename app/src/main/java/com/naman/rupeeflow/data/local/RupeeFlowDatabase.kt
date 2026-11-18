@@ -28,9 +28,11 @@ import java.io.File
         ExpenseGroupEntity::class,
         ReportDraftEntity::class,
         InputUsageEntity::class,
-        GroupActivityEntity::class
+        GroupActivityEntity::class,
+        SavingsGoalEntity::class,
+        SavingsEntryEntity::class
     ],
-    version = 10, // Upgraded to version 10: Split Pro group taxonomy, settlement links, and group activities
+    version = 11, // Upgraded to version 11: Savings Goals and Dated Daily Savings History
     exportSchema = true // Schema export enabled
 )
 @TypeConverters(Converters::class)
@@ -46,6 +48,8 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
     abstract fun reportDraftDao(): ReportDraftDao
     abstract fun inputUsageDao(): InputUsageDao
     abstract fun groupActivityDao(): GroupActivityDao
+    abstract fun savingsGoalDao(): SavingsGoalDao
+    abstract fun savingsEntryDao(): SavingsEntryDao
 
     companion object {
         @Volatile
@@ -631,6 +635,90 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `savings_goals` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `description` TEXT,
+                        `targetAmountPaise` INTEGER NOT NULL,
+                        `targetDate` INTEGER,
+                        `category` TEXT NOT NULL,
+                        `imageUri` TEXT,
+                        `colorHex` TEXT NOT NULL,
+                        `priority` TEXT NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `currentSavedPaise` INTEGER NOT NULL DEFAULT 0,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_savings_goals_status` ON `savings_goals` (`status`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_savings_goals_category` ON `savings_goals` (`category`)")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `savings_entries` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `goalId` INTEGER NOT NULL,
+                        `amountPaise` INTEGER NOT NULL,
+                        `entryType` TEXT NOT NULL,
+                        `entryDate` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        `description` TEXT NOT NULL,
+                        `paymentMethod` TEXT,
+                        `note` TEXT,
+                        FOREIGN KEY(`goalId`) REFERENCES `savings_goals`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_savings_entries_goalId` ON `savings_entries` (`goalId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_savings_entries_entryDate` ON `savings_entries` (`entryDate`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_savings_entries_entryType` ON `savings_entries` (`entryType`)")
+            }
+        }
+
+        val MIGRATION_9_11 = object : Migration(9, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_9_10.migrate(db)
+                MIGRATION_10_11.migrate(db)
+            }
+        }
+
+        val MIGRATION_8_11 = object : Migration(8, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_8_10.migrate(db)
+                MIGRATION_10_11.migrate(db)
+            }
+        }
+
+        val MIGRATION_7_11 = object : Migration(7, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_7_10.migrate(db)
+                MIGRATION_10_11.migrate(db)
+            }
+        }
+
+        val MIGRATION_6_11 = object : Migration(6, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_6_10.migrate(db)
+                MIGRATION_10_11.migrate(db)
+            }
+        }
+
+        val MIGRATION_5_11 = object : Migration(5, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_5_10.migrate(db)
+                MIGRATION_10_11.migrate(db)
+            }
+        }
+
+        val MIGRATION_1_11 = object : Migration(1, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_1_10.migrate(db)
+                MIGRATION_10_11.migrate(db)
+            }
+        }
+
         // Automatic safe pre-migration backup procedure
         fun createPreMigrationBackup(context: Context) {
             try {
@@ -662,7 +750,8 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                         MIGRATION_6_7, MIGRATION_5_7, MIGRATION_4_7, MIGRATION_3_7, MIGRATION_2_7, MIGRATION_1_7,
                         MIGRATION_7_8, MIGRATION_6_8, MIGRATION_5_8, MIGRATION_1_8,
                         MIGRATION_8_9, MIGRATION_7_9, MIGRATION_6_9, MIGRATION_5_9, MIGRATION_1_9,
-                        MIGRATION_9_10, MIGRATION_8_10, MIGRATION_7_10, MIGRATION_6_10, MIGRATION_5_10, MIGRATION_1_10
+                        MIGRATION_9_10, MIGRATION_8_10, MIGRATION_7_10, MIGRATION_6_10, MIGRATION_5_10, MIGRATION_1_10,
+                        MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11, MIGRATION_7_11, MIGRATION_6_11, MIGRATION_5_11, MIGRATION_1_11
                     )
                     .addCallback(DatabaseCallback(scope))
                     // Destructive migration removed! Data preservation guaranteed.

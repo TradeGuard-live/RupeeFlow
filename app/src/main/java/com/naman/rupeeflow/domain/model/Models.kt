@@ -214,13 +214,13 @@ data class Transaction(
         get() = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpense(this)
 }
 
-// ✅ Direction of obligation for friend expenses
+// Direction of obligation for friend expenses
 enum class ExpenseObligationDirection {
     THEY_OWE_ME,
     I_OWE_THEM
 }
 
-// ✅ Detailed model for an unsettled/outstanding expense with a friend
+// Detailed model for an unsettled/outstanding expense with a friend
 data class UnsettledExpenseItem(
     val transaction: Transaction,
     val totalTransactionAmountPaise: Long,
@@ -343,3 +343,65 @@ data class InputUsage(
     val lastUsedAt: Long = System.currentTimeMillis(),
     val preferenceScore: Double = 0.0
 )
+
+// Savings Goals & Daily Savings Models
+data class SavingsGoal(
+    val id: Long = 0,
+    val name: String,
+    val description: String? = null,
+    val targetAmountPaise: Long,
+    val targetDate: Long? = null,
+    val category: SavingsGoalCategory = SavingsGoalCategory.CUSTOM,
+    val imageUri: String? = null,
+    val colorHex: String = "#FFAD91",
+    val priority: SavingsGoalPriority = SavingsGoalPriority.MEDIUM,
+    val status: SavingsGoalStatus = SavingsGoalStatus.ACTIVE,
+    val currentSavedPaise: Long = 0,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+) {
+    val progressPercentage: Float
+        get() = if (targetAmountPaise > 0L) {
+            ((currentSavedPaise.toDouble() / targetAmountPaise.toDouble()) * 100.0).toFloat().coerceAtLeast(0f)
+        } else 0f
+
+    val remainingPaise: Long
+        get() = if (targetAmountPaise > currentSavedPaise) {
+            targetAmountPaise - currentSavedPaise
+        } else 0L
+
+    val isCompleted: Boolean
+        get() = (targetAmountPaise > 0L && currentSavedPaise >= targetAmountPaise) || status == SavingsGoalStatus.COMPLETED
+
+    val isExceeded: Boolean
+        get() = targetAmountPaise > 0L && currentSavedPaise > targetAmountPaise
+}
+
+data class SavingsEntry(
+    val id: Long = 0,
+    val goalId: Long,
+    val amountPaise: Long,
+    val entryType: SavingsEntryType = SavingsEntryType.DEPOSIT,
+    val entryDate: Long,
+    val createdAt: Long = System.currentTimeMillis(),
+    val description: String,
+    val paymentMethod: String? = null,
+    val note: String? = null
+)
+
+data class DailySavingsGroup(
+    val dateMillis: Long,
+    val totalSavedPaise: Long,
+    val totalDepositsPaise: Long,
+    val totalWithdrawalsPaise: Long,
+    val entries: List<SavingsEntry>
+)
+
+data class SavingsOverviewSummary(
+    val totalSavedPaise: Long = 0,
+    val savingsAddedThisMonthPaise: Long = 0,
+    val activeGoalsCount: Int = 0,
+    val completedGoalsCount: Int = 0,
+    val overallProgressPercentage: Float = 0f
+)
+

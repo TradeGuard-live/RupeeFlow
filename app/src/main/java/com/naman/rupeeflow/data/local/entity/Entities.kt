@@ -332,3 +332,58 @@ data class InputUsageEntity(
     val lastUsedAt: Long = System.currentTimeMillis(),
     val preferenceScore: Double = 0.0
 )
+
+// Savings Goals & Dated Savings Entries Entities
+@Entity(
+    tableName = "savings_goals",
+    indices = [
+        Index(value = ["status"]),
+        Index(value = ["category"])
+    ]
+)
+data class SavingsGoalEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val name: String,
+    val description: String? = null,
+    val targetAmountPaise: Long,
+    val targetDate: Long? = null,
+    val category: SavingsGoalCategory = SavingsGoalCategory.CUSTOM,
+    val imageUri: String? = null,
+    val colorHex: String = "#FFAD91",
+    val priority: SavingsGoalPriority = SavingsGoalPriority.MEDIUM,
+    val status: SavingsGoalStatus = SavingsGoalStatus.ACTIVE,
+    val currentSavedPaise: Long = 0,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "savings_entries",
+    foreignKeys = [
+        ForeignKey(
+            entity = SavingsGoalEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["goalId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["goalId"]),
+        Index(value = ["entryDate"]),
+        Index(value = ["entryType"])
+    ]
+)
+data class SavingsEntryEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val goalId: Long,
+    val amountPaise: Long,
+    val entryType: SavingsEntryType = SavingsEntryType.DEPOSIT,
+    val entryDate: Long,
+    val createdAt: Long = System.currentTimeMillis(),
+    val description: String,
+    val paymentMethod: String? = null,
+    val note: String? = null
+)
+

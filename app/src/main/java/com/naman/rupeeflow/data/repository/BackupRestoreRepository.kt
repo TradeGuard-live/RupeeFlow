@@ -35,6 +35,7 @@ data class BackupPreview(
     val inputUsageCount: Int = 0,
     val imagesCount: Int = 0,
     val totalVolumePaise: Long = 0L,
+    val savingsGoalsCount: Int = 0,
     val isEncrypted: Boolean = false,
     val errorMessage: String? = null
 )
@@ -74,7 +75,7 @@ class BackupRestoreRepository(
      */
     object AttachmentFilenameValidator {
         private val ALLOWED_FILENAME_REGEX = Regex("^[a-zA-Z0-9][a-zA-Z0-9_.-]*$")
-        // ✅ Support image and PDF document attachments in backup/restore validator
+        // Support image and PDF document attachments in backup/restore validator
         private val VALID_IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "bin", "pdf")
 
         fun isValidFilename(name: String?): Boolean {
@@ -366,7 +367,50 @@ class BackupRestoreRepository(
         }
         root.put("group_activities", actArray)
 
-        // 11. Portable Embedded Images Map
+        // 11. Savings Goals
+        val goals = database.savingsGoalDao().getAllGoalsList()
+        val goalArray = JSONArray()
+        for (g in goals) {
+            val portableImage = embedImage(g.imageUri)
+            val obj = JSONObject().apply {
+                put("id", g.id)
+                put("name", g.name)
+                put("description", g.description ?: "")
+                put("targetAmountPaise", g.targetAmountPaise)
+                if (g.targetDate != null) put("targetDate", g.targetDate)
+                put("category", g.category.name)
+                put("imageUri", portableImage ?: "")
+                put("colorHex", g.colorHex)
+                put("priority", g.priority.name)
+                put("status", g.status.name)
+                put("currentSavedPaise", g.currentSavedPaise)
+                put("createdAt", g.createdAt)
+                put("updatedAt", g.updatedAt)
+            }
+            goalArray.put(obj)
+        }
+        root.put("savings_goals", goalArray)
+
+        // 12. Savings Entries
+        val entries = database.savingsEntryDao().getAllEntriesList()
+        val entryArray = JSONArray()
+        for (e in entries) {
+            val obj = JSONObject().apply {
+                put("id", e.id)
+                put("goalId", e.goalId)
+                put("amountPaise", e.amountPaise)
+                put("entryType", e.entryType.name)
+                put("entryDate", e.entryDate)
+                put("createdAt", e.createdAt)
+                put("description", e.description)
+                put("paymentMethod", e.paymentMethod ?: "")
+                put("note", e.note ?: "")
+            }
+            entryArray.put(obj)
+        }
+        root.put("savings_entries", entryArray)
+
+        // 13. Portable Embedded Images Map
         val imagesObj = JSONObject()
         for ((key, b64) in imagesMap) {
             imagesObj.put(key, b64)
@@ -532,6 +576,7 @@ class BackupRestoreRepository(
             val setCount = root.optJSONArray("settlements")?.length() ?: 0
             val inputUsageCount = root.optJSONArray("input_usage")?.length() ?: 0
             val imagesCount = root.optJSONObject("images")?.length() ?: 0
+            val savingsGoalsCount = root.optJSONArray("savings_goals")?.length() ?: 0
 
             var totalVolume = 0L
             if (txnsArray != null) {
@@ -553,6 +598,7 @@ class BackupRestoreRepository(
                 inputUsageCount = inputUsageCount,
                 imagesCount = imagesCount,
                 totalVolumePaise = totalVolume,
+                savingsGoalsCount = savingsGoalsCount,
                 isEncrypted = false
             )
         } catch (e: Exception) {
@@ -955,6 +1001,52 @@ class BackupRestoreRepository(
                             googleMapsUrl = mapsUrl
                         )
                         database.pendingTransactionDao().insert(pendingEntity)
+                    }
+                }
+
+                // 9. Restore Savings Goals
+                if (root.has("savings_goals")) {
+                    val goalArray = root.getJSONArray("savings_goals")
+                    for (i in 0 until goalArray.length()) {
+                        val obj = goalArray.getJSONObject(i)
+                        val imagePath = resolveImagePath(obj.optString("imageUri").takeIf { it.isNotBlank() })
+                        val targetD = if (obj.has("targetDate") && !obj.isNull("targetDate")) obj.getLong("targetDate") else null
+                        val goalEntity = SavingsGoalEntity(
+                            id = obj.optLong("id", 0L),
+                            name = obj.getString("name"),
+                            description = obj.optString("description").takeIf { it.isNotBlank() },
+                            targetAmountPaise = obj.getLong("targetAmountPaise"),
+                            targetDate = targetD,
+                            category = runCatching { SavingsGoalCategory.valueOf(obj.getString("category")) }.getOrDefault(SavingsGoalCategory.CUSTOM),
+                            imageUri = imagePath,
+                            colorHex = obj.optString("colorHex", "#FFAD91"),
+                            priority = runCatching { SavingsGoalPriority.valueOf(obj.getString("priority")) }.getOrDefault(SavingsGoalPriority.MEDIUM),
+                            status = runCatching { SavingsGoalStatus.valueOf(obj.getString("status")) }.getOrDefault(SavingsGoalStatus.ACTIVE),
+                            currentSavedPaise = obj.optLong("currentSavedPaise", 0L),
+                            createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
+                            updatedAt = obj.optLong("updatedAt", System.currentTimeMillis())
+                        )
+                        database.savingsGoalDao().insertGoal(goalEntity)
+                    }
+                }
+
+                // 10. Restore Savings Entries
+                if (root.has("savings_entries")) {
+                    val entryArray = root.getJSONArray("savings_entries")
+                    for (i in 0 until entryArray.length()) {
+                        val obj = entryArray.getJSONObject(i)
+                        val entryEntity = SavingsEntryEntity(
+                            id = obj.optLong("id", 0L),
+                            goalId = obj.getLong("goalId"),
+                            amountPaise = obj.getLong("amountPaise"),
+                            entryType = runCatching { SavingsEntryType.valueOf(obj.getString("entryType")) }.getOrDefault(SavingsEntryType.DEPOSIT),
+                            entryDate = obj.getLong("entryDate"),
+                            createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
+                            description = obj.getString("description"),
+                            paymentMethod = obj.optString("paymentMethod").takeIf { it.isNotBlank() },
+                            note = obj.optString("note").takeIf { it.isNotBlank() }
+                        )
+                        database.savingsEntryDao().insertEntry(entryEntity)
                     }
                 }
             }

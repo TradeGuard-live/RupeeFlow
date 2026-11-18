@@ -55,6 +55,12 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector?
 
     object Calendar : Screen("calendar", "Calendar", Icons.Default.DateRange)
 
+    object SavingsGoals : Screen("savings_goals", "Savings Goals", Icons.Default.Savings)
+
+    object SavingsGoalDetail : Screen("savings_goals/{goalId}", "Goal Detail") {
+        fun createRoute(goalId: Long) = "savings_goals/$goalId"
+    }
+
     object AddEditTransaction : Screen(
         "add_edit_transaction?transactionId={transactionId}&pendingId={pendingId}",
         "Transaction Form"

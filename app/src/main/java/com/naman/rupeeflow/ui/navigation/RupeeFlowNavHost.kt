@@ -93,6 +93,9 @@ fun RupeeFlowApp(
                     },
                     onNavigateToCalendar = {
                         navController.navigate(Screen.Calendar.route)
+                    },
+                    onNavigateToSavingsGoals = {
+                        navController.navigate(Screen.SavingsGoals.route)
                     }
                 )
             }
@@ -277,6 +280,35 @@ fun RupeeFlowApp(
                 val app = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.naman.rupeeflow.RupeeFlowApplication)
                 com.naman.rupeeflow.ui.screens.splitpro.SplitProSettingsScreen(
                     userPreferencesRepository = app.appContainer.userPreferencesRepository,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            // Savings Goals Dashboard
+            composable(Screen.SavingsGoals.route) {
+                val savingsViewModel: com.naman.rupeeflow.ui.screens.savings.SavingsGoalsViewModel = viewModel(factory = AppViewModelProvider.Factory)
+                com.naman.rupeeflow.ui.screens.savings.SavingsGoalsScreen(
+                    viewModel = savingsViewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToGoalDetail = { goalId ->
+                        navController.navigate(Screen.SavingsGoalDetail.createRoute(goalId))
+                    }
+                )
+            }
+
+            // Savings Goal Detail Screen
+            composable(
+                route = Screen.SavingsGoalDetail.route,
+                arguments = listOf(navArgument("goalId") { type = NavType.LongType })
+            ) { backStackEntry ->
+                val goalId = backStackEntry.arguments?.getLong("goalId") ?: 0L
+                val detailViewModel: com.naman.rupeeflow.ui.screens.savings.SavingsGoalDetailViewModel = viewModel(factory = AppViewModelProvider.Factory)
+                androidx.compose.runtime.LaunchedEffect(goalId) {
+                    detailViewModel.loadGoal(goalId)
+                }
+                com.naman.rupeeflow.ui.screens.savings.SavingsGoalDetailScreen(
+                    goalId = goalId,
+                    viewModel = detailViewModel,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }

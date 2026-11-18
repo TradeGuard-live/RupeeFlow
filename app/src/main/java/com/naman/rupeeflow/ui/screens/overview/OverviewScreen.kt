@@ -44,11 +44,12 @@ fun OverviewScreen(
     onNavigateToSplitPro: () -> Unit = {},
     onNavigateToExpenseGroups: () -> Unit = {},
     onNavigateToReports: () -> Unit = {},
-    onNavigateToCalendar: () -> Unit = {}
+    onNavigateToCalendar: () -> Unit = {},
+    onNavigateToSavingsGoals: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    // ✅ rememberSaveable keeps the sheet open across biometric lock/unlock and activity recreation
+    // rememberSaveable keeps the sheet open across biometric lock/unlock and activity recreation
     var showFastAddSheet by rememberSaveable { mutableStateOf(false) }
     var fastAddInitialType by rememberSaveable { mutableStateOf(TransactionType.EXPENSE) }
     var showVoiceAssistant by remember { mutableStateOf(false) }
@@ -183,6 +184,13 @@ fun OverviewScreen(
                             fastAddInitialType = TransactionType.INCOME
                             showFastAddSheet = true
                         }
+                    )
+                    QuickActionPill(
+                        label = "Savings",
+                        icon = Icons.Default.Savings,
+                        accentColor = Color(0xFFF58B72),
+                        backgroundColor = Color(0xFFFFF0E6),
+                        onClick = onNavigateToSavingsGoals
                     )
                     QuickActionPill(
                         label = "Split Pro",
@@ -413,6 +421,127 @@ fun OverviewScreen(
                             imageVector = Icons.Default.ChevronRight,
                             contentDescription = "Open Split Pro",
                             tint = AppTheme.colors.textSecondary
+                        )
+                    }
+                }
+            }
+
+            // Savings Goals Card
+            item {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable { onNavigateToSavingsGoals() },
+                    color = AppTheme.colors.surfaceElevated,
+                    border = BorderStroke(1.dp, AppTheme.colors.cardBorder)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(AppTheme.colors.primaryPeach.copy(alpha = 0.25f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Savings,
+                                        contentDescription = "Savings Goals",
+                                        tint = AppTheme.colors.deepPeach,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "Savings Goals",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AppTheme.colors.textPrimary
+                                        )
+                                        if (state.savingsSummary.activeGoalsCount > 0) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(AppTheme.colors.mint.copy(alpha = 0.4f))
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = "${state.savingsSummary.activeGoalsCount} ACTIVE",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AppTheme.colors.textPrimary,
+                                                    fontSize = 9.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        text = "Saved this month: ${CurrencyUtils.formatPaiseToRupees(state.savingsSummary.savingsAddedThisMonthPaise)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = AppTheme.colors.textSecondary
+                                    )
+                                }
+                            }
+
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = "View Savings Goals",
+                                tint = AppTheme.colors.textSecondary
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Total Active Savings",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AppTheme.colors.textSecondary
+                                )
+                                Text(
+                                    text = CurrencyUtils.formatPaiseToRupees(state.savingsSummary.totalSavedPaise),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = AppTheme.colors.textPrimary
+                                )
+                            }
+
+                            Text(
+                                text = "${String.format(Locale.US, "%.1f", state.savingsSummary.overallProgressPercentage)}% overall",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.deepPeach
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        LinearProgressIndicator(
+                            progress = { (state.savingsSummary.overallProgressPercentage / 100f).coerceIn(0f, 1f) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = AppTheme.colors.deepPeach,
+                            trackColor = AppTheme.colors.primaryAccentContainer
                         )
                     }
                 }

@@ -32,7 +32,8 @@ data class OverviewUiState(
     val categories: List<Category> = emptyList(),
     val allFriends: List<Friend> = emptyList(),
     val friendGroups: List<FriendGroup> = emptyList(),
-    val expenseGroups: List<com.naman.rupeeflow.domain.model.ExpenseGroup> = emptyList()
+    val expenseGroups: List<com.naman.rupeeflow.domain.model.ExpenseGroup> = emptyList(),
+    val savingsSummary: SavingsOverviewSummary = SavingsOverviewSummary()
 )
 
 class OverviewViewModel(
@@ -43,7 +44,8 @@ class OverviewViewModel(
     private val categoryRepository: CategoryRepository,
     private val friendGroupRepository: FriendGroupRepository? = null,
     private val expenseGroupRepository: com.naman.rupeeflow.data.repository.ExpenseGroupRepository? = null,
-    private val inputRankingRepository: InputRankingRepository? = null
+    private val inputRankingRepository: InputRankingRepository? = null,
+    private val savingsGoalRepository: com.naman.rupeeflow.data.repository.SavingsGoalRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OverviewUiState())
@@ -59,6 +61,7 @@ class OverviewViewModel(
         viewModelScope.launch {
             val groupsFlow = friendGroupRepository?.getAllGroups() ?: flowOf(emptyList())
             val expenseGroupsFlow = expenseGroupRepository?.getActiveExpenseGroups() ?: flowOf(emptyList())
+            val savingsFlow = savingsGoalRepository?.getOverviewSummary() ?: flowOf(SavingsOverviewSummary())
             val baseFlow = combine(
                 transactionRepository.getAllTransactions(),
                 friendRepository.getActiveFriends(),
@@ -69,7 +72,7 @@ class OverviewViewModel(
                 OverviewBundle(transactions, friends, settlements, pendingList, categories)
             }
 
-            combine(baseFlow, groupsFlow, expenseGroupsFlow, weekOffset) { bundle, groups, expGroups, offset ->
+            combine(baseFlow, groupsFlow, expenseGroupsFlow, savingsFlow, weekOffset) { bundle, groups, expGroups, savingsSummary, offset ->
                 val friendsWithLedger = LedgerCalculator.computeFriendLedgers(bundle.friends, bundle.transactions, bundle.settlements)
 
                 val startOfMonth = DateTimeUtils.getStartOfMonth()
@@ -110,7 +113,8 @@ class OverviewViewModel(
                     categories = rankedCategories,
                     allFriends = rankedFriends,
                     friendGroups = rankedGroups,
-                    expenseGroups = expGroups
+                    expenseGroups = expGroups,
+                    savingsSummary = savingsSummary
                 )
             }.collect { state ->
                 _uiState.value = state

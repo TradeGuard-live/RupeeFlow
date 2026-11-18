@@ -194,3 +194,66 @@ enum class ReportPeriodType {
             CUSTOM -> "Custom Range"
         }
 }
+
+enum class SavingsGoalCategory {
+    EMERGENCY_FUND,
+    ELECTRONICS,
+    TRAVEL,
+    EDUCATION,
+    VEHICLE,
+    SHOPPING,
+    PERSONAL,
+    CUSTOM;
+
+    val displayName: String
+        get() = when (this) {
+            EMERGENCY_FUND -> "Emergency Fund"
+            ELECTRONICS -> "Electronics"
+            TRAVEL -> "Travel"
+            EDUCATION -> "Education"
+            VEHICLE -> "Vehicle"
+            SHOPPING -> "Shopping"
+            PERSONAL -> "Personal"
+            CUSTOM -> "Custom"
+        }
+}
+
+enum class SavingsGoalStatus {
+    ACTIVE,
+    PAUSED,
+    COMPLETED,
+    ARCHIVED;
+
+    val displayName: String
+        get() = when (this) {
+            ACTIVE -> "Active"
+            PAUSED -> "Paused"
+            COMPLETED -> "Completed"
+            ARCHIVED -> "Archived"
+        }
+}
+
+enum class SavingsGoalPriority {
+    HIGH,
+    MEDIUM,
+    LOW;
+
+    val displayName: String
+        get() = when (this) {
+            HIGH -> "High"
+            MEDIUM -> "Medium"
+            LOW -> "Low"
+        }
+}
+
+enum class SavingsEntryType {
+    DEPOSIT,
+    WITHDRAWAL;
+
+    val displayName: String
+        get() = when (this) {
+            DEPOSIT -> "Deposit"
+            WITHDRAWAL -> "Withdrawal"
+        }
+}
+

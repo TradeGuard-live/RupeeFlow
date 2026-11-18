@@ -24,6 +24,7 @@ interface AppContainer {
     val pendingAttachmentManager: com.naman.rupeeflow.attachment.PendingAttachmentManager
     val merchantPreferenceRepository: MerchantPreferenceRepository
     val smartTransactionMatcher: com.naman.rupeeflow.domain.matching.SmartTransactionMatcher
+    val savingsGoalRepository: SavingsGoalRepository
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -111,7 +112,7 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         com.naman.rupeeflow.security.AppLockManager(userPreferencesRepository)
     }
 
-    // ✅ Application-scoped pending attachment manager with automatic biometric unlock resumption
+    // Application-scoped pending attachment manager with automatic biometric unlock resumption
     override val pendingAttachmentManager: com.naman.rupeeflow.attachment.PendingAttachmentManager by lazy {
         com.naman.rupeeflow.attachment.PendingAttachmentManager.getInstance(context).also { mgr ->
             appLockManager.addUnlockListener {
@@ -126,5 +127,12 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
 
     override val smartTransactionMatcher: com.naman.rupeeflow.domain.matching.SmartTransactionMatcher by lazy {
         com.naman.rupeeflow.domain.matching.SmartTransactionMatcher(merchantPreferenceRepository)
+    }
+
+    override val savingsGoalRepository: SavingsGoalRepository by lazy {
+        SavingsGoalRepositoryImpl(
+            savingsGoalDao = database.savingsGoalDao(),
+            savingsEntryDao = database.savingsEntryDao()
+        )
     }
 }

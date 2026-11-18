@@ -26,7 +26,8 @@ object AppViewModelProvider {
                 categoryRepository = app.appContainer.categoryRepository,
                 friendGroupRepository = app.appContainer.friendGroupRepository,
                 expenseGroupRepository = app.appContainer.expenseGroupRepository,
-                inputRankingRepository = app.appContainer.inputRankingRepository
+                inputRankingRepository = app.appContainer.inputRankingRepository,
+                savingsGoalRepository = app.appContainer.savingsGoalRepository
             )
         }
         initializer {
@@ -132,6 +133,18 @@ object AppViewModelProvider {
                 categoryRepository = app.appContainer.categoryRepository,
                 groupActivityRepository = app.appContainer.groupActivityRepository,
                 userPreferencesRepository = app.appContainer.userPreferencesRepository
+            )
+        }
+        initializer {
+            val app = rupeeFlowApplication()
+            com.naman.rupeeflow.ui.screens.savings.SavingsGoalsViewModel(
+                savingsGoalRepository = app.appContainer.savingsGoalRepository
+            )
+        }
+        initializer {
+            val app = rupeeFlowApplication()
+            com.naman.rupeeflow.ui.screens.savings.SavingsGoalDetailViewModel(
+                savingsGoalRepository = app.appContainer.savingsGoalRepository
             )
         }
     }
