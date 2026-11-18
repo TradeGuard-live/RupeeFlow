@@ -55,9 +55,10 @@ fun GroupSettleUpDialog(
         return if (mId == null) "You" else friendsMap[mId]?.name ?: "Friend #$mId"
     }
 
-    var payerId by remember { mutableStateOf(initialPayerId) }
-    var receiverId by remember {
-        mutableStateOf(initialReceiverId ?: allMemberIds.firstOrNull { it != payerId })
+    val defaultReceiver = allMemberIds.firstOrNull { it != initialPayerId }
+    var payerId by remember(initialPayerId) { mutableStateOf(initialPayerId) }
+    var receiverId by remember(initialReceiverId, initialPayerId) {
+        mutableStateOf(if (initialReceiverId != null || initialPayerId != null) initialReceiverId else defaultReceiver)
     }
 
     // Determine outstanding debt between payer and receiver

@@ -22,6 +22,7 @@ import com.naman.rupeeflow.domain.ledger.LedgerCalculator
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
+import com.naman.rupeeflow.domain.util.SafeMath
 import com.naman.rupeeflow.ui.components.FriendAvatar
 import com.naman.rupeeflow.ui.components.TransactionDetailDialog
 import com.naman.rupeeflow.ui.components.TransactionItemCard
@@ -63,31 +64,37 @@ fun SplitProGroupDetailScreen(
     var settleUpAmountPaise by remember { mutableStateOf<Long?>(null) }
     var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
 
-    // Simplify Debts mode toggle: true = simplified, false = direct
-    var isSimplifyDebtsMode by remember { mutableStateOf(group?.simplifyDebts ?: true) }
-
     // Activity filter
     var activityFilter by remember { mutableStateOf("ALL") }
 
-    if (group == null && !state.isLoading) {
+    if (group == null) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Group Details") },
+                    title = { Text(if (state.isLoading) "Loading..." else "Group Details") },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = AppTheme.colors.textPrimary)
                         }
-                    }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = AppTheme.colors.surface)
                 )
-            }
+            },
+            containerColor = AppTheme.colors.background
         ) { padding ->
             Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("Group not found.", color = AppTheme.colors.textSecondary)
+                if (state.isLoading) {
+                    CircularProgressIndicator(color = AppTheme.colors.primaryAccent)
+                } else {
+                    Text("Group not found.", color = AppTheme.colors.textSecondary)
+                }
             }
         }
         return
     }
+
+    // Simplify Debts mode toggle: true = simplified, false = direct
+    var isSimplifyDebtsMode by remember(group.id) { mutableStateOf(group.simplifyDebts) }
 
     Scaffold(
         topBar = {
@@ -95,13 +102,13 @@ fun SplitProGroupDetailScreen(
                 title = {
                     Column {
                         Text(
-                            text = group?.name ?: "Group Details",
+                            text = group.name,
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = AppTheme.colors.textPrimary
                         )
                         Text(
-                            text = group?.groupType?.displayName ?: "Group",
+                            text = group.groupType.displayName,
                             style = MaterialTheme.typography.labelSmall,
                             color = AppTheme.colors.textSecondary
                         )
@@ -288,7 +295,7 @@ fun SplitProGroupDetailScreen(
                             contentPadding = PaddingValues(16.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            items(groupTxns, key = { it.id }) { txn ->
+                            items(groupTxns, key = { "txn_${it.id}" }) { txn ->
                                 TransactionItemCard(
                                     transaction = txn,
                                     onClick = { selectedTransactionForDetail = txn }
@@ -364,7 +371,7 @@ fun SplitProGroupDetailScreen(
                                     Column(horizontalAlignment = Alignment.End) {
                                         val netText = when {
                                             net > 0L -> "+${CurrencyUtils.formatPaiseToRupees(net)}"
-                                            net < 0L -> "-${CurrencyUtils.formatPaiseToRupees(kotlin.math.abs(net))}"
+                                            net < 0L -> "-${CurrencyUtils.formatPaiseToRupees(SafeMath.safeAbs(net))}"
                                             else -> "Settled"
                                         }
                                         val netColor = when {
@@ -647,7 +654,7 @@ fun SplitProGroupDetailScreen(
                                 contentPadding = PaddingValues(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                items(filteredActivities, key = { it.id }) { act ->
+                                items(filteredActivities, key = { "act_${it.id}_${it.timestamp}_${it.hashCode()}" }) { act ->
                                     Surface(
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(14.dp),

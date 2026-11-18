@@ -6,6 +6,7 @@ import com.naman.rupeeflow.data.repository.*
 import com.naman.rupeeflow.domain.ledger.LedgerCalculator
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.SafeMath
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -90,7 +91,12 @@ class SplitProViewModel(
                     activities = meta.activities,
                     prefs = meta.prefs
                 )
-            }.collect { newState ->
+            }
+            .flowOn(Dispatchers.Default)
+            .catch { _ ->
+                _uiState.update { it.copy(isLoading = false) }
+            }
+            .collect { newState ->
                 _uiState.value = newState
             }
         }
@@ -114,11 +120,15 @@ class SplitProViewModel(
         var upcomingTransfers = 0
 
         for (g in groups) {
+            val groupTxns = txns.filter { it.expenseGroupId == g.id }
+            val groupSettlements = settlements.filter { it.groupId == g.id }
+            val groupMembers = friends.filter { g.memberFriendIds.contains(it.id) }
+
             val summary = LedgerCalculator.computeGroupBalances(
                 groupId = g.id,
-                transactions = txns,
-                settlements = settlements,
-                members = friends
+                transactions = groupTxns,
+                settlements = groupSettlements,
+                members = groupMembers
             )
             summaries[g.id] = summary
 
@@ -127,7 +137,7 @@ class SplitProViewModel(
                 if (summary.myNetBalancePaise > 0L) {
                     totalOthersOweMe = SafeMath.safeAdd(totalOthersOweMe, summary.myNetBalancePaise)
                 } else if (summary.myNetBalancePaise < 0L) {
-                    totalIOweOthers = SafeMath.safeAdd(totalIOweOthers, -summary.myNetBalancePaise)
+                    totalIOweOthers = SafeMath.safeAdd(totalIOweOthers, SafeMath.safeAbs(summary.myNetBalancePaise))
                 }
                 upcomingTransfers += summary.simplifiedDebts.size
             }
@@ -217,35 +227,39 @@ class SplitProViewModel(
         onCreated: (Long) -> Unit = {}
     ) {
         viewModelScope.launch {
-            val newId = expenseGroupRepository.createExpenseGroup(
-                name = name,
-                description = description,
-                destination = destination,
-                startDate = startDate,
-                endDate = endDate,
-                coverImageUri = coverImageUri,
-                iconName = when (type) {
-                    GroupType.TRIP -> "flight"
-                    GroupType.HOME -> "home"
-                    GroupType.FRIENDS -> "group"
-                    GroupType.COUPLE -> "favorite"
-                    GroupType.FAMILY -> "family_restroom"
-                    GroupType.OFFICE -> "work"
-                    GroupType.CUSTOM -> "dashboard"
-                },
-                colorHex = colorHex ?: "#3B82F6",
-                groupType = type,
-                currencyCode = _uiState.value.userPreferences.splitProCurrency,
-                simplifyDebts = _uiState.value.userPreferences.debtSimplificationEnabled,
-                friendIds = friendIds
-            )
-            groupActivityRepository.recordActivity(
-                groupId = newId,
-                activityType = GroupActivityType.GROUP_CREATED,
-                actorName = "You",
-                description = "Created group \"$name\""
-            )
-            onCreated(newId)
+            try {
+                val newId = expenseGroupRepository.createExpenseGroup(
+                    name = name,
+                    description = description,
+                    destination = destination,
+                    startDate = startDate,
+                    endDate = endDate,
+                    coverImageUri = coverImageUri,
+                    iconName = when (type) {
+                        GroupType.TRIP -> "flight"
+                        GroupType.HOME -> "home"
+                        GroupType.FRIENDS -> "group"
+                        GroupType.COUPLE -> "favorite"
+                        GroupType.FAMILY -> "family_restroom"
+                        GroupType.OFFICE -> "work"
+                        GroupType.CUSTOM -> "dashboard"
+                    },
+                    colorHex = colorHex ?: "#3B82F6",
+                    groupType = type,
+                    currencyCode = _uiState.value.userPreferences.splitProCurrency,
+                    simplifyDebts = _uiState.value.userPreferences.debtSimplificationEnabled,
+                    friendIds = friendIds
+                )
+                try {
+                    groupActivityRepository.recordActivity(
+                        groupId = newId,
+                        activityType = GroupActivityType.GROUP_CREATED,
+                        actorName = "You",
+                        description = "Created group \"$name\""
+                    )
+                } catch (_: Exception) { }
+                onCreated(newId)
+            } catch (_: Exception) { }
         }
     }
 
@@ -255,34 +269,44 @@ class SplitProViewModel(
         onUpdated: () -> Unit = {}
     ) {
         viewModelScope.launch {
-            expenseGroupRepository.updateExpenseGroup(group, friendIds)
-            groupActivityRepository.recordActivity(
-                groupId = group.id,
-                activityType = GroupActivityType.GROUP_UPDATED,
-                actorName = "You",
-                description = "Updated group details for \"${group.name}\""
-            )
-            onUpdated()
+            try {
+                expenseGroupRepository.updateExpenseGroup(group, friendIds)
+                try {
+                    groupActivityRepository.recordActivity(
+                        groupId = group.id,
+                        activityType = GroupActivityType.GROUP_UPDATED,
+                        actorName = "You",
+                        description = "Updated group details for \"${group.name}\""
+                    )
+                } catch (_: Exception) { }
+                onUpdated()
+            } catch (_: Exception) { }
         }
     }
 
     fun toggleArchive(group: ExpenseGroup) {
         viewModelScope.launch {
-            val willArchive = !group.isArchived
-            expenseGroupRepository.setArchived(group.id, willArchive)
-            groupActivityRepository.recordActivity(
-                groupId = group.id,
-                activityType = GroupActivityType.GROUP_ARCHIVED,
-                actorName = "You",
-                description = if (willArchive) "Archived group \"${group.name}\"" else "Restored group \"${group.name}\""
-            )
+            try {
+                val willArchive = !group.isArchived
+                expenseGroupRepository.setArchived(group.id, willArchive)
+                try {
+                    groupActivityRepository.recordActivity(
+                        groupId = group.id,
+                        activityType = GroupActivityType.GROUP_ARCHIVED,
+                        actorName = "You",
+                        description = if (willArchive) "Archived group \"${group.name}\"" else "Restored group \"${group.name}\""
+                    )
+                } catch (_: Exception) { }
+            } catch (_: Exception) { }
         }
     }
 
     fun deleteGroup(groupId: Long, onDeleted: () -> Unit = {}) {
         viewModelScope.launch {
-            expenseGroupRepository.deleteExpenseGroup(groupId)
-            onDeleted()
+            try {
+                expenseGroupRepository.deleteExpenseGroup(groupId)
+                onDeleted()
+            } catch (_: Exception) { }
         }
     }
 
@@ -291,39 +315,47 @@ class SplitProViewModel(
         onSaved: () -> Unit = {}
     ) {
         viewModelScope.launch {
-            val isNew = transaction.id <= 0L
-            val savedId = transactionRepository.saveTransaction(transaction)
-            val gId = transaction.expenseGroupId
-            if (gId != null && gId > 0L) {
-                val actType = if (isNew) GroupActivityType.EXPENSE_CREATED else GroupActivityType.EXPENSE_EDITED
-                val desc = if (isNew) "Added expense \"${transaction.title}\"" else "Edited expense \"${transaction.title}\""
-                groupActivityRepository.recordActivity(
-                    groupId = gId,
-                    activityType = actType,
-                    actorName = transaction.paidByName ?: "You",
-                    description = desc,
-                    amountPaise = transaction.amountPaise,
-                    targetId = savedId
-                )
-            }
-            onSaved()
+            try {
+                val isNew = transaction.id <= 0L
+                val savedId = transactionRepository.saveTransaction(transaction)
+                val gId = transaction.expenseGroupId
+                if (gId != null && gId > 0L) {
+                    val actType = if (isNew) GroupActivityType.EXPENSE_CREATED else GroupActivityType.EXPENSE_EDITED
+                    val desc = if (isNew) "Added expense \"${transaction.title}\"" else "Edited expense \"${transaction.title}\""
+                    try {
+                        groupActivityRepository.recordActivity(
+                            groupId = gId,
+                            activityType = actType,
+                            actorName = transaction.paidByName ?: "You",
+                            description = desc,
+                            amountPaise = transaction.amountPaise,
+                            targetId = savedId
+                        )
+                    } catch (_: Exception) { }
+                }
+                onSaved()
+            } catch (_: Exception) { }
         }
     }
 
     fun deleteGroupExpense(transaction: Transaction) {
         viewModelScope.launch {
-            transactionRepository.deleteTransaction(transaction.id)
-            val gId = transaction.expenseGroupId
-            if (gId != null && gId > 0L) {
-                groupActivityRepository.recordActivity(
-                    groupId = gId,
-                    activityType = GroupActivityType.EXPENSE_DELETED,
-                    actorName = "You",
-                    description = "Deleted expense \"${transaction.title}\"",
-                    amountPaise = transaction.amountPaise,
-                    targetId = transaction.id
-                )
-            }
+            try {
+                transactionRepository.deleteTransaction(transaction.id)
+                val gId = transaction.expenseGroupId
+                if (gId != null && gId > 0L) {
+                    try {
+                        groupActivityRepository.recordActivity(
+                            groupId = gId,
+                            activityType = GroupActivityType.EXPENSE_DELETED,
+                            actorName = "You",
+                            description = "Deleted expense \"${transaction.title}\"",
+                            amountPaise = transaction.amountPaise,
+                            targetId = transaction.id
+                        )
+                    } catch (_: Exception) { }
+                }
+            } catch (_: Exception) { }
         }
     }
 
@@ -332,38 +364,46 @@ class SplitProViewModel(
         onRecorded: (Long) -> Unit = {}
     ) {
         viewModelScope.launch {
-            val id = settlementRepository.recordSettlement(settlement)
-            val gId = settlement.groupId
-            if (gId != null && gId > 0L) {
-                val payerName = if (settlement.payerId == null) "You" else _uiState.value.friends.firstOrNull { it.id == settlement.payerId }?.name ?: "Friend"
-                val receiverName = if (settlement.receiverId == null) "You" else _uiState.value.friends.firstOrNull { it.id == settlement.receiverId }?.name ?: "Friend"
-                groupActivityRepository.recordActivity(
-                    groupId = gId,
-                    activityType = GroupActivityType.SETTLEMENT_RECORDED,
-                    actorName = payerName,
-                    description = "$payerName paid $receiverName",
-                    amountPaise = settlement.amountPaise,
-                    targetId = id
-                )
-            }
-            onRecorded(id)
+            try {
+                val id = settlementRepository.recordSettlement(settlement)
+                val gId = settlement.groupId
+                if (gId != null && gId > 0L) {
+                    val payerName = if (settlement.payerId == null) "You" else _uiState.value.friends.firstOrNull { it.id == settlement.payerId }?.name ?: "Friend"
+                    val receiverName = if (settlement.receiverId == null) "You" else _uiState.value.friends.firstOrNull { it.id == settlement.receiverId }?.name ?: "Friend"
+                    try {
+                        groupActivityRepository.recordActivity(
+                            groupId = gId,
+                            activityType = GroupActivityType.SETTLEMENT_RECORDED,
+                            actorName = payerName,
+                            description = "$payerName paid $receiverName",
+                            amountPaise = settlement.amountPaise,
+                            targetId = id
+                        )
+                    } catch (_: Exception) { }
+                }
+                onRecorded(id)
+            } catch (_: Exception) { }
         }
     }
 
     fun reverseGroupSettlement(settlement: Settlement) {
         viewModelScope.launch {
-            settlementRepository.reverseSettlement(settlement.id)
-            val gId = settlement.groupId
-            if (gId != null && gId > 0L) {
-                groupActivityRepository.recordActivity(
-                    groupId = gId,
-                    activityType = GroupActivityType.SETTLEMENT_REVERSED,
-                    actorName = "You",
-                    description = "Reversed payment of ₹${settlement.amountPaise / 100}",
-                    amountPaise = settlement.amountPaise,
-                    targetId = settlement.id
-                )
-            }
+            try {
+                settlementRepository.reverseSettlement(settlement.id)
+                val gId = settlement.groupId
+                if (gId != null && gId > 0L) {
+                    try {
+                        groupActivityRepository.recordActivity(
+                            groupId = gId,
+                            activityType = GroupActivityType.SETTLEMENT_REVERSED,
+                            actorName = "You",
+                            description = "Reversed payment of ₹${settlement.amountPaise / 100}",
+                            amountPaise = settlement.amountPaise,
+                            targetId = settlement.id
+                        )
+                    } catch (_: Exception) { }
+                }
+            } catch (_: Exception) { }
         }
     }
 
@@ -374,14 +414,16 @@ class SplitProViewModel(
         onAdded: (Long) -> Unit = {}
     ) {
         viewModelScope.launch {
-            val newFriend = Friend(
-                name = name.trim(),
-                phoneNumber = phone?.trim()?.ifBlank { null },
-                email = email?.trim()?.ifBlank { null },
-                createdAt = System.currentTimeMillis()
-            )
-            val id = friendRepository.addFriend(newFriend)
-            onAdded(id)
+            try {
+                val newFriend = Friend(
+                    name = name.trim(),
+                    phoneNumber = phone?.trim()?.ifBlank { null },
+                    email = email?.trim()?.ifBlank { null },
+                    createdAt = System.currentTimeMillis()
+                )
+                val id = friendRepository.addFriend(newFriend)
+                onAdded(id)
+            } catch (_: Exception) { }
         }
     }
 

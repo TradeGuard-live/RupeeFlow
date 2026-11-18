@@ -213,7 +213,7 @@ fun EditSplitGroupDialog(
                     }
 
                     // Friends selection with active balance protection
-                    items(friends, key = { it.id }) { friend ->
+                    items(friends, key = { "friend_${it.id}" }) { friend ->
                         val isSelected = selectedFriendIds.contains(friend.id)
                         val memberBalance = groupSummary?.memberBalances?.firstOrNull { it.memberId == friend.id }?.netBalancePaise ?: 0L
 

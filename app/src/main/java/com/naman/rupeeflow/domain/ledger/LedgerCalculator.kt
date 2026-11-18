@@ -105,7 +105,7 @@ object LedgerCalculator {
 
         for ((mId, net) in netBalances) {
             if (net < 0L) {
-                debtors.add(BalanceEntry(mId, -net))
+                debtors.add(BalanceEntry(mId, SafeMath.safeAbs(net)))
             } else if (net > 0L) {
                 creditors.add(BalanceEntry(mId, net))
             }
@@ -300,7 +300,7 @@ object LedgerCalculator {
 
                 val debt1to2 = pairwiseDebt[pair1] ?: 0L
                 val debt2to1 = pairwiseDebt[pair2] ?: 0L
-                val netDiff = debt1to2 - debt2to1
+                val netDiff = SafeMath.safeSubtract(debt1to2, debt2to1)
 
                 if (netDiff > 0L) {
                     directDebts.add(
@@ -319,7 +319,7 @@ object LedgerCalculator {
                             fromMemberName = memberNames[m2] ?: "Friend",
                             toMemberId = m1,
                             toMemberName = memberNames[m1] ?: "Friend",
-                            amountPaise = -netDiff
+                            amountPaise = SafeMath.safeAbs(netDiff)
                         )
                     )
                 }

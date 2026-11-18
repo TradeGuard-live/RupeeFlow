@@ -131,20 +131,27 @@ fun AddGroupExpenseDialog(
                     val pcts = activeParticipants.map { mId ->
                         percentageInputs[mId]?.toDoubleOrNull() ?: (100.0 / activeParticipants.size)
                     }
-                    val validPct = abs(pcts.sum() - 100.0) <= 0.05
-                    if (validPct) {
-                        val shares = LedgerCalculator.calculatePercentageSplit(amountPaise, pcts)
-                        activeParticipants.mapIndexed { index, mId -> mId to shares.getOrElse(index) { 0L } }.toMap()
+                    if (LedgerCalculator.validatePercentages(pcts)) {
+                        try {
+                            val shares = LedgerCalculator.calculatePercentageSplit(amountPaise, pcts)
+                            activeParticipants.mapIndexed { index, mId -> mId to shares.getOrElse(index) { 0L } }.toMap()
+                        } catch (_: Exception) {
+                            emptyMap()
+                        }
                     } else {
                         emptyMap()
                     }
                 }
                 SplitMethod.SHARES -> {
-                    val weights = activeParticipants.map { mId ->
-                        sharesInputs[mId]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                    try {
+                        val weights = activeParticipants.map { mId ->
+                            sharesInputs[mId]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                        }
+                        val shares = LedgerCalculator.calculateSharesSplit(amountPaise, weights)
+                        activeParticipants.mapIndexed { index, mId -> mId to shares.getOrElse(index) { 0L } }.toMap()
+                    } catch (_: Exception) {
+                        emptyMap()
                     }
-                    val shares = LedgerCalculator.calculateSharesSplit(amountPaise, weights)
-                    activeParticipants.mapIndexed { index, mId -> mId to shares.getOrElse(index) { 0L } }.toMap()
                 }
                 SplitMethod.CUSTOM -> {
                     activeParticipants.associateWith { mId ->

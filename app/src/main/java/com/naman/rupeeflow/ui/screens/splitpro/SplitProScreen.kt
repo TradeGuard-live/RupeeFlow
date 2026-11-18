@@ -24,6 +24,7 @@ import com.naman.rupeeflow.domain.model.GroupActivityType
 import com.naman.rupeeflow.domain.model.GroupType
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
+import com.naman.rupeeflow.domain.util.SafeMath
 import com.naman.rupeeflow.ui.components.*
 import com.naman.rupeeflow.ui.theme.*
 
@@ -317,7 +318,7 @@ fun SplitProScreen(
                     )
                 }
             } else {
-                items(state.filteredGroups, key = { it.id }) { group ->
+                items(state.filteredGroups, key = { "group_${it.id}" }) { group ->
                     val summary = state.groupSummaries[group.id]
                     val myNet = summary?.myNetBalancePaise ?: 0L
 
@@ -341,7 +342,7 @@ fun SplitProScreen(
                         }
                         val badgeText = when {
                             myNet > 0L -> "+${CurrencyUtils.formatPaiseToRupees(myNet)}"
-                            myNet < 0L -> "-${CurrencyUtils.formatPaiseToRupees(kotlin.math.abs(myNet))}"
+                            myNet < 0L -> "-${CurrencyUtils.formatPaiseToRupees(SafeMath.safeAbs(myNet))}"
                             else -> "Settled"
                         }
 
@@ -448,7 +449,7 @@ fun SplitProScreen(
                     )
                 }
 
-                items(state.recentActivities.take(6), key = { it.id }) { act ->
+                items(state.recentActivities.take(6), key = { "act_${it.id}_${it.timestamp}_${it.hashCode()}" }) { act ->
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),

@@ -296,7 +296,7 @@ fun CreateSplitGroupDialog(
                             )
                         }
                     } else {
-                        items(friends, key = { it.id }) { friend ->
+                        items(friends, key = { "friend_${it.id}" }) { friend ->
                             val isSelected = selectedFriendIds.contains(friend.id)
                             Row(
                                 modifier = Modifier

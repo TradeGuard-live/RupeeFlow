@@ -16,7 +16,10 @@ import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
 import org.json.JSONObject
+import com.naman.rupeeflow.ui.screens.splitpro.SplitProViewModel
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -38,8 +41,11 @@ import java.io.File
  * - UI States & Responsive Handling (78-88)
  * - Security, Reliability & Performance (89-100)
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
 class SplitProComprehensiveQATest {
+
+    private val testDispatcher = kotlinx.coroutines.test.UnconfinedTestDispatcher()
 
     private lateinit var context: Context
     private lateinit var db: RupeeFlowDatabase
@@ -59,6 +65,7 @@ class SplitProComprehensiveQATest {
 
     @Before
     fun setUp() = runBlocking {
+        kotlinx.coroutines.Dispatchers.setMain(testDispatcher)
         context = RuntimeEnvironment.getApplication()
         db = Room.inMemoryDatabaseBuilder(context, RupeeFlowDatabase::class.java)
             .allowMainThreadQueries()
@@ -99,6 +106,7 @@ class SplitProComprehensiveQATest {
     @After
     fun tearDown() {
         db.close()
+        kotlinx.coroutines.Dispatchers.resetMain()
     }
 
     // =========================================================================
@@ -1675,5 +1683,138 @@ class SplitProComprehensiveQATest {
         assertTrue(minSdk >= 26)
         assertTrue(targetSdk >= 34)
         assertNotNull(appVersion)
+    }
+
+    @Test
+    fun test101_splitProViewModelInitialization() = runBlocking {
+        val userPrefsRepo = UserPreferencesRepository(context)
+        val vm = SplitProViewModel(
+            expenseGroupRepository = expenseGroupRepo,
+            transactionRepository = transactionRepo,
+            settlementRepository = settlementRepo,
+            friendRepository = friendRepo,
+            friendGroupRepository = friendGroupRepo,
+            categoryRepository = categoryRepo,
+            groupActivityRepository = activityRepo,
+            userPreferencesRepository = userPrefsRepo
+        )
+        val state = vm.uiState.first { !it.isLoading }
+        assertNotNull(state)
+        assertFalse(state.isLoading)
+        assertEquals(0, state.groups.size)
+    }
+
+    @Test
+    fun test102_splitProViewModelWithExistingGroupsAndTransactions() = runBlocking {
+        val userPrefsRepo = UserPreferencesRepository(context)
+        val groupId = expenseGroupRepo.createExpenseGroup(
+            name = "Test Group",
+            groupType = GroupType.TRIP
+        )
+        transactionRepo.saveTransaction(
+            Transaction(
+                id = 1L,
+                title = "Coffee",
+                amountPaise = 5000L,
+                categoryId = defaultCategoryId,
+                expenseGroupId = null
+            )
+        )
+        transactionRepo.saveTransaction(
+            Transaction(
+                id = 2L,
+                title = "Group Dinner",
+                amountPaise = 20000L,
+                categoryId = defaultCategoryId,
+                expenseGroupId = groupId,
+                participants = listOf(
+                    TransactionParticipant(friendId = null, shareAmountPaise = 10000L),
+                    TransactionParticipant(friendId = friendJayId, shareAmountPaise = 10000L)
+                )
+            )
+        )
+        val vm = SplitProViewModel(
+            expenseGroupRepository = expenseGroupRepo,
+            transactionRepository = transactionRepo,
+            settlementRepository = settlementRepo,
+            friendRepository = friendRepo,
+            friendGroupRepository = friendGroupRepo,
+            categoryRepository = categoryRepo,
+            groupActivityRepository = activityRepo,
+            userPreferencesRepository = userPrefsRepo
+        )
+        val state = vm.uiState.first { !it.isLoading && it.groups.isNotEmpty() }
+        assertNotNull(state)
+        assertFalse(state.isLoading)
+        assertEquals(1, state.groups.size)
+        val summary = state.groupSummaries[groupId]
+        assertNotNull(summary)
+        assertEquals(20000L, summary!!.totalExpensePaise)
+        assertEquals(10000L, summary.myNetBalancePaise)
+        assertEquals(20000L, state.totalGroupExpensesPaise)
+        assertEquals(10000L, state.totalOthersOweMePaise)
+        assertEquals(0L, state.totalIOweOthersPaise)
+    }
+
+    @Test
+    fun test103_splitProPersonalSettlementDoesNotLeakIntoGroup() = runBlocking {
+        val userPrefsRepo = UserPreferencesRepository(context)
+        val groupId = expenseGroupRepo.createExpenseGroup(
+            name = "Office Flat",
+            groupType = GroupType.HOME,
+            friendIds = listOf(friendJayId)
+        )
+        // Personal 1:1 settlement with groupId = null
+        settlementRepo.recordSettlement(
+            Settlement(
+                payerId = friendJayId,
+                receiverId = null,
+                amountPaise = 15000L,
+                settlementDate = System.currentTimeMillis(),
+                groupId = null
+            )
+        )
+        val vm = SplitProViewModel(
+            expenseGroupRepository = expenseGroupRepo,
+            transactionRepository = transactionRepo,
+            settlementRepository = settlementRepo,
+            friendRepository = friendRepo,
+            friendGroupRepository = friendGroupRepo,
+            categoryRepository = categoryRepo,
+            groupActivityRepository = activityRepo,
+            userPreferencesRepository = userPrefsRepo
+        )
+        val state = vm.uiState.first { !it.isLoading && it.groups.isNotEmpty() }
+        val summary = state.groupSummaries[groupId]
+        assertNotNull(summary)
+        // Group has 0 group transactions and 0 group settlements
+        assertEquals(0L, summary!!.totalExpensePaise)
+        assertEquals(0L, summary.myNetBalancePaise)
+    }
+
+    @Test
+    fun test104_splitProActivityRecordingAndSafeRetrieval() = runBlocking {
+        val groupId = expenseGroupRepo.createExpenseGroup(
+            name = "Weekend Outing",
+            groupType = GroupType.FRIENDS,
+            friendIds = listOf(friendJayId, friendManavId)
+        )
+        val actId1 = activityRepo.recordActivity(
+            groupId = groupId,
+            activityType = GroupActivityType.GROUP_CREATED,
+            actorName = "You",
+            description = "Created group \"Weekend Outing\""
+        )
+        val actId2 = activityRepo.recordActivity(
+            groupId = groupId,
+            activityType = GroupActivityType.EXPENSE_CREATED,
+            actorName = "You",
+            description = "Added expense \"Resort\"",
+            amountPaise = 50000L
+        )
+        assertTrue(actId1 > 0)
+        assertTrue(actId2 > 0)
+        val activities = activityRepo.getActivitiesForGroup(groupId).first()
+        assertEquals(2, activities.size)
     }
 }
