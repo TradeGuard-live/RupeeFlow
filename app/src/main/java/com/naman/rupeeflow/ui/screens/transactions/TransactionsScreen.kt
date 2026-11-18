@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -38,7 +39,7 @@ fun TransactionsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    // ✅ rememberSaveable keeps the sheet open across biometric lock/unlock and activity recreation
+    // rememberSaveable keeps the sheet open across biometric lock/unlock and activity recreation
     var showFastAddSheet by rememberSaveable { mutableStateOf(false) }
     var showVoiceAssistant by remember { mutableStateOf(false) }
     var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
@@ -137,7 +138,7 @@ fun TransactionsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ✅ Time Period Filters (All Time, Monthly, Weekly) - Group A and Group B removed for cleaner UI
+            // Time Period Filters (All Time, Monthly, Weekly) - Group A and Group B removed for cleaner UI
             val dateFilters = listOf(
                 "ALL" to "All Time",
                 "MONTHLY" to "Monthly",
@@ -206,11 +207,11 @@ fun TransactionsScreen(
             // Transactions List
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 96.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                if (state.listItems.isEmpty()) {
-                    item {
+                if (state.dateGroups.isEmpty()) {
+                    item(key = "empty_state") {
                         MascotEmptyState(
                             pose = MascotPose.THINKING,
                             title = "No transactions found",
@@ -222,27 +223,44 @@ fun TransactionsScreen(
                         )
                     }
                 } else {
-                    items(
-                        items = state.listItems,
-                        key = { item ->
-                            when (item) {
-                                is TransactionListItem.Individual -> "txn_${item.transaction.id}"
-                                is TransactionListItem.TripCard -> "trip_${item.expenseGroupId}"
-                            }
+                    state.dateGroups.forEachIndexed { groupIndex, group ->
+                        item(
+                            key = "header_${group.dateEpochMillis}_${group.heading}",
+                            contentType = "header"
+                        ) {
+                            TransactionDateHeader(
+                                heading = group.heading,
+                                modifier = if (groupIndex > 0) Modifier.padding(top = 8.dp) else Modifier
+                            )
                         }
-                    ) { item ->
-                        when (item) {
-                            is TransactionListItem.Individual -> {
-                                TransactionItemCard(
-                                    transaction = item.transaction,
-                                    onClick = { selectedTransaction = item.transaction }
-                                )
+                        items(
+                            items = group.items,
+                            key = { item ->
+                                when (item) {
+                                    is TransactionListItem.Individual -> "txn_${item.transaction.id}"
+                                    is TransactionListItem.TripCard -> "trip_${item.expenseGroupId}"
+                                }
+                            },
+                            contentType = { item ->
+                                when (item) {
+                                    is TransactionListItem.Individual -> "individual"
+                                    is TransactionListItem.TripCard -> "trip"
+                                }
                             }
-                            is TransactionListItem.TripCard -> {
-                                TripTransactionSummaryCard(
-                                    tripCard = item,
-                                    onClick = { onNavigateToTripDetail(item.expenseGroupId) }
-                                )
+                        ) { item ->
+                            when (item) {
+                                is TransactionListItem.Individual -> {
+                                    TransactionItemCard(
+                                        transaction = item.transaction,
+                                        onClick = { selectedTransaction = item.transaction }
+                                    )
+                                }
+                                is TransactionListItem.TripCard -> {
+                                    TripTransactionSummaryCard(
+                                        tripCard = item,
+                                        onClick = { onNavigateToTripDetail(item.expenseGroupId) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -334,7 +352,7 @@ fun ExpenseGroupTransactionCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (cluster.groupId == null) Icons.Default.ReceiptLong else Icons.Default.CardTravel,
+                        imageVector = if (cluster.groupId == null) Icons.AutoMirrored.Filled.ReceiptLong else Icons.Default.CardTravel,
                         contentDescription = null,
                         tint = groupColor,
                         modifier = Modifier.size(20.dp)
@@ -570,5 +588,31 @@ fun TripTransactionSummaryCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun TransactionDateHeader(
+    heading: String,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            text = heading,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = AppTheme.colors.textSecondary,
+            letterSpacing = 0.3.sp
+        )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = AppTheme.colors.divider.copy(alpha = 0.5f)
+        )
     }
 }

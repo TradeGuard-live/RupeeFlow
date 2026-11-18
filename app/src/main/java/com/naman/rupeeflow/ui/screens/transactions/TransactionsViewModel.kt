@@ -47,6 +47,7 @@ data class TransactionsUiState(
     val allTransactions: List<Transaction> = emptyList(),
     val filteredTransactions: List<Transaction> = emptyList(),
     val listItems: List<TransactionListItem> = emptyList(),
+    val dateGroups: List<TransactionDateGroup> = emptyList(),
     val isGroupedByExpenseGroup: Boolean = true,
     val expandedGroupKeys: Set<String> = emptySet(),
     val transactionClusters: List<ExpenseGroupTransactionCluster> = emptyList(),
@@ -74,7 +75,9 @@ class TransactionsViewModel(
     private val friendGroupRepository: FriendGroupRepository? = null,
     private val expenseGroupRepository: com.naman.rupeeflow.data.repository.ExpenseGroupRepository? = null,
     private val inputRankingRepository: InputRankingRepository? = null,
-    private val pendingTransactionRepository: PendingTransactionRepository? = null
+    private val pendingTransactionRepository: PendingTransactionRepository? = null,
+    private val clock: () -> Long = { System.currentTimeMillis() },
+    private val timeZoneProvider: () -> java.util.TimeZone = { java.util.TimeZone.getDefault() }
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TransactionsUiState())
@@ -116,6 +119,12 @@ class TransactionsViewModel(
                     )
                     val clusters = clusterTransactions(filtered, bundle.expGroups, current.expandedGroupKeys)
                     val listItems = buildTransactionListItems(filtered, bundle.expGroups)
+                    val dateGroups = TransactionDateGrouper.groupItemsByDate(
+                        items = listItems,
+                        now = clock(),
+                        timeZone = timeZoneProvider(),
+                        locale = java.util.Locale.getDefault()
+                    )
                     val rankedCategories = inputRankingRepository?.rankOptions("CATEGORY", bundle.categories) { it.id.toString() } ?: bundle.categories
                     val rankedGroups = inputRankingRepository?.rankOptions("GROUP", bundle.groups) { it.id.toString() } ?: bundle.groups
                     val rankedFriends = inputRankingRepository?.rankOptions("FRIEND", bundle.friends) { it.id.toString() } ?: bundle.friends
@@ -125,6 +134,7 @@ class TransactionsViewModel(
                         allTransactions = bundle.txns,
                         filteredTransactions = filtered,
                         listItems = listItems,
+                        dateGroups = dateGroups,
                         transactionClusters = clusters,
                         categories = rankedCategories,
                         friends = rankedFriends,
@@ -245,6 +255,12 @@ class TransactionsViewModel(
         }
         val clusters = clusterTransactions(filtered, current.expenseGroups, expandedKeys)
         val listItems = buildTransactionListItems(filtered, current.expenseGroups)
+        val dateGroups = TransactionDateGrouper.groupItemsByDate(
+            items = listItems,
+            now = clock(),
+            timeZone = timeZoneProvider(),
+            locale = java.util.Locale.getDefault()
+        )
         val dateLabel = getDatePeriodLabel(dateFilter, dateOffset)
 
         return current.copy(
@@ -258,9 +274,22 @@ class TransactionsViewModel(
             selectedCategoryFilter = categoryFilter,
             filteredTransactions = filtered,
             listItems = listItems,
+            dateGroups = dateGroups,
             transactionClusters = clusters,
             expandedGroupKeys = expandedKeys
         )
+    }
+
+    fun refreshDateGrouping() {
+        _uiState.update { current ->
+            val dateGroups = TransactionDateGrouper.groupItemsByDate(
+                items = current.listItems,
+                now = clock(),
+                timeZone = timeZoneProvider(),
+                locale = java.util.Locale.getDefault()
+            )
+            current.copy(dateGroups = dateGroups)
+        }
     }
 
     private fun buildTransactionListItems(
@@ -286,7 +315,12 @@ class TransactionsViewModel(
             val destination = groupObj?.destination
             val iconName = groupObj?.iconName ?: "flight"
             val colorHex = groupObj?.colorHex ?: "#3B82F6"
-            val sortedTxns = groupTransactions.sortedByDescending { it.transactionDate }
+            val sortedTxns = groupTransactions.sortedWith(
+                Comparator { a, b ->
+                    if (a.transactionDate != b.transactionDate) b.transactionDate.compareTo(a.transactionDate)
+                    else b.id.compareTo(a.id)
+                }
+            )
             val latestDate = sortedTxns.first().transactionDate
             val minDate = sortedTxns.last().transactionDate
 
@@ -316,12 +350,7 @@ class TransactionsViewModel(
             )
         }
 
-        return items.sortedByDescending { item ->
-            when (item) {
-                is TransactionListItem.Individual -> item.transaction.transactionDate
-                is TransactionListItem.TripCard -> item.latestDate
-            }
-        }
+        return items.sortedWith(TransactionDateGrouper.itemComparator)
     }
 
     private fun clusterTransactions(

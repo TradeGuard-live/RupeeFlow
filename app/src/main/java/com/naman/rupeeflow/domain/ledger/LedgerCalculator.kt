@@ -586,7 +586,7 @@ object LedgerCalculator {
         )
     }
 
-    // ✅ Calculate outstanding/unsettled expenses for a friend using deterministic FIFO allocation
+    // Calculate outstanding/unsettled expenses for a friend using deterministic FIFO allocation
     fun calculateUnsettledExpenses(
         friendId: Long,
         transactions: List<Transaction>,
