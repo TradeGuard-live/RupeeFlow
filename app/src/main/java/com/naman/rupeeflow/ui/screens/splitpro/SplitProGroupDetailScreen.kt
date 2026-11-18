@@ -23,6 +23,7 @@ import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
 import com.naman.rupeeflow.domain.util.SafeMath
+import com.naman.rupeeflow.ui.components.EditTransactionDialog
 import com.naman.rupeeflow.ui.components.FriendAvatar
 import com.naman.rupeeflow.ui.components.TransactionDetailDialog
 import com.naman.rupeeflow.ui.components.TransactionItemCard
@@ -63,6 +64,7 @@ fun SplitProGroupDetailScreen(
     var settleUpReceiverId by remember { mutableStateOf<Long?>(null) }
     var settleUpAmountPaise by remember { mutableStateOf<Long?>(null) }
     var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
+    var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
 
     // Activity filter
     var activityFilter by remember { mutableStateOf("ALL") }
@@ -240,8 +242,13 @@ fun SplitProGroupDetailScreen(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = AppTheme.colors.textSecondary
                             )
+                            val activeMemberCount = if (groupSummary != null && groupSummary.memberBalances.isNotEmpty()) {
+                                groupSummary.memberBalances.size
+                            } else {
+                                (group.memberCount + 1).coerceAtLeast(1)
+                            }
                             Text(
-                                text = "${group.memberCount + 1} members",
+                                text = if (activeMemberCount == 1) "1 member" else "$activeMemberCount members",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = AppTheme.colors.primaryAccent,
                                 fontWeight = FontWeight.SemiBold
@@ -417,8 +424,8 @@ fun SplitProGroupDetailScreen(
                         } else {
                             items(groupSettlements) { s ->
                                 val friendsMap = state.friends.associateBy { it.id }
-                                val pName = if (s.payerId == null) "You" else friendsMap[s.payerId]?.name ?: "Friend"
-                                val rName = if (s.receiverId == null) "You" else friendsMap[s.receiverId]?.name ?: "Friend"
+                                val pName = if (s.payerId == null) "You" else friendsMap[s.payerId]?.name ?: "Unavailable Member"
+                                val rName = if (s.receiverId == null) "You" else friendsMap[s.receiverId]?.name ?: "Unavailable Member"
 
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
@@ -440,7 +447,7 @@ fun SplitProGroupDetailScreen(
                                                 color = if (s.isReversed) AppTheme.colors.textSecondary else AppTheme.colors.textPrimary
                                             )
                                             Text(
-                                                text = "${DateTimeUtils.formatDate(s.settlementDate, "dd MMM yyyy")} • ${s.paymentMethod.displayName}",
+                                                text = "${DateTimeUtils.formatDate(s.settlementDate, "dd MMMM yyyy")} • ${s.paymentMethod.displayName}",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = AppTheme.colors.textSecondary
                                             )
@@ -772,10 +779,27 @@ fun SplitProGroupDetailScreen(
                 viewModel.deleteGroupExpense(txn)
                 selectedTransactionForDetail = null
             },
-            onEdit = {
+            onEdit = { toEdit ->
+                editingTransaction = toEdit
                 selectedTransactionForDetail = null
             },
             onSaveTransaction = { viewModel.saveGroupExpense(it) }
+        )
+    }
+
+    // Edit Transaction Dialog
+    editingTransaction?.let { txn ->
+        EditTransactionDialog(
+            transaction = txn,
+            categories = state.categories,
+            friends = state.friends,
+            groups = emptyList(),
+            expenseGroups = state.groups,
+            onDismiss = { editingTransaction = null },
+            onSave = { updated ->
+                viewModel.saveGroupExpense(updated)
+                editingTransaction = null
+            }
         )
     }
 }

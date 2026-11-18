@@ -113,18 +113,18 @@ object LedgerCalculator {
 
         val simplified = mutableListOf<SimplifiedDebt>()
 
-        // Greedy matching of largest debtor with largest creditor
+        // Greedy matching of largest debtor with largest creditor, with deterministic tie-breaking
         while (debtors.isNotEmpty() && creditors.isNotEmpty()) {
-            debtors.sortByDescending { it.amountPaise }
-            creditors.sortByDescending { it.amountPaise }
+            debtors.sortWith(compareByDescending<BalanceEntry> { it.amountPaise }.thenBy { it.memberId ?: -1L })
+            creditors.sortWith(compareByDescending<BalanceEntry> { it.amountPaise }.thenBy { it.memberId ?: -1L })
 
             val debtor = debtors.first()
             val creditor = creditors.first()
 
             val transfer = minOf(debtor.amountPaise, creditor.amountPaise)
             if (transfer > 0L) {
-                val fromName = memberNames[debtor.memberId] ?: if (debtor.memberId == null) "You" else "Member #${debtor.memberId}"
-                val toName = memberNames[creditor.memberId] ?: if (creditor.memberId == null) "You" else "Member #${creditor.memberId}"
+                val fromName = memberNames[debtor.memberId] ?: if (debtor.memberId == null) "You" else "Unavailable Member"
+                val toName = memberNames[creditor.memberId] ?: if (creditor.memberId == null) "You" else "Unavailable Member"
                 simplified.add(
                     SimplifiedDebt(
                         fromMemberId = debtor.memberId,
@@ -162,7 +162,8 @@ object LedgerCalculator {
         groupId: Long,
         transactions: List<Transaction>,
         settlements: List<Settlement>,
-        members: List<Friend>
+        members: List<Friend>,
+        allFriends: List<Friend> = emptyList()
     ): GroupBalanceSummary {
         val groupTxns = transactions.filter {
             (it.expenseGroupId == null || it.expenseGroupId == groupId) &&
@@ -174,11 +175,16 @@ object LedgerCalculator {
         }
         val groupSettlements = settlements.filter { (it.groupId == null || it.groupId == groupId) && !it.isReversed }
 
-        val memberMap = members.associateBy { it.id }
+        val friendsLookup = (allFriends + members).associateBy { it.id }
         val memberNames = mutableMapOf<Long?, String>()
         memberNames[null] = "You"
         for (f in members) {
             memberNames[f.id] = f.name
+        }
+        for (f in allFriends) {
+            if (!memberNames.containsKey(f.id)) {
+                memberNames[f.id] = f.name
+            }
         }
 
         val allMemberIds = mutableSetOf<Long?>()
@@ -187,14 +193,14 @@ object LedgerCalculator {
 
         // Include any participants from transactions or settlements
         for (t in groupTxns) {
-            allMemberIds.add(t.paidByFriendId)
+            if (t.paidByFriendId != null) allMemberIds.add(t.paidByFriendId)
             for (p in t.participants) {
-                allMemberIds.add(p.friendId)
+                if (p.friendId != null) allMemberIds.add(p.friendId)
             }
         }
         for (s in groupSettlements) {
-            allMemberIds.add(s.payerId)
-            allMemberIds.add(s.receiverId)
+            if (s.payerId != null) allMemberIds.add(s.payerId)
+            if (s.receiverId != null) allMemberIds.add(s.receiverId)
         }
 
         // Initialize ledger tracking
@@ -204,7 +210,7 @@ object LedgerCalculator {
             paidMap[m] = 0L
             shareMap[m] = 0L
             if (!memberNames.containsKey(m)) {
-                memberNames[m] = memberMap[m]?.name ?: "Friend #$m"
+                memberNames[m] = friendsLookup[m]?.name ?: if (m == null) "You" else "Unavailable Member"
             }
         }
 
@@ -275,7 +281,7 @@ object LedgerCalculator {
             netBalances[mId] = net
             GroupMemberBalance(
                 memberId = mId,
-                memberName = memberNames[mId] ?: (if (mId == null) "You" else "Friend #$mId"),
+                memberName = memberNames[mId] ?: (if (mId == null) "You" else "Unavailable Member"),
                 totalPaidPaise = paid,
                 totalSharePaise = share,
                 netBalancePaise = net
@@ -306,9 +312,9 @@ object LedgerCalculator {
                     directDebts.add(
                         SimplifiedDebt(
                             fromMemberId = m1,
-                            fromMemberName = memberNames[m1] ?: "Friend",
+                            fromMemberName = memberNames[m1] ?: (if (m1 == null) "You" else "Unavailable Member"),
                             toMemberId = m2,
-                            toMemberName = memberNames[m2] ?: "Friend",
+                            toMemberName = memberNames[m2] ?: (if (m2 == null) "You" else "Unavailable Member"),
                             amountPaise = netDiff
                         )
                     )
@@ -316,9 +322,9 @@ object LedgerCalculator {
                     directDebts.add(
                         SimplifiedDebt(
                             fromMemberId = m2,
-                            fromMemberName = memberNames[m2] ?: "Friend",
+                            fromMemberName = memberNames[m2] ?: (if (m2 == null) "You" else "Unavailable Member"),
                             toMemberId = m1,
-                            toMemberName = memberNames[m1] ?: "Friend",
+                            toMemberName = memberNames[m1] ?: (if (m1 == null) "You" else "Unavailable Member"),
                             amountPaise = SafeMath.safeAbs(netDiff)
                         )
                     )

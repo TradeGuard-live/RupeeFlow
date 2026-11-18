@@ -46,13 +46,14 @@ fun GroupSettleUpDialog(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val allMemberIds = remember(group.memberFriendIds) {
-        listOf<Long?>(null) + group.memberFriendIds
+    val allMemberIds = remember(group.memberFriendIds, groupSummary) {
+        val summaryIds = groupSummary?.memberBalances?.map { it.memberId } ?: emptyList()
+        (listOf<Long?>(null) + group.memberFriendIds + summaryIds).distinct()
     }
     val friendsMap = remember(friends) { friends.associateBy { it.id } }
 
     fun getMemberName(mId: Long?): String {
-        return if (mId == null) "You" else friendsMap[mId]?.name ?: "Friend #$mId"
+        return if (mId == null) "You" else friendsMap[mId]?.name ?: "Unavailable Member"
     }
 
     val defaultReceiver = allMemberIds.firstOrNull { it != initialPayerId }

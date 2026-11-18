@@ -57,13 +57,14 @@ fun EditTransactionDialog(
     var description by remember { mutableStateOf(transaction.description) }
 
     // 3. Amount
-    var amountText by remember {
-        mutableStateOf(
-            if (transaction.amountPaise > 0L) {
-                (transaction.amountPaise / 100.0).toString()
-            } else ""
-        )
-    }
+    val initialAmountText = if (transaction.amountPaise > 0L) {
+        if (transaction.amountPaise % 100L == 0L) {
+            (transaction.amountPaise / 100L).toString()
+        } else {
+            String.format(java.util.Locale.US, "%.2f", transaction.amountPaise / 100.0)
+        }
+    } else ""
+    var amountText by remember { mutableStateOf(initialAmountText) }
 
     // 4. Category
     var selectedCategory by remember {
@@ -127,7 +128,14 @@ fun EditTransactionDialog(
     var customRupeeInputs by remember {
         mutableStateOf(
             transaction.participants.associate { p ->
-                p.friendId to (if (p.shareAmountPaise > 0L) (p.shareAmountPaise / 100.0).toString() else "")
+                val formattedShare = if (p.shareAmountPaise > 0L) {
+                    if (p.shareAmountPaise % 100L == 0L) {
+                        (p.shareAmountPaise / 100L).toString()
+                    } else {
+                        String.format(java.util.Locale.US, "%.2f", p.shareAmountPaise / 100.0)
+                    }
+                } else ""
+                p.friendId to formattedShare
             }
         )
     }

@@ -387,8 +387,14 @@ fun SplitProScreen(
                                                 color = AppTheme.colors.primaryAccent,
                                                 fontWeight = FontWeight.SemiBold
                                             )
+                                            val groupSummary = state.groupSummaries[group.id]
+                                            val activeCount = if (groupSummary != null && groupSummary.memberBalances.isNotEmpty()) {
+                                                groupSummary.memberBalances.size
+                                            } else {
+                                                (group.memberCount + 1).coerceAtLeast(1)
+                                            }
                                             Text(
-                                                text = " • ${group.memberCount + 1} members",
+                                                text = if (activeCount == 1) " • 1 member" else " • $activeCount members",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 color = AppTheme.colors.textSecondary
                                             )

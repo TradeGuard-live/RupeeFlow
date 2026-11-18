@@ -128,7 +128,8 @@ class SplitProViewModel(
                 groupId = g.id,
                 transactions = groupTxns,
                 settlements = groupSettlements,
-                members = groupMembers
+                members = groupMembers,
+                allFriends = friends
             )
             summaries[g.id] = summary
 
@@ -368,8 +369,8 @@ class SplitProViewModel(
                 val id = settlementRepository.recordSettlement(settlement)
                 val gId = settlement.groupId
                 if (gId != null && gId > 0L) {
-                    val payerName = if (settlement.payerId == null) "You" else _uiState.value.friends.firstOrNull { it.id == settlement.payerId }?.name ?: "Friend"
-                    val receiverName = if (settlement.receiverId == null) "You" else _uiState.value.friends.firstOrNull { it.id == settlement.receiverId }?.name ?: "Friend"
+                    val payerName = if (settlement.payerId == null) "You" else _uiState.value.friends.firstOrNull { it.id == settlement.payerId }?.name ?: "Unavailable Member"
+                    val receiverName = if (settlement.receiverId == null) "You" else _uiState.value.friends.firstOrNull { it.id == settlement.receiverId }?.name ?: "Unavailable Member"
                     try {
                         groupActivityRepository.recordActivity(
                             groupId = gId,

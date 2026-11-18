@@ -68,7 +68,7 @@ fun AddGroupExpenseDialog(
     val friendsMap = remember(friends) { friends.associateBy { it.id } }
 
     fun getMemberName(mId: Long?): String {
-        return if (mId == null) "You" else friendsMap[mId]?.name ?: "Friend #$mId"
+        return if (mId == null) "You" else friendsMap[mId]?.name ?: "Unavailable Member"
     }
 
     // Participants selection
