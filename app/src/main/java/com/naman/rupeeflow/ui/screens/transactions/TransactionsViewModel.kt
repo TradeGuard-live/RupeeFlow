@@ -6,6 +6,10 @@ import com.naman.rupeeflow.data.repository.*
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.DatePeriodHelper
 import com.naman.rupeeflow.domain.util.DateTimeUtils
+import com.naman.rupeeflow.ui.screens.calendar.CalendarDaySummary
+import com.naman.rupeeflow.ui.screens.calendar.MonthlyCalendarEngine
+import com.naman.rupeeflow.ui.screens.calendar.MonthlyCalendarGridData
+import com.naman.rupeeflow.ui.screens.calendar.TransactionsViewMode
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -64,7 +68,13 @@ data class TransactionsUiState(
     val friends: List<Friend> = emptyList(),
     val friendGroups: List<FriendGroup> = emptyList(),
     val expenseGroups: List<com.naman.rupeeflow.domain.model.ExpenseGroup> = emptyList(),
-    val pendingCount: Int = 0
+    val pendingCount: Int = 0,
+    val viewMode: TransactionsViewMode = TransactionsViewMode.LIST,
+    val calendarYear: Int = 2026,
+    val calendarMonth: Int = Calendar.NOVEMBER,
+    val selectedCalendarDateMillis: Long = System.currentTimeMillis(),
+    val calendarGridData: MonthlyCalendarGridData? = null,
+    val selectedDaySummary: CalendarDaySummary? = null
 )
 
 class TransactionsViewModel(
@@ -129,6 +139,22 @@ class TransactionsViewModel(
                     val rankedGroups = inputRankingRepository?.rankOptions("GROUP", bundle.groups) { it.id.toString() } ?: bundle.groups
                     val rankedFriends = inputRankingRepository?.rankOptions("FRIEND", bundle.friends) { it.id.toString() } ?: bundle.friends
 
+                    val nowCal = Calendar.getInstance(timeZoneProvider()).apply { timeInMillis = clock() }
+                    val currentYear = if (current.calendarGridData != null) current.calendarYear else nowCal.get(Calendar.YEAR)
+                    val currentMonth = if (current.calendarGridData != null) current.calendarMonth else nowCal.get(Calendar.MONTH)
+                    val currentDateMillis = if (current.calendarGridData != null) current.selectedCalendarDateMillis else clock()
+
+                    val (grid, summary) = computeCalendarState(
+                        allTxns = bundle.txns,
+                        year = currentYear,
+                        month = currentMonth,
+                        selectedDateMillis = currentDateMillis,
+                        query = current.searchQuery,
+                        typeFilter = current.selectedTypeFilter,
+                        methodFilter = current.selectedPaymentMethodFilter,
+                        categoryFilter = current.selectedCategoryFilter
+                    )
+
                     current.copy(
                         isLoading = false,
                         allTransactions = bundle.txns,
@@ -139,7 +165,12 @@ class TransactionsViewModel(
                         categories = rankedCategories,
                         friends = rankedFriends,
                         friendGroups = rankedGroups,
-                        expenseGroups = bundle.expGroups
+                        expenseGroups = bundle.expGroups,
+                        calendarYear = currentYear,
+                        calendarMonth = currentMonth,
+                        selectedCalendarDateMillis = currentDateMillis,
+                        calendarGridData = grid,
+                        selectedDaySummary = summary
                     )
                 }
             }
@@ -262,6 +293,16 @@ class TransactionsViewModel(
             locale = java.util.Locale.getDefault()
         )
         val dateLabel = getDatePeriodLabel(dateFilter, dateOffset)
+        val (grid, summary) = computeCalendarState(
+            allTxns = current.allTransactions,
+            year = current.calendarYear,
+            month = current.calendarMonth,
+            selectedDateMillis = current.selectedCalendarDateMillis,
+            query = query,
+            typeFilter = typeFilter,
+            methodFilter = methodFilter,
+            categoryFilter = categoryFilter
+        )
 
         return current.copy(
             searchQuery = query,
@@ -276,7 +317,9 @@ class TransactionsViewModel(
             listItems = listItems,
             dateGroups = dateGroups,
             transactionClusters = clusters,
-            expandedGroupKeys = expandedKeys
+            expandedGroupKeys = expandedKeys,
+            calendarGridData = grid,
+            selectedDaySummary = summary
         )
     }
 
@@ -289,6 +332,216 @@ class TransactionsViewModel(
                 locale = java.util.Locale.getDefault()
             )
             current.copy(dateGroups = dateGroups)
+        }
+    }
+
+    private fun computeCalendarState(
+        allTxns: List<Transaction>,
+        year: Int,
+        month: Int,
+        selectedDateMillis: Long,
+        query: String,
+        typeFilter: String,
+        methodFilter: PaymentMethod?,
+        categoryFilter: Category?
+    ): Pair<MonthlyCalendarGridData, CalendarDaySummary?> {
+        val calendarTxns = applyFilters(
+            txns = allTxns,
+            query = query,
+            typeFilter = typeFilter,
+            dateFilter = "ALL",
+            dateOffset = 0,
+            methodFilter = methodFilter,
+            categoryFilter = categoryFilter
+        )
+        val grid = MonthlyCalendarEngine.computeMonthGrid(
+            year = year,
+            month = month,
+            transactions = calendarTxns,
+            selectedTypeFilter = typeFilter,
+            timeZone = timeZoneProvider(),
+            locale = java.util.Locale.getDefault()
+        )
+        val cal = Calendar.getInstance(timeZoneProvider()).apply { timeInMillis = selectedDateMillis }
+        val selYear = cal.get(Calendar.YEAR)
+        val selMonth = cal.get(Calendar.MONTH)
+        val selDay = cal.get(Calendar.DAY_OF_MONTH)
+
+        val selectedSummary = if (selYear == year && selMonth == month) {
+            grid.cells.firstOrNull { it.isCurrentMonth && it.dayOfMonth == selDay }?.summary
+        } else {
+            grid.cells.firstOrNull { it.isCurrentMonth && it.dayOfMonth == 1 }?.summary
+        }
+        return Pair(grid, selectedSummary)
+    }
+
+    fun setViewMode(mode: TransactionsViewMode) {
+        _uiState.update { current ->
+            if (current.viewMode == mode) return@update current
+            val (grid, summary) = computeCalendarState(
+                allTxns = current.allTransactions,
+                year = current.calendarYear,
+                month = current.calendarMonth,
+                selectedDateMillis = current.selectedCalendarDateMillis,
+                query = current.searchQuery,
+                typeFilter = current.selectedTypeFilter,
+                methodFilter = current.selectedPaymentMethodFilter,
+                categoryFilter = current.selectedCategoryFilter
+            )
+            current.copy(
+                viewMode = mode,
+                calendarGridData = grid,
+                selectedDaySummary = summary
+            )
+        }
+    }
+
+    fun previousCalendarMonth() {
+        _uiState.update { current ->
+            val (prevYear, prevMonth) = MonthlyCalendarEngine.getPreviousMonth(current.calendarYear, current.calendarMonth)
+            val cal = Calendar.getInstance(timeZoneProvider()).apply {
+                set(Calendar.YEAR, prevYear)
+                set(Calendar.MONTH, prevMonth)
+                set(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.HOUR_OF_DAY, 12)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val targetDateMillis = cal.timeInMillis
+            val (grid, summary) = computeCalendarState(
+                allTxns = current.allTransactions,
+                year = prevYear,
+                month = prevMonth,
+                selectedDateMillis = targetDateMillis,
+                query = current.searchQuery,
+                typeFilter = current.selectedTypeFilter,
+                methodFilter = current.selectedPaymentMethodFilter,
+                categoryFilter = current.selectedCategoryFilter
+            )
+            current.copy(
+                calendarYear = prevYear,
+                calendarMonth = prevMonth,
+                selectedCalendarDateMillis = targetDateMillis,
+                calendarGridData = grid,
+                selectedDaySummary = summary
+            )
+        }
+    }
+
+    fun nextCalendarMonth() {
+        _uiState.update { current ->
+            val (nextYear, nextMonth) = MonthlyCalendarEngine.getNextMonth(current.calendarYear, current.calendarMonth)
+            val cal = Calendar.getInstance(timeZoneProvider()).apply {
+                set(Calendar.YEAR, nextYear)
+                set(Calendar.MONTH, nextMonth)
+                set(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.HOUR_OF_DAY, 12)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val targetDateMillis = cal.timeInMillis
+            val (grid, summary) = computeCalendarState(
+                allTxns = current.allTransactions,
+                year = nextYear,
+                month = nextMonth,
+                selectedDateMillis = targetDateMillis,
+                query = current.searchQuery,
+                typeFilter = current.selectedTypeFilter,
+                methodFilter = current.selectedPaymentMethodFilter,
+                categoryFilter = current.selectedCategoryFilter
+            )
+            current.copy(
+                calendarYear = nextYear,
+                calendarMonth = nextMonth,
+                selectedCalendarDateMillis = targetDateMillis,
+                calendarGridData = grid,
+                selectedDaySummary = summary
+            )
+        }
+    }
+
+    fun goToTodayCalendar() {
+        val now = clock()
+        val cal = Calendar.getInstance(timeZoneProvider()).apply { timeInMillis = now }
+        val targetYear = cal.get(Calendar.YEAR)
+        val targetMonth = cal.get(Calendar.MONTH)
+        _uiState.update { current ->
+            val (grid, summary) = computeCalendarState(
+                allTxns = current.allTransactions,
+                year = targetYear,
+                month = targetMonth,
+                selectedDateMillis = now,
+                query = current.searchQuery,
+                typeFilter = current.selectedTypeFilter,
+                methodFilter = current.selectedPaymentMethodFilter,
+                categoryFilter = current.selectedCategoryFilter
+            )
+            current.copy(
+                calendarYear = targetYear,
+                calendarMonth = targetMonth,
+                selectedCalendarDateMillis = now,
+                calendarGridData = grid,
+                selectedDaySummary = summary
+            )
+        }
+    }
+
+    fun selectCalendarDate(dateMillis: Long) {
+        val cal = Calendar.getInstance(timeZoneProvider()).apply { timeInMillis = dateMillis }
+        val targetYear = cal.get(Calendar.YEAR)
+        val targetMonth = cal.get(Calendar.MONTH)
+        _uiState.update { current ->
+            val (grid, summary) = computeCalendarState(
+                allTxns = current.allTransactions,
+                year = targetYear,
+                month = targetMonth,
+                selectedDateMillis = dateMillis,
+                query = current.searchQuery,
+                typeFilter = current.selectedTypeFilter,
+                methodFilter = current.selectedPaymentMethodFilter,
+                categoryFilter = current.selectedCategoryFilter
+            )
+            current.copy(
+                calendarYear = targetYear,
+                calendarMonth = targetMonth,
+                selectedCalendarDateMillis = dateMillis,
+                calendarGridData = grid,
+                selectedDaySummary = summary
+            )
+        }
+    }
+
+    fun setCalendarMonth(year: Int, month: Int) {
+        val cal = Calendar.getInstance(timeZoneProvider()).apply {
+            set(Calendar.YEAR, year)
+            set(Calendar.MONTH, month)
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 12)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val targetDateMillis = cal.timeInMillis
+        _uiState.update { current ->
+            val (grid, summary) = computeCalendarState(
+                allTxns = current.allTransactions,
+                year = year,
+                month = month,
+                selectedDateMillis = targetDateMillis,
+                query = current.searchQuery,
+                typeFilter = current.selectedTypeFilter,
+                methodFilter = current.selectedPaymentMethodFilter,
+                categoryFilter = current.selectedCategoryFilter
+            )
+            current.copy(
+                calendarYear = year,
+                calendarMonth = month,
+                selectedCalendarDateMillis = targetDateMillis,
+                calendarGridData = grid,
+                selectedDaySummary = summary
+            )
         }
     }
 

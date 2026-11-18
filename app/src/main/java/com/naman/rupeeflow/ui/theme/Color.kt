@@ -48,6 +48,7 @@ data class AppColors(
     val cardBackground: Color get() = surface
     val accentContainer: Color get() = primaryAccentContainer
     val incomeGreen: Color get() = success
+    val expenseRed: Color get() = error
     val textMuted: Color get() = textTertiary
     val inputBackground: Color get() = if (isDark) surfaceSecondary else surface
 }

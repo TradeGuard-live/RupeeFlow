@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material3.*
@@ -28,8 +29,10 @@ import androidx.compose.ui.unit.sp
 import com.naman.rupeeflow.domain.ledger.LedgerCalculator
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.CurrencyUtils
+import com.naman.rupeeflow.domain.util.DateTimeUtils
 import com.naman.rupeeflow.ui.theme.*
 import com.naman.rupeeflow.voice.ui.VoiceAssistantSheet
+import java.util.Calendar
 import kotlin.math.abs
 import kotlin.math.roundToLong
 
@@ -60,9 +63,10 @@ fun FastAddExpenseSheet(
     suggestedFromPrevious: Boolean = false,
     originalDetectedMerchant: String? = null,
     initialLocation: TransactionLocation? = null,
-    onSearchMerchantLocation: (suspend (String) -> TransactionLocation?)? = null
+    onSearchMerchantLocation: (suspend (String) -> TransactionLocation?)? = null,
+    initialDateMillis: Long? = null
 ) {
-    // ✅ Mode: Expense, Income, or Settlement (rememberSaveable survives recreation)
+    // Mode: Expense, Income, or Settlement (rememberSaveable survives recreation)
     var selectedEntryType by rememberSaveable {
         mutableStateOf(
             when (initialType) {
@@ -72,7 +76,10 @@ fun FastAddExpenseSheet(
         )
     }
 
-    // ✅ Form inputs preserved across biometric prompt, camera, and picker
+    // Form inputs preserved across biometric prompt, camera, and picker
+    var selectedDateTimeMillis by rememberSaveable {
+        mutableStateOf(initialDateMillis ?: System.currentTimeMillis())
+    }
     var title by rememberSaveable { mutableStateOf(initialTitle ?: "") }
     var description by rememberSaveable { mutableStateOf("") }
     var amountText by rememberSaveable {
@@ -118,7 +125,7 @@ fun FastAddExpenseSheet(
     var splitMethod by rememberSaveable { mutableStateOf(SplitMethod.EQUAL) }
     var customRupeeInputs by remember { mutableStateOf(mapOf<Long?, String>()) } // null = Me
     var percentageInputs by remember { mutableStateOf(mapOf<Long?, String>()) } // null = Me
-    // ✅ Bill attachment path preserved across biometric prompt, camera, and picker
+    // Bill attachment path preserved across biometric prompt, camera, and picker
     var billImagePath by rememberSaveable { mutableStateOf<String?>(null) }
     var showVoiceSheet by remember { mutableStateOf(false) }
 
@@ -546,6 +553,64 @@ fun FastAddExpenseSheet(
                         onCreateExpenseGroup?.invoke(newName)
                     }
                 )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Transaction Date
+                val sheetContext = androidx.compose.ui.platform.LocalContext.current
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Date",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AppTheme.colors.textSecondary
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = AppTheme.colors.surfaceElevated,
+                        border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                        modifier = Modifier.clickable {
+                            val cal = Calendar.getInstance().apply { timeInMillis = selectedDateTimeMillis }
+                            android.app.DatePickerDialog(
+                                sheetContext,
+                                { _, y, m, d ->
+                                    val updated = Calendar.getInstance().apply {
+                                        timeInMillis = selectedDateTimeMillis
+                                        set(Calendar.YEAR, y)
+                                        set(Calendar.MONTH, m)
+                                        set(Calendar.DAY_OF_MONTH, d)
+                                    }
+                                    selectedDateTimeMillis = updated.timeInMillis
+                                },
+                                cal.get(Calendar.YEAR),
+                                cal.get(Calendar.MONTH),
+                                cal.get(Calendar.DAY_OF_MONTH)
+                            ).show()
+                        }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarToday,
+                                contentDescription = null,
+                                tint = AppTheme.colors.primaryAccent,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = DateTimeUtils.formatDate(selectedDateTimeMillis, "dd MMM yyyy"),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AppTheme.colors.textPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -1035,7 +1100,7 @@ fun FastAddExpenseSheet(
                             amountPaise = amountPaise,
                             categoryId = categoryId,
                             category = selectedCategory,
-                            transactionDate = System.currentTimeMillis(),
+                            transactionDate = selectedDateTimeMillis,
                             paymentMethod = effectivePaymentMethod,
                             paidByFriendId = selectedPayerId,
                             paidByName = if (selectedPayerId == null) "Me" else friends.firstOrNull { it.id == selectedPayerId }?.name ?: "Friend",

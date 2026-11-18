@@ -1,6 +1,7 @@
 package com.naman.rupeeflow.ui.screens.transactions
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -12,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,6 +29,8 @@ import com.naman.rupeeflow.domain.model.PaymentMethod
 import com.naman.rupeeflow.domain.model.Transaction
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.ui.components.*
+import com.naman.rupeeflow.ui.screens.calendar.MonthlyTransactionCalendarView
+import com.naman.rupeeflow.ui.screens.calendar.TransactionsViewMode
 import com.naman.rupeeflow.ui.theme.*
 import com.naman.rupeeflow.voice.ui.VoiceAssistantSheet
 
@@ -41,6 +45,7 @@ fun TransactionsScreen(
 
     // rememberSaveable keeps the sheet open across biometric lock/unlock and activity recreation
     var showFastAddSheet by rememberSaveable { mutableStateOf(false) }
+    var fastAddInitialDateMillis by rememberSaveable { mutableStateOf<Long?>(null) }
     var showVoiceAssistant by remember { mutableStateOf(false) }
     var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
@@ -66,7 +71,10 @@ fun TransactionsScreen(
                     )
                 }
                 FloatingActionButton(
-                    onClick = { showFastAddSheet = true },
+                    onClick = {
+                        fastAddInitialDateMillis = null
+                        showFastAddSheet = true
+                    },
                     containerColor = AppTheme.colors.primaryAccent,
                     contentColor = Color.White,
                     shape = CircleShape
@@ -99,11 +107,64 @@ fun TransactionsScreen(
                     style = MaterialTheme.typography.headlineLarge,
                     color = AppTheme.colors.textPrimary
                 )
-                if (onNavigateToPending != null) {
-                    DetectedTransactionsBadge(
-                        pendingCount = state.pendingCount,
-                        onClick = onNavigateToPending
-                    )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // List / Calendar Toggle Pill
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (isDark) CharcoalCard else AppTheme.colors.surfaceElevated,
+                        border = BorderStroke(1.dp, if (isDark) GlassBorder else AppTheme.colors.cardBorder),
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(2.dp)
+                        ) {
+                            val isList = state.viewMode == TransactionsViewMode.LIST
+                            val isCal = state.viewMode == TransactionsViewMode.CALENDAR
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(if (isList) AppTheme.colors.primaryAccent else Color.Transparent)
+                                    .clickable { viewModel.setViewMode(TransactionsViewMode.LIST) }
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ViewList,
+                                    contentDescription = "List View",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (isList) Color.White else AppTheme.colors.textSecondary
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(if (isCal) AppTheme.colors.primaryAccent else Color.Transparent)
+                                    .clickable { viewModel.setViewMode(TransactionsViewMode.CALENDAR) }
+                                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarMonth,
+                                    contentDescription = "Calendar View",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = if (isCal) Color.White else AppTheme.colors.textSecondary
+                                )
+                            }
+                        }
+                    }
+
+                    if (onNavigateToPending != null) {
+                        DetectedTransactionsBadge(
+                            pendingCount = state.pendingCount,
+                            onClick = onNavigateToPending
+                        )
+                    }
                 }
             }
 
@@ -138,11 +199,14 @@ fun TransactionsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Time Period Filters (All Time, Monthly, Weekly) - Group A and Group B removed for cleaner UI
-            val dateFilters = listOf(
-                "ALL" to "All Time",
-                "MONTHLY" to "Monthly",
-                "WEEKLY" to "Weekly"
+            // Transaction Type Filters (All, Expenses, Income, Refunds, Transfers, Ignored)
+            val typeFilters = listOf(
+                "ALL" to "All",
+                "EXPENSE" to "Expenses",
+                "INCOME" to "Income",
+                "REFUND" to "Refunds",
+                "TRANSFER" to "Transfers",
+                "IGNORED" to "Ignored"
             )
 
             Row(
@@ -152,8 +216,8 @@ fun TransactionsScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Spacer(modifier = Modifier.width(8.dp))
-                dateFilters.forEach { (key, label) ->
-                    val isSelected = state.selectedDateFilter == key
+                typeFilters.forEach { (key, label) ->
+                    val isSelected = state.selectedTypeFilter == key
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = if (isSelected) {
@@ -161,11 +225,11 @@ fun TransactionsScreen(
                         } else {
                             if (isDark) CharcoalCard else AppTheme.colors.surface
                         },
-                        border = androidx.compose.foundation.BorderStroke(
+                        border = BorderStroke(
                             1.dp,
                             if (isSelected) AppTheme.colors.primaryAccent else (if (isDark) GlassBorder else AppTheme.colors.cardBorder)
                         ),
-                        modifier = Modifier.clickable { viewModel.onDateFilterSelected(key) }
+                        modifier = Modifier.clickable { viewModel.onTypeFilterSelected(key) }
                     ) {
                         Text(
                             text = label,
@@ -183,83 +247,147 @@ fun TransactionsScreen(
                 Spacer(modifier = Modifier.width(8.dp))
             }
 
-            // Date Period Navigator for Monthly / Weekly filter
-            if (state.selectedDateFilter == "MONTHLY" || state.selectedDateFilter == "WEEKLY") {
-                Spacer(modifier = Modifier.height(10.dp))
-                PeriodNavigator(
-                    label = state.datePeriodLabel,
-                    canNavigatePrevious = state.canNavigatePreviousDate,
-                    canNavigateNext = state.canNavigateNextDate,
-                    onPrevious = { viewModel.previousDatePeriod() },
-                    onNext = { viewModel.nextDatePeriod() },
-                    showCurrentPill = state.datePeriodOffset != 0,
-                    onCurrent = { viewModel.currentDatePeriod() },
-                    currentPillText = if (state.selectedDateFilter == "WEEKLY") "This Week" else "This Month",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    contentDescriptionPrefix = if (state.selectedDateFilter == "WEEKLY") "week" else "month"
-                )
-            }
-
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Transactions List
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                if (state.dateGroups.isEmpty()) {
-                    item(key = "empty_state") {
-                        MascotEmptyState(
-                            pose = MascotPose.THINKING,
-                            title = "No transactions found",
-                            subtitle = if (state.searchQuery.isNotBlank()) {
-                                "No transactions match '${state.searchQuery}'. Try resetting search or filters."
-                            } else {
-                                "No transactions recorded for this period yet. Tap + to add one!"
-                            }
-                        )
+            if (state.viewMode == TransactionsViewMode.CALENDAR) {
+                MonthlyTransactionCalendarView(
+                    gridData = state.calendarGridData,
+                    selectedDateMillis = state.selectedCalendarDateMillis,
+                    selectedDaySummary = state.selectedDaySummary,
+                    onDateSelected = { viewModel.selectCalendarDate(it) },
+                    onPreviousMonth = { viewModel.previousCalendarMonth() },
+                    onNextMonth = { viewModel.nextCalendarMonth() },
+                    onTodayClick = { viewModel.goToTodayCalendar() },
+                    onTransactionClick = { selectedTransaction = it },
+                    onAddTransactionForDate = { dateMillis ->
+                        fastAddInitialDateMillis = dateMillis
+                        showFastAddSheet = true
                     }
-                } else {
-                    state.dateGroups.forEachIndexed { groupIndex, group ->
-                        item(
-                            key = "header_${group.dateEpochMillis}_${group.heading}",
-                            contentType = "header"
+                )
+            } else {
+                // Time Period Filters (All Time, Monthly, Weekly)
+                val dateFilters = listOf(
+                    "ALL" to "All Time",
+                    "MONTHLY" to "Monthly",
+                    "WEEKLY" to "Weekly"
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    dateFilters.forEach { (key, label) ->
+                        val isSelected = state.selectedDateFilter == key
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isSelected) {
+                                if (isDark) ElectricBlue.copy(alpha = 0.25f) else AppTheme.colors.primaryAccentContainer
+                            } else {
+                                if (isDark) CharcoalCard else AppTheme.colors.surface
+                            },
+                            border = BorderStroke(
+                                1.dp,
+                                if (isSelected) AppTheme.colors.primaryAccent else (if (isDark) GlassBorder else AppTheme.colors.cardBorder)
+                            ),
+                            modifier = Modifier.clickable { viewModel.onDateFilterSelected(key) }
                         ) {
-                            TransactionDateHeader(
-                                heading = group.heading,
-                                modifier = if (groupIndex > 0) Modifier.padding(top = 8.dp) else Modifier
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isSelected) {
+                                    if (isDark) ElectricBlueLight else Color(0xFF1D4ED8)
+                                } else {
+                                    AppTheme.colors.textSecondary
+                                },
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                         }
-                        items(
-                            items = group.items,
-                            key = { item ->
-                                when (item) {
-                                    is TransactionListItem.Individual -> "txn_${item.transaction.id}"
-                                    is TransactionListItem.TripCard -> "trip_${item.expenseGroupId}"
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                // Date Period Navigator for Monthly / Weekly filter
+                if (state.selectedDateFilter == "MONTHLY" || state.selectedDateFilter == "WEEKLY") {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    PeriodNavigator(
+                        label = state.datePeriodLabel,
+                        canNavigatePrevious = state.canNavigatePreviousDate,
+                        canNavigateNext = state.canNavigateNextDate,
+                        onPrevious = { viewModel.previousDatePeriod() },
+                        onNext = { viewModel.nextDatePeriod() },
+                        showCurrentPill = state.datePeriodOffset != 0,
+                        onCurrent = { viewModel.currentDatePeriod() },
+                        currentPillText = if (state.selectedDateFilter == "WEEKLY") "This Week" else "This Month",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        contentDescriptionPrefix = if (state.selectedDateFilter == "WEEKLY") "week" else "month"
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Transactions List
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 96.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (state.dateGroups.isEmpty()) {
+                        item(key = "empty_state") {
+                            MascotEmptyState(
+                                pose = MascotPose.THINKING,
+                                title = "No transactions found",
+                                subtitle = if (state.searchQuery.isNotBlank()) {
+                                    "No transactions match '${state.searchQuery}'. Try resetting search or filters."
+                                } else {
+                                    "No transactions recorded for this period yet. Tap + to add one!"
                                 }
-                            },
-                            contentType = { item ->
-                                when (item) {
-                                    is TransactionListItem.Individual -> "individual"
-                                    is TransactionListItem.TripCard -> "trip"
-                                }
+                            )
+                        }
+                    } else {
+                        state.dateGroups.forEachIndexed { groupIndex, group ->
+                            item(
+                                key = "header_${group.dateEpochMillis}_${group.heading}",
+                                contentType = "header"
+                            ) {
+                                TransactionDateHeader(
+                                    heading = group.heading,
+                                    modifier = if (groupIndex > 0) Modifier.padding(top = 8.dp) else Modifier
+                                )
                             }
-                        ) { item ->
-                            when (item) {
-                                is TransactionListItem.Individual -> {
-                                    TransactionItemCard(
-                                        transaction = item.transaction,
-                                        onClick = { selectedTransaction = item.transaction }
-                                    )
+                            items(
+                                items = group.items,
+                                key = { item ->
+                                    when (item) {
+                                        is TransactionListItem.Individual -> "txn_${item.transaction.id}"
+                                        is TransactionListItem.TripCard -> "trip_${item.expenseGroupId}"
+                                    }
+                                },
+                                contentType = { item ->
+                                    when (item) {
+                                        is TransactionListItem.Individual -> "individual"
+                                        is TransactionListItem.TripCard -> "trip"
+                                    }
                                 }
-                                is TransactionListItem.TripCard -> {
-                                    TripTransactionSummaryCard(
-                                        tripCard = item,
-                                        onClick = { onNavigateToTripDetail(item.expenseGroupId) }
-                                    )
+                            ) { item ->
+                                when (item) {
+                                    is TransactionListItem.Individual -> {
+                                        TransactionItemCard(
+                                            transaction = item.transaction,
+                                            onClick = { selectedTransaction = item.transaction }
+                                        )
+                                    }
+                                    is TransactionListItem.TripCard -> {
+                                        TripTransactionSummaryCard(
+                                            tripCard = item,
+                                            onClick = { onNavigateToTripDetail(item.expenseGroupId) }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -276,8 +404,12 @@ fun TransactionsScreen(
             friends = state.friends,
             groups = state.friendGroups,
             expenseGroups = state.expenseGroups,
+            initialDateMillis = fastAddInitialDateMillis,
             onCreateExpenseGroup = { viewModel.createExpenseGroup(it) },
-            onDismiss = { showFastAddSheet = false },
+            onDismiss = {
+                showFastAddSheet = false
+                fastAddInitialDateMillis = null
+            },
             onSave = { newTxn -> viewModel.saveTransaction(newTxn) },
             onSaveSettlement = { settlement -> viewModel.recordSettlement(settlement) }
         )
