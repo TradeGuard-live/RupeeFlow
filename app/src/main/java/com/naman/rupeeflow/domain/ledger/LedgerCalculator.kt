@@ -68,6 +68,280 @@ object LedgerCalculator {
     }
 
     /**
+     * Calculates shares based on integer weights/shares (e.g. 1 share, 2 shares).
+     * Distributes any remainder paise deterministically so the sum strictly equals [totalPaise].
+     */
+    fun calculateSharesSplit(totalPaise: Long, weights: List<Int>): List<Long> {
+        if (weights.isEmpty() || totalPaise <= 0L) return emptyList()
+        require(weights.none { it < 0 }) { "Weights cannot be negative" }
+        val totalWeight = weights.sum()
+        require(totalWeight > 0) { "Sum of weights must be greater than zero" }
+
+        val rawShares = weights.map { w ->
+            (totalPaise * w) / totalWeight
+        }.toMutableList()
+
+        val sumCalculated = rawShares.sum()
+        val remainder = (totalPaise - sumCalculated).toInt()
+        for (i in 0 until remainder) {
+            rawShares[i % rawShares.size] += 1L
+        }
+        return rawShares
+    }
+
+    /**
+     * Solves minimal cash transfers to settle all group debts (min cash-flow algorithm).
+     * Preserves the exact net balance of every member down to the exact paisa (0 remainder).
+     * Uses integer paise arithmetic strictly.
+     */
+    fun simplifyDebts(
+        netBalances: Map<Long?, Long>,
+        memberNames: Map<Long?, String>
+    ): List<SimplifiedDebt> {
+        data class BalanceEntry(val memberId: Long?, var amountPaise: Long)
+
+        val debtors = mutableListOf<BalanceEntry>()
+        val creditors = mutableListOf<BalanceEntry>()
+
+        for ((mId, net) in netBalances) {
+            if (net < 0L) {
+                debtors.add(BalanceEntry(mId, -net))
+            } else if (net > 0L) {
+                creditors.add(BalanceEntry(mId, net))
+            }
+        }
+
+        val simplified = mutableListOf<SimplifiedDebt>()
+
+        // Greedy matching of largest debtor with largest creditor
+        while (debtors.isNotEmpty() && creditors.isNotEmpty()) {
+            debtors.sortByDescending { it.amountPaise }
+            creditors.sortByDescending { it.amountPaise }
+
+            val debtor = debtors.first()
+            val creditor = creditors.first()
+
+            val transfer = minOf(debtor.amountPaise, creditor.amountPaise)
+            if (transfer > 0L) {
+                val fromName = memberNames[debtor.memberId] ?: if (debtor.memberId == null) "You" else "Member #${debtor.memberId}"
+                val toName = memberNames[creditor.memberId] ?: if (creditor.memberId == null) "You" else "Member #${creditor.memberId}"
+                simplified.add(
+                    SimplifiedDebt(
+                        fromMemberId = debtor.memberId,
+                        fromMemberName = fromName,
+                        toMemberId = creditor.memberId,
+                        toMemberName = toName,
+                        amountPaise = transfer
+                    )
+                )
+            }
+
+            debtor.amountPaise -= transfer
+            creditor.amountPaise -= transfer
+
+            if (debtor.amountPaise <= 0L) {
+                debtors.removeAt(0)
+            }
+            if (creditor.amountPaise <= 0L) {
+                creditors.removeAt(0)
+            }
+        }
+
+        return simplified
+    }
+
+    /**
+     * Computes full financial breakdown for a Split Pro group:
+     * - Total group expenses
+     * - User's total paid and personal share
+     * - Member balances (who paid what, who consumed what, net balances)
+     * - Direct pairwise debts
+     * - Simplified minimal cash flow transfers
+     */
+    fun computeGroupBalances(
+        groupId: Long,
+        transactions: List<Transaction>,
+        settlements: List<Settlement>,
+        members: List<Friend>
+    ): GroupBalanceSummary {
+        val groupTxns = transactions.filter {
+            (it.expenseGroupId == null || it.expenseGroupId == groupId) &&
+                    it.transactionStatus == TransactionStatus.ACTIVE &&
+                    (it.transactionType == TransactionType.EXPENSE ||
+                     it.transactionType == TransactionType.UPI_LITE_PAYMENT ||
+                     it.transactionType == TransactionType.REFUND ||
+                     it.transactionType == TransactionType.UPI_LITE_REFUND)
+        }
+        val groupSettlements = settlements.filter { (it.groupId == null || it.groupId == groupId) && !it.isReversed }
+
+        val memberMap = members.associateBy { it.id }
+        val memberNames = mutableMapOf<Long?, String>()
+        memberNames[null] = "You"
+        for (f in members) {
+            memberNames[f.id] = f.name
+        }
+
+        val allMemberIds = mutableSetOf<Long?>()
+        allMemberIds.add(null) // "You" is always a member
+        for (f in members) allMemberIds.add(f.id)
+
+        // Include any participants from transactions or settlements
+        for (t in groupTxns) {
+            allMemberIds.add(t.paidByFriendId)
+            for (p in t.participants) {
+                allMemberIds.add(p.friendId)
+            }
+        }
+        for (s in groupSettlements) {
+            allMemberIds.add(s.payerId)
+            allMemberIds.add(s.receiverId)
+        }
+
+        // Initialize ledger tracking
+        val paidMap = mutableMapOf<Long?, Long>()
+        val shareMap = mutableMapOf<Long?, Long>()
+        for (m in allMemberIds) {
+            paidMap[m] = 0L
+            shareMap[m] = 0L
+            if (!memberNames.containsKey(m)) {
+                memberNames[m] = memberMap[m]?.name ?: "Friend #$m"
+            }
+        }
+
+        // Pairwise net debt: pair (from, to) -> amount from owes to
+        val pairwiseDebt = mutableMapOf<Pair<Long?, Long?>, Long>()
+
+        var totalGroupExpensePaise = 0L
+
+        // Process Transactions
+        for (t in groupTxns) {
+            val payer = t.paidByFriendId
+            val isExpense = t.transactionType == TransactionType.EXPENSE || t.transactionType == TransactionType.UPI_LITE_PAYMENT
+            val isRefund = t.transactionType == TransactionType.REFUND || t.transactionType == TransactionType.UPI_LITE_REFUND
+            val factor = if (isExpense) 1L else -1L
+
+            if (isExpense) {
+                totalGroupExpensePaise = SafeMath.safeAdd(totalGroupExpensePaise, t.amountPaise)
+            } else if (isRefund) {
+                totalGroupExpensePaise = SafeMath.safeSubtract(totalGroupExpensePaise, t.amountPaise)
+            }
+
+            // Payer contributed t.amountPaise
+            val currentPaid = paidMap[payer] ?: 0L
+            paidMap[payer] = SafeMath.safeAdd(currentPaid, t.amountPaise * factor)
+
+            if (t.participants.isNotEmpty()) {
+                for (p in t.participants) {
+                    val pMember = p.friendId
+                    val curShare = shareMap[pMember] ?: 0L
+                    shareMap[pMember] = SafeMath.safeAdd(curShare, p.shareAmountPaise * factor)
+
+                    // If participant is not the payer, participant owes payer
+                    if (pMember != payer) {
+                        val key = Pair(pMember, payer)
+                        val curPairDebt = pairwiseDebt[key] ?: 0L
+                        pairwiseDebt[key] = SafeMath.safeAdd(curPairDebt, p.shareAmountPaise * factor)
+                    }
+                }
+            } else {
+                // Single payer consumed 100% of the expense
+                val curShare = shareMap[payer] ?: 0L
+                shareMap[payer] = SafeMath.safeAdd(curShare, t.amountPaise * factor)
+            }
+        }
+
+        // Process Settlements
+        for (s in groupSettlements) {
+            val p = s.payerId
+            val r = s.receiverId
+            val amt = s.amountPaise
+
+            // Payer increased contribution by paying debt
+            paidMap[p] = SafeMath.safeAdd(paidMap[p] ?: 0L, amt)
+            // Receiver reduced contribution by collecting debt
+            paidMap[r] = SafeMath.safeSubtract(paidMap[r] ?: 0L, amt)
+
+            // Direct debt between p and r reduced
+            val key = Pair(p, r)
+            pairwiseDebt[key] = SafeMath.safeSubtract(pairwiseDebt[key] ?: 0L, amt)
+        }
+
+        // Calculate member balances
+        val netBalances = mutableMapOf<Long?, Long>()
+        val memberBalances = allMemberIds.map { mId ->
+            val paid = paidMap[mId] ?: 0L
+            val share = shareMap[mId] ?: 0L
+            val net = paid - share
+            netBalances[mId] = net
+            GroupMemberBalance(
+                memberId = mId,
+                memberName = memberNames[mId] ?: (if (mId == null) "You" else "Friend #$mId"),
+                totalPaidPaise = paid,
+                totalSharePaise = share,
+                netBalancePaise = net
+            )
+        }.sortedWith(compareBy({ it.memberId != null }, { it.memberName }))
+
+        // Calculate simplified debts
+        val simplified = simplifyDebts(netBalances, memberNames)
+
+        // Calculate net direct pairwise debts
+        val directDebts = mutableListOf<SimplifiedDebt>()
+        val processedPairs = mutableSetOf<Pair<Long?, Long?>>()
+
+        for (m1 in allMemberIds) {
+            for (m2 in allMemberIds) {
+                if (m1 == m2) continue
+                val pair1 = Pair(m1, m2)
+                val pair2 = Pair(m2, m1)
+                if (processedPairs.contains(pair1) || processedPairs.contains(pair2)) continue
+                processedPairs.add(pair1)
+                processedPairs.add(pair2)
+
+                val debt1to2 = pairwiseDebt[pair1] ?: 0L
+                val debt2to1 = pairwiseDebt[pair2] ?: 0L
+                val netDiff = debt1to2 - debt2to1
+
+                if (netDiff > 0L) {
+                    directDebts.add(
+                        SimplifiedDebt(
+                            fromMemberId = m1,
+                            fromMemberName = memberNames[m1] ?: "Friend",
+                            toMemberId = m2,
+                            toMemberName = memberNames[m2] ?: "Friend",
+                            amountPaise = netDiff
+                        )
+                    )
+                } else if (netDiff < 0L) {
+                    directDebts.add(
+                        SimplifiedDebt(
+                            fromMemberId = m2,
+                            fromMemberName = memberNames[m2] ?: "Friend",
+                            toMemberId = m1,
+                            toMemberName = memberNames[m1] ?: "Friend",
+                            amountPaise = -netDiff
+                        )
+                    )
+                }
+            }
+        }
+
+        val myPaid = paidMap[null] ?: 0L
+        val myShare = shareMap[null] ?: 0L
+        val myNet = netBalances[null] ?: 0L
+
+        return GroupBalanceSummary(
+            totalExpensePaise = totalGroupExpensePaise.coerceAtLeast(0L),
+            myPaidPaise = myPaid,
+            mySharePaise = myShare,
+            myNetBalancePaise = myNet,
+            memberBalances = memberBalances,
+            directDebts = directDebts.sortedByDescending { it.amountPaise },
+            simplifiedDebts = simplified.sortedByDescending { it.amountPaise }
+        )
+    }
+
+    /**
      * Validates that participant shares strictly total the transaction amount.
      */
     fun validateParticipantShares(totalAmountPaise: Long, participants: List<TransactionParticipant>): Boolean {

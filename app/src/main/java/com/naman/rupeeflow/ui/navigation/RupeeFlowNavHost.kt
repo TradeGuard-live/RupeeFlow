@@ -81,6 +81,9 @@ fun RupeeFlowApp(
                     },
                     onNavigateToPending = {
                         navController.navigate(Screen.PendingTransactions.route)
+                    },
+                    onNavigateToSplitPro = {
+                        navController.navigate(Screen.SplitPro.route)
                     }
                 )
             }
@@ -106,6 +109,9 @@ fun RupeeFlowApp(
                     viewModel = friendsViewModel,
                     onNavigateToFriendDetail = { friendId ->
                         navController.navigate(Screen.FriendDetail.createRoute(friendId))
+                    },
+                    onNavigateToSplitPro = {
+                        navController.navigate(Screen.SplitPro.route)
                     }
                 )
             }
@@ -209,6 +215,50 @@ fun RupeeFlowApp(
                 val pendingViewModel: PendingTransactionsViewModel = viewModel(factory = AppViewModelProvider.Factory)
                 PendingTransactionsScreen(
                     viewModel = pendingViewModel,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            // Split Pro Section (Dashboard)
+            composable(Screen.SplitPro.route) {
+                val splitProViewModel: com.naman.rupeeflow.ui.screens.splitpro.SplitProViewModel = viewModel(factory = AppViewModelProvider.Factory)
+                com.naman.rupeeflow.ui.screens.splitpro.SplitProScreen(
+                    viewModel = splitProViewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToGroupDetail = { groupId ->
+                        navController.navigate(Screen.SplitProGroupDetail.createRoute(groupId))
+                    },
+                    onNavigateToSettings = {
+                        navController.navigate(Screen.SplitProSettings.route)
+                    },
+                    onNavigateToReportGenerator = {
+                        navController.navigate(Screen.ReportGenerator.createRoute())
+                    }
+                )
+            }
+
+            // Split Pro Group Detail
+            composable(
+                route = Screen.SplitProGroupDetail.route,
+                arguments = listOf(navArgument("groupId") { type = NavType.LongType })
+            ) { backStackEntry ->
+                val groupId = backStackEntry.arguments?.getLong("groupId") ?: 0L
+                val splitProViewModel: com.naman.rupeeflow.ui.screens.splitpro.SplitProViewModel = viewModel(factory = AppViewModelProvider.Factory)
+                com.naman.rupeeflow.ui.screens.splitpro.SplitProGroupDetailScreen(
+                    groupId = groupId,
+                    viewModel = splitProViewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToReportGenerator = { targetGroupId ->
+                        navController.navigate(Screen.ReportGenerator.createRoute(targetGroupId))
+                    }
+                )
+            }
+
+            // Split Pro Settings
+            composable(Screen.SplitProSettings.route) {
+                val app = (androidx.compose.ui.platform.LocalContext.current.applicationContext as com.naman.rupeeflow.RupeeFlowApplication)
+                com.naman.rupeeflow.ui.screens.splitpro.SplitProSettingsScreen(
+                    userPreferencesRepository = app.appContainer.userPreferencesRepository,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }

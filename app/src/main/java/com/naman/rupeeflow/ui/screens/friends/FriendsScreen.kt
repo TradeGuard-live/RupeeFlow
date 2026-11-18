@@ -42,7 +42,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun FriendsScreen(
     viewModel: FriendsViewModel,
-    onNavigateToFriendDetail: (Long) -> Unit
+    onNavigateToFriendDetail: (Long) -> Unit,
+    onNavigateToSplitPro: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
 
@@ -87,23 +88,43 @@ fun FriendsScreen(
                     style = MaterialTheme.typography.headlineLarge,
                     color = AppTheme.colors.textPrimary
                 )
-                // Visible Add Group Action
-                FilledTonalButton(
-                    onClick = { showCreateGroupDialog = true },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = if (isDark) VibrantCyan.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer,
-                        contentColor = if (isDark) VibrantCyan else Color(0xFF1D4ED8)
-                    ),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Create Group",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Group", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                // Action Buttons Row: Split Pro & Add Group
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(
+                        onClick = onNavigateToSplitPro,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = VibrantCyan.copy(alpha = 0.18f),
+                            contentColor = VibrantCyan
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Groups,
+                            contentDescription = "Split Pro",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Split Pro", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    }
+
+                    FilledTonalButton(
+                        onClick = { showCreateGroupDialog = true },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = if (isDark) VibrantCyan.copy(alpha = 0.2f) else AppTheme.colors.primaryAccentContainer,
+                            contentColor = if (isDark) VibrantCyan else Color(0xFF1D4ED8)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Create Group",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Group", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
 

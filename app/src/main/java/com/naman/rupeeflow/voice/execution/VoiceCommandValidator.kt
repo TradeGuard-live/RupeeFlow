@@ -136,7 +136,7 @@ object VoiceCommandValidator {
                         )
                     }
                 }
-                SplitMethod.EXACT_AMOUNT -> {
+                SplitMethod.EXACT_AMOUNT, SplitMethod.CUSTOM -> {
                     var totalCustom = 0L
                     for (fId in cmd.participantFriendIds) {
                         val share = cmd.customSharesPaise[fId] ?: 0L
@@ -147,7 +147,7 @@ object VoiceCommandValidator {
                                 friendId = fId,
                                 friendName = friendName,
                                 shareAmountPaise = share,
-                                splitMethod = SplitMethod.EXACT_AMOUNT
+                                splitMethod = cmd.splitMethod
                             )
                         )
                     }
@@ -155,6 +155,22 @@ object VoiceCommandValidator {
                         return VoiceCommandResult.Error(
                             "Total of individual shares (₹${totalCustom / 100}) does not equal total transaction amount (₹${cmd.amountPaise / 100})",
                             "Shares do not match the total amount"
+                        )
+                    }
+                }
+                SplitMethod.SHARES -> {
+                    val weights = cmd.participantFriendIds.map { 1 }
+                    val shares = LedgerCalculator.calculateSharesSplit(cmd.amountPaise, weights)
+                    cmd.participantFriendIds.forEachIndexed { index, fId ->
+                        val friendName = if (fId == null) "Me" else friends.firstOrNull { it.id == fId }?.name ?: "Friend"
+                        participantsList.add(
+                            TransactionParticipant(
+                                friendId = fId,
+                                friendName = friendName,
+                                shareAmountPaise = shares[index],
+                                percentage = (100.0 / participantCount),
+                                splitMethod = SplitMethod.SHARES
+                            )
                         )
                     }
                 }

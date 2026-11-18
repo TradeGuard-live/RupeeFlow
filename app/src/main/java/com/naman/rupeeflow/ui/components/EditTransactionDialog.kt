@@ -846,10 +846,11 @@ fun EditTransactionDialog(
                     val totalPct = allParticipantIds.sumOf { percentageInputs[it]?.toDoubleOrNull() ?: 0.0 }
                     abs(totalPct - 100.0) <= 0.01
                 }
-                SplitMethod.EXACT_AMOUNT -> {
+                SplitMethod.EXACT_AMOUNT, SplitMethod.CUSTOM -> {
                     val sumPaise = allParticipantIds.sumOf { CurrencyUtils.parseInputToPaise(customRupeeInputs[it] ?: "") }
                     sumPaise == amountPaise
                 }
+                SplitMethod.SHARES -> true
             }
         }
 
@@ -912,7 +913,7 @@ fun EditTransactionDialog(
                                 )
                             }
                         }
-                        SplitMethod.EXACT_AMOUNT -> {
+                        SplitMethod.EXACT_AMOUNT, SplitMethod.CUSTOM -> {
                             allParticipantIds.forEach { pId ->
                                 val pName = if (pId == null) "Me" else friends.firstOrNull { it.id == pId }?.name ?: "Friend"
                                 val sharePaise = CurrencyUtils.parseInputToPaise(customRupeeInputs[pId] ?: "")
@@ -924,7 +925,25 @@ fun EditTransactionDialog(
                                         friendName = pName,
                                         shareAmountPaise = sharePaise,
                                         percentage = pct,
-                                        splitMethod = SplitMethod.EXACT_AMOUNT
+                                        splitMethod = splitMethod
+                                    )
+                                )
+                            }
+                        }
+                        SplitMethod.SHARES -> {
+                            val weights = allParticipantIds.map { 1 }
+                            val shares = LedgerCalculator.calculateSharesSplit(amountPaise, weights)
+                            val pct = if (allParticipantIds.isNotEmpty()) 100.0 / allParticipantIds.size else 0.0
+                            allParticipantIds.forEachIndexed { index, pId ->
+                                val pName = if (pId == null) "Me" else friends.firstOrNull { it.id == pId }?.name ?: "Friend"
+                                participants.add(
+                                    TransactionParticipant(
+                                        transactionId = transaction.id,
+                                        friendId = pId,
+                                        friendName = pName,
+                                        shareAmountPaise = shares.getOrElse(index) { 0L },
+                                        percentage = pct,
+                                        splitMethod = SplitMethod.SHARES
                                     )
                                 )
                             }

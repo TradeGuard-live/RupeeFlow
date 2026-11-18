@@ -51,6 +51,9 @@ data class ExpenseGroup(
     val iconName: String? = null,
     val colorHex: String? = null,
     val linkedFriendGroupId: Long? = null,
+    val groupType: GroupType = GroupType.CUSTOM,
+    val currencyCode: String = "INR",
+    val simplifyDebts: Boolean = true,
     val isArchived: Boolean = false,
     val archivedAt: Long? = null,
     val transactionCount: Int = 0,
@@ -62,6 +65,47 @@ data class ExpenseGroup(
     val onlineSpendingPaise: Long = 0L,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
+)
+
+// Split Pro group activity domain model
+data class GroupActivity(
+    val id: Long = 0,
+    val groupId: Long,
+    val activityType: GroupActivityType,
+    val actorName: String,
+    val description: String,
+    val amountPaise: Long? = null,
+    val targetId: Long? = null,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+// Individual member balance in a group
+data class GroupMemberBalance(
+    val memberId: Long?, // null = ME, or friendId
+    val memberName: String,
+    val totalPaidPaise: Long,
+    val totalSharePaise: Long,
+    val netBalancePaise: Long // positive = owed money, negative = owes money
+)
+
+// Simplified or direct debt transfer between two members
+data class SimplifiedDebt(
+    val fromMemberId: Long?, // null = ME, or friendId
+    val fromMemberName: String,
+    val toMemberId: Long?, // null = ME, or friendId
+    val toMemberName: String,
+    val amountPaise: Long
+)
+
+// Summary of all financial balances within a group
+data class GroupBalanceSummary(
+    val totalExpensePaise: Long,
+    val myPaidPaise: Long,
+    val mySharePaise: Long,
+    val myNetBalancePaise: Long, // positive = others owe me, negative = I owe others
+    val memberBalances: List<GroupMemberBalance>,
+    val directDebts: List<SimplifiedDebt>, // original pairwise debts
+    val simplifiedDebts: List<SimplifiedDebt> // minimal transfers
 )
 
 // Report draft domain model for saving customizable report exclusion presets
@@ -197,6 +241,8 @@ data class Settlement(
     val paymentMethod: PaymentMethod = PaymentMethod.UPI,
     val referenceNumber: String? = null,
     val notes: String? = null,
+    val groupId: Long? = null,
+    val proofImagePath: String? = null,
     val isReversed: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 )

@@ -18,6 +18,12 @@ interface SettlementDao {
     @Query("SELECT * FROM settlements WHERE (payerId = :friendId OR receiverId = :friendId) ORDER BY settlementDate DESC")
     suspend fun getSettlementsForFriendList(friendId: Long): List<SettlementEntity>
 
+    @Query("SELECT * FROM settlements WHERE groupId = :groupId ORDER BY settlementDate DESC, id DESC")
+    fun getSettlementsForGroup(groupId: Long): Flow<List<SettlementEntity>>
+
+    @Query("SELECT * FROM settlements WHERE groupId = :groupId ORDER BY settlementDate DESC, id DESC")
+    suspend fun getSettlementsForGroupList(groupId: Long): List<SettlementEntity>
+
     @Query("SELECT * FROM settlements WHERE id = :id")
     suspend fun getSettlementById(id: Long): SettlementEntity?
 

@@ -121,6 +121,19 @@ object AppViewModelProvider {
                 expenseGroupRepository = app.appContainer.expenseGroupRepository
             )
         }
+        initializer {
+            val app = rupeeFlowApplication()
+            com.naman.rupeeflow.ui.screens.splitpro.SplitProViewModel(
+                expenseGroupRepository = app.appContainer.expenseGroupRepository,
+                transactionRepository = app.appContainer.transactionRepository,
+                settlementRepository = app.appContainer.settlementRepository,
+                friendRepository = app.appContainer.friendRepository,
+                friendGroupRepository = app.appContainer.friendGroupRepository,
+                categoryRepository = app.appContainer.categoryRepository,
+                groupActivityRepository = app.appContainer.groupActivityRepository,
+                userPreferencesRepository = app.appContainer.userPreferencesRepository
+            )
+        }
     }
 
     fun friendDetailFactory(friendId: Long): ViewModelProvider.Factory = viewModelFactory {

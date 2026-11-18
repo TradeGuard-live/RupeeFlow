@@ -45,6 +45,14 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector?
 
     object PendingTransactions : Screen("pending_transactions", "Pending Review")
 
+    object SplitPro : Screen("split_pro", "Split Pro", Icons.Default.Groups)
+
+    object SplitProGroupDetail : Screen("split_pro_group_detail/{groupId}", "Group Detail") {
+        fun createRoute(groupId: Long) = "split_pro_group_detail/$groupId"
+    }
+
+    object SplitProSettings : Screen("split_pro_settings", "Split Pro Settings")
+
     object AddEditTransaction : Screen(
         "add_edit_transaction?transactionId={transactionId}&pendingId={pendingId}",
         "Transaction Form"

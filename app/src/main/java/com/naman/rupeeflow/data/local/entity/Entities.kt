@@ -153,7 +153,8 @@ data class TransactionParticipantEntity(
     indices = [
         Index(value = ["payerId"]),
         Index(value = ["receiverId"]),
-        Index(value = ["settlementDate"])
+        Index(value = ["settlementDate"]),
+        Index(value = ["groupId"])
     ]
 )
 data class SettlementEntity(
@@ -166,8 +167,38 @@ data class SettlementEntity(
     val paymentMethod: PaymentMethod = PaymentMethod.UPI,
     val referenceNumber: String? = null,
     val notes: String? = null,
+    val groupId: Long? = null,
+    val proofImagePath: String? = null,
     val isReversed: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
+)
+
+// Group Activity entity for tracking timeline events inside Split Pro groups
+@Entity(
+    tableName = "group_activities",
+    foreignKeys = [
+        ForeignKey(
+            entity = ExpenseGroupEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["groupId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["groupId"]),
+        Index(value = ["timestamp"])
+    ]
+)
+data class GroupActivityEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val groupId: Long,
+    val activityType: String,
+    val actorName: String,
+    val description: String,
+    val amountPaise: Long? = null,
+    val targetId: Long? = null,
+    val timestamp: Long = System.currentTimeMillis()
 )
 
 @Entity(
@@ -236,6 +267,9 @@ data class ExpenseGroupEntity(
     val iconName: String? = null,
     val colorHex: String? = null,
     val linkedFriendGroupId: Long? = null,
+    val groupType: String = "CUSTOM",
+    val currencyCode: String = "INR",
+    val simplifyDebts: Boolean = true,
     val isArchived: Boolean = false,
     val archivedAt: Long? = null,
     val createdAt: Long = System.currentTimeMillis(),

@@ -12,6 +12,8 @@ interface SettlementRepository {
     suspend fun getAllSettlementsList(): List<Settlement>
     fun getSettlementsForFriend(friendId: Long): Flow<List<Settlement>>
     suspend fun getSettlementsForFriendList(friendId: Long): List<Settlement>
+    fun getSettlementsForGroup(groupId: Long): Flow<List<Settlement>> = kotlinx.coroutines.flow.flowOf(emptyList())
+    suspend fun getSettlementsForGroupList(groupId: Long): List<Settlement> = emptyList()
     suspend fun getSettlementById(id: Long): Settlement?
     suspend fun recordSettlement(settlement: Settlement): Long
     // Edit existing settlement with ledger recalculation
@@ -42,6 +44,14 @@ class SettlementRepositoryImpl(
         return settlementDao.getSettlementsForFriendList(friendId).map { it.toDomain() }
     }
 
+    override fun getSettlementsForGroup(groupId: Long): Flow<List<Settlement>> {
+        return settlementDao.getSettlementsForGroup(groupId).map { list -> list.map { it.toDomain() } }
+    }
+
+    override suspend fun getSettlementsForGroupList(groupId: Long): List<Settlement> {
+        return settlementDao.getSettlementsForGroupList(groupId).map { it.toDomain() }
+    }
+
     override suspend fun getSettlementById(id: Long): Settlement? {
         return settlementDao.getSettlementById(id)?.toDomain()
     }
@@ -49,13 +59,17 @@ class SettlementRepositoryImpl(
     override suspend fun recordSettlement(settlement: Settlement): Long {
         require(settlement.amountPaise > 0L) { "Settlement amount must be greater than zero" }
         require(settlement.payerId != settlement.receiverId) { "Payer and receiver cannot be the same" }
-        val hasMe = (settlement.payerId == null) != (settlement.receiverId == null)
-        require(hasMe) { "Exactly one side of a settlement must be Me" }
+        if (settlement.groupId == null) {
+            val hasMe = (settlement.payerId == null) != (settlement.receiverId == null)
+            require(hasMe) { "Exactly one side of a settlement must be Me" }
+        }
 
-        val friendId = settlement.payerId ?: settlement.receiverId
-        if (friendId != null && friendDao != null) {
-            val friend = friendDao.getFriendById(friendId)
-            require(friend != null) { "Referenced friend does not exist" }
+        val friendIds = listOfNotNull(settlement.payerId, settlement.receiverId)
+        if (friendDao != null) {
+            for (fId in friendIds) {
+                val friend = friendDao.getFriendById(fId)
+                require(friend != null) { "Referenced friend does not exist" }
+            }
         }
 
         return settlementDao.insertSettlement(settlement.toEntity())
@@ -66,13 +80,17 @@ class SettlementRepositoryImpl(
         require(settlement.id > 0L) { "Settlement ID must be valid for update" }
         require(settlement.amountPaise > 0L) { "Settlement amount must be greater than zero" }
         require(settlement.payerId != settlement.receiverId) { "Payer and receiver cannot be the same entity" }
-        val hasMe = (settlement.payerId == null) != (settlement.receiverId == null)
-        require(hasMe) { "Exactly one side of a settlement must be Me" }
+        if (settlement.groupId == null) {
+            val hasMe = (settlement.payerId == null) != (settlement.receiverId == null)
+            require(hasMe) { "Exactly one side of a settlement must be Me" }
+        }
 
-        val friendId = settlement.payerId ?: settlement.receiverId
-        if (friendId != null && friendDao != null) {
-            val friend = friendDao.getFriendById(friendId)
-            require(friend != null) { "Referenced friend does not exist" }
+        val friendIds = listOfNotNull(settlement.payerId, settlement.receiverId)
+        if (friendDao != null) {
+            for (fId in friendIds) {
+                val friend = friendDao.getFriendById(fId)
+                require(friend != null) { "Referenced friend does not exist" }
+            }
         }
 
         val existing = settlementDao.getSettlementById(settlement.id)
@@ -107,6 +125,8 @@ class SettlementRepositoryImpl(
         paymentMethod = paymentMethod,
         referenceNumber = referenceNumber,
         notes = notes,
+        groupId = groupId,
+        proofImagePath = proofImagePath,
         isReversed = isReversed,
         createdAt = createdAt
     )
@@ -120,6 +140,8 @@ class SettlementRepositoryImpl(
         paymentMethod = paymentMethod,
         referenceNumber = referenceNumber,
         notes = notes,
+        groupId = groupId,
+        proofImagePath = proofImagePath,
         isReversed = isReversed,
         createdAt = createdAt
     )

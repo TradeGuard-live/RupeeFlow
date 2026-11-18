@@ -61,13 +61,65 @@ enum class PaymentMethod {
 enum class SplitMethod {
     EQUAL,
     EXACT_AMOUNT,
-    PERCENTAGE;
+    PERCENTAGE,
+    SHARES,
+    CUSTOM;
 
     val displayName: String
         get() = when (this) {
             EQUAL -> "Equal Split"
-            EXACT_AMOUNT -> "Custom Exact"
+            EXACT_AMOUNT -> "Exact Amount"
             PERCENTAGE -> "Percentage"
+            SHARES -> "Shares / Weights"
+            CUSTOM -> "Custom Split"
+        }
+}
+
+enum class GroupType {
+    TRIP,
+    HOME,
+    FRIENDS,
+    COUPLE,
+    FAMILY,
+    OFFICE,
+    CUSTOM;
+
+    val displayName: String
+        get() = when (this) {
+            TRIP -> "Trip"
+            HOME -> "Home"
+            FRIENDS -> "Friends"
+            COUPLE -> "Couple"
+            FAMILY -> "Family"
+            OFFICE -> "Office"
+            CUSTOM -> "Custom"
+        }
+}
+
+enum class GroupActivityType {
+    GROUP_CREATED,
+    GROUP_UPDATED,
+    GROUP_ARCHIVED,
+    MEMBER_ADDED,
+    MEMBER_REMOVED,
+    EXPENSE_CREATED,
+    EXPENSE_EDITED,
+    EXPENSE_DELETED,
+    SETTLEMENT_RECORDED,
+    SETTLEMENT_REVERSED;
+
+    val displayName: String
+        get() = when (this) {
+            GROUP_CREATED -> "Group created"
+            GROUP_UPDATED -> "Group updated"
+            GROUP_ARCHIVED -> "Group archived"
+            MEMBER_ADDED -> "Member added"
+            MEMBER_REMOVED -> "Member removed"
+            EXPENSE_CREATED -> "Expense added"
+            EXPENSE_EDITED -> "Expense updated"
+            EXPENSE_DELETED -> "Expense removed"
+            SETTLEMENT_RECORDED -> "Payment recorded"
+            SETTLEMENT_REVERSED -> "Payment reversed"
         }
 }
 

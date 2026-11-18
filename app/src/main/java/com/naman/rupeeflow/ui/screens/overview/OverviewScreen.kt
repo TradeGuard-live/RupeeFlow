@@ -37,7 +37,8 @@ fun OverviewScreen(
     onNavigateToTransactions: () -> Unit,
     onNavigateToFriends: () -> Unit,
     onNavigateToFriendDetail: (Long) -> Unit,
-    onNavigateToPending: () -> Unit
+    onNavigateToPending: () -> Unit,
+    onNavigateToSplitPro: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
 
@@ -207,6 +208,80 @@ fun OverviewScreen(
                         modifier = Modifier.weight(1f),
                         onClick = onNavigateToFriends
                     )
+                }
+            }
+
+            // Split Pro Shortcut Card
+            item {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(18.dp))
+                        .clickable { onNavigateToSplitPro() },
+                    color = AppTheme.colors.surfaceElevated,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.divider)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(VibrantCyan.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Groups,
+                                    contentDescription = null,
+                                    tint = VibrantCyan,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Split Pro",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AppTheme.colors.textPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(VibrantCyan.copy(alpha = 0.2f))
+                                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            text = "PRO",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = VibrantCyan,
+                                            fontSize = 9.sp
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = "Group Expenses & Debt Simplification",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AppTheme.colors.textSecondary
+                                )
+                            }
+                        }
+
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = "Open Split Pro",
+                            tint = AppTheme.colors.textSecondary
+                        )
+                    }
                 }
             }
 

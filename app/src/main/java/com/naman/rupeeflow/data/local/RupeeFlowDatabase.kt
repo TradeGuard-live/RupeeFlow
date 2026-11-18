@@ -27,9 +27,10 @@ import java.io.File
         FriendGroupMemberEntity::class,
         ExpenseGroupEntity::class,
         ReportDraftEntity::class,
-        InputUsageEntity::class
+        InputUsageEntity::class,
+        GroupActivityEntity::class
     ],
-    version = 9, // Upgraded to version 9: Trip collaboration metadata, dates, cover image, and linked FriendGroup
+    version = 10, // Upgraded to version 10: Split Pro group taxonomy, settlement links, and group activities
     exportSchema = true // Schema export enabled
 )
 @TypeConverters(Converters::class)
@@ -44,6 +45,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
     abstract fun expenseGroupDao(): ExpenseGroupDao
     abstract fun reportDraftDao(): ReportDraftDao
     abstract fun inputUsageDao(): InputUsageDao
+    abstract fun groupActivityDao(): GroupActivityDao
 
     companion object {
         @Volatile
@@ -561,6 +563,74 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 9 to 10: Split Pro group taxonomy, settlement links, and group activities
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `expense_groups` ADD COLUMN `groupType` TEXT NOT NULL DEFAULT 'CUSTOM'")
+                db.execSQL("ALTER TABLE `expense_groups` ADD COLUMN `currencyCode` TEXT NOT NULL DEFAULT 'INR'")
+                db.execSQL("ALTER TABLE `expense_groups` ADD COLUMN `simplifyDebts` INTEGER NOT NULL DEFAULT 1")
+
+                db.execSQL("ALTER TABLE `settlements` ADD COLUMN `groupId` INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE `settlements` ADD COLUMN `proofImagePath` TEXT DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_settlements_groupId` ON `settlements` (`groupId`)")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `group_activities` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `groupId` INTEGER NOT NULL,
+                        `activityType` TEXT NOT NULL,
+                        `actorName` TEXT NOT NULL,
+                        `description` TEXT NOT NULL,
+                        `amountPaise` INTEGER DEFAULT NULL,
+                        `targetId` INTEGER DEFAULT NULL,
+                        `timestamp` INTEGER NOT NULL,
+                        FOREIGN KEY(`groupId`) REFERENCES `expense_groups`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_group_activities_groupId` ON `group_activities` (`groupId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_group_activities_timestamp` ON `group_activities` (`timestamp`)")
+            }
+        }
+
+        val MIGRATION_8_10 = object : Migration(8, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_8_9.migrate(db)
+                MIGRATION_9_10.migrate(db)
+            }
+        }
+
+        val MIGRATION_7_10 = object : Migration(7, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_7_8.migrate(db)
+                MIGRATION_8_9.migrate(db)
+                MIGRATION_9_10.migrate(db)
+            }
+        }
+
+        val MIGRATION_6_10 = object : Migration(6, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_6_8.migrate(db)
+                MIGRATION_8_9.migrate(db)
+                MIGRATION_9_10.migrate(db)
+            }
+        }
+
+        val MIGRATION_5_10 = object : Migration(5, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_5_8.migrate(db)
+                MIGRATION_8_9.migrate(db)
+                MIGRATION_9_10.migrate(db)
+            }
+        }
+
+        val MIGRATION_1_10 = object : Migration(1, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_1_8.migrate(db)
+                MIGRATION_8_9.migrate(db)
+                MIGRATION_9_10.migrate(db)
+            }
+        }
+
         // Automatic safe pre-migration backup procedure
         fun createPreMigrationBackup(context: Context) {
             try {
@@ -591,7 +661,8 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                         MIGRATION_5_6, MIGRATION_1_6, MIGRATION_2_6, MIGRATION_3_6, MIGRATION_4_6,
                         MIGRATION_6_7, MIGRATION_5_7, MIGRATION_4_7, MIGRATION_3_7, MIGRATION_2_7, MIGRATION_1_7,
                         MIGRATION_7_8, MIGRATION_6_8, MIGRATION_5_8, MIGRATION_1_8,
-                        MIGRATION_8_9, MIGRATION_7_9, MIGRATION_6_9, MIGRATION_5_9, MIGRATION_1_9
+                        MIGRATION_8_9, MIGRATION_7_9, MIGRATION_6_9, MIGRATION_5_9, MIGRATION_1_9,
+                        MIGRATION_9_10, MIGRATION_8_10, MIGRATION_7_10, MIGRATION_6_10, MIGRATION_5_10, MIGRATION_1_10
                     )
                     .addCallback(DatabaseCallback(scope))
                     // Destructive migration removed! Data preservation guaranteed.

@@ -30,6 +30,9 @@ interface ExpenseGroupRepository {
         coverImageUri: String? = null,
         iconName: String? = "flight",
         colorHex: String? = "#3B82F6",
+        groupType: com.naman.rupeeflow.domain.model.GroupType = com.naman.rupeeflow.domain.model.GroupType.CUSTOM,
+        currencyCode: String = "INR",
+        simplifyDebts: Boolean = true,
         friendIds: List<Long> = emptyList()
     ): Long
     suspend fun updateExpenseGroup(
@@ -135,6 +138,9 @@ class ExpenseGroupRepositoryImpl(
         coverImageUri: String?,
         iconName: String?,
         colorHex: String?,
+        groupType: com.naman.rupeeflow.domain.model.GroupType,
+        currencyCode: String,
+        simplifyDebts: Boolean,
         friendIds: List<Long>
     ): Long {
         val trimmed = name.trim()
@@ -146,7 +152,7 @@ class ExpenseGroupRepositoryImpl(
         if (friendGroupDao != null) {
             val fgEntity = FriendGroupEntity(
                 name = trimmed,
-                description = "Trip group for $trimmed",
+                description = "Group for $trimmed",
                 iconName = iconName ?: "flight",
                 colorHex = colorHex ?: "#3B82F6",
                 groupImagePath = coverImageUri,
@@ -163,7 +169,7 @@ class ExpenseGroupRepositoryImpl(
             linkedFgId = newFgId
         }
 
-        // 2. Create Trip ExpenseGroup linked to the created FriendGroup
+        // 2. Create Trip/SplitPro ExpenseGroup linked to the created FriendGroup
         val entity = ExpenseGroupEntity(
             name = trimmed,
             description = description?.trim()?.ifBlank { null },
@@ -174,6 +180,9 @@ class ExpenseGroupRepositoryImpl(
             iconName = iconName ?: "flight",
             colorHex = colorHex ?: "#3B82F6",
             linkedFriendGroupId = linkedFgId,
+            groupType = groupType.name,
+            currencyCode = currencyCode.trim().ifBlank { "INR" },
+            simplifyDebts = simplifyDebts,
             isArchived = false,
             archivedAt = null,
             createdAt = now,
@@ -250,6 +259,9 @@ class ExpenseGroupRepositoryImpl(
             iconName = group.iconName ?: "flight",
             colorHex = group.colorHex ?: "#3B82F6",
             linkedFriendGroupId = currentLinkedFgId,
+            groupType = group.groupType.name,
+            currencyCode = group.currencyCode,
+            simplifyDebts = group.simplifyDebts,
             isArchived = group.isArchived,
             archivedAt = group.archivedAt,
             createdAt = group.createdAt,
@@ -327,6 +339,10 @@ class ExpenseGroupRepositoryImpl(
             .filter { it.transaction.paymentMethod != PaymentMethod.CASH }
             .sumOf { twpPersonalExpense(it) }
 
+        val gType = runCatching {
+            com.naman.rupeeflow.domain.model.GroupType.valueOf(groupType)
+        }.getOrDefault(com.naman.rupeeflow.domain.model.GroupType.CUSTOM)
+
         return ExpenseGroup(
             id = id,
             name = name,
@@ -338,6 +354,9 @@ class ExpenseGroupRepositoryImpl(
             iconName = iconName,
             colorHex = colorHex,
             linkedFriendGroupId = linkedFriendGroupId,
+            groupType = gType,
+            currencyCode = currencyCode,
+            simplifyDebts = simplifyDebts,
             isArchived = isArchived,
             archivedAt = archivedAt,
             transactionCount = activeTxns.size,

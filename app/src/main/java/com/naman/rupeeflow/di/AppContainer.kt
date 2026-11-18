@@ -16,6 +16,7 @@ interface AppContainer {
     val backupRestoreRepository: BackupRestoreRepository
     val friendGroupRepository: FriendGroupRepository
     val expenseGroupRepository: ExpenseGroupRepository
+    val groupActivityRepository: GroupActivityRepository
     val reportDraftRepository: ReportDraftRepository
     val inputRankingRepository: InputRankingRepository
     val imageStorageManager: ImageStorageManager
@@ -41,6 +42,10 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             transactionDao = database.transactionDao(),
             friendGroupDao = database.friendGroupDao()
         )
+    }
+
+    override val groupActivityRepository: GroupActivityRepository by lazy {
+        GroupActivityRepositoryImpl(database.groupActivityDao())
     }
 
     override val reportDraftRepository: ReportDraftRepository by lazy {

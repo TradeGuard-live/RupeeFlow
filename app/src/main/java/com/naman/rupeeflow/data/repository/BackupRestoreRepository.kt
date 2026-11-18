@@ -264,6 +264,11 @@ class BackupRestoreRepository(
                 put("paymentMethod", s.paymentMethod.name)
                 put("referenceNumber", s.referenceNumber ?: "")
                 put("notes", s.notes ?: "")
+                if (s.groupId != null) put("groupId", s.groupId)
+                if (s.proofImagePath != null) {
+                    val portableProof = embedImage(s.proofImagePath)
+                    put("proofImagePath", portableProof ?: "")
+                }
                 put("isReversed", s.isReversed)
                 put("createdAt", s.createdAt)
             }
@@ -331,6 +336,9 @@ class BackupRestoreRepository(
                 put("iconName", eg.iconName ?: "")
                 put("colorHex", eg.colorHex ?: "")
                 if (eg.linkedFriendGroupId != null) put("linkedFriendGroupId", eg.linkedFriendGroupId)
+                put("groupType", eg.groupType)
+                put("currencyCode", eg.currencyCode)
+                put("simplifyDebts", eg.simplifyDebts)
                 put("isArchived", eg.isArchived)
                 if (eg.archivedAt != null) put("archivedAt", eg.archivedAt)
                 put("createdAt", eg.createdAt)
@@ -340,7 +348,25 @@ class BackupRestoreRepository(
         }
         root.put("expense_groups", expenseGroupArray)
 
-        // 10. Portable Embedded Images Map
+        // 10. Group Activities
+        val activities = database.groupActivityDao().getAllActivitiesList()
+        val actArray = JSONArray()
+        for (a in activities) {
+            val obj = JSONObject().apply {
+                put("id", a.id)
+                put("groupId", a.groupId)
+                put("activityType", a.activityType)
+                put("actorName", a.actorName)
+                put("description", a.description)
+                if (a.amountPaise != null) put("amountPaise", a.amountPaise)
+                if (a.targetId != null) put("targetId", a.targetId)
+                put("timestamp", a.timestamp)
+            }
+            actArray.put(obj)
+        }
+        root.put("group_activities", actArray)
+
+        // 11. Portable Embedded Images Map
         val imagesObj = JSONObject()
         for ((key, b64) in imagesMap) {
             imagesObj.put(key, b64)
@@ -725,6 +751,9 @@ class BackupRestoreRepository(
                             iconName = obj.optString("iconName").takeIf { it.isNotBlank() },
                             colorHex = obj.optString("colorHex").takeIf { it.isNotBlank() },
                             linkedFriendGroupId = linkedGId,
+                            groupType = obj.optString("groupType", "CUSTOM"),
+                            currencyCode = obj.optString("currencyCode", "INR"),
+                            simplifyDebts = obj.optBoolean("simplifyDebts", true),
                             isArchived = obj.optBoolean("isArchived", false),
                             archivedAt = archAt,
                             createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
@@ -826,6 +855,8 @@ class BackupRestoreRepository(
                         val obj = setArray.getJSONObject(i)
                         val payerId = obj.optLong("payerId", -1L).takeIf { it > 0 }
                         val receiverId = obj.optLong("receiverId", -1L).takeIf { it > 0 }
+                        val gId = if (obj.has("groupId") && !obj.isNull("groupId")) obj.getLong("groupId").takeIf { it > 0 } else null
+                        val proofPath = resolveImagePath(obj.optString("proofImagePath").takeIf { it.isNotBlank() })
                         val settlement = SettlementEntity(
                             id = obj.optLong("id", 0L),
                             payerId = payerId,
@@ -837,10 +868,31 @@ class BackupRestoreRepository(
                             }.getOrDefault(PaymentMethod.UPI),
                             referenceNumber = obj.optString("referenceNumber").takeIf { it.isNotBlank() },
                             notes = obj.optString("notes").takeIf { it.isNotBlank() },
+                            groupId = gId,
+                            proofImagePath = proofPath,
                             isReversed = obj.optBoolean("isReversed", false),
                             createdAt = obj.optLong("createdAt", System.currentTimeMillis())
                         )
                         database.settlementDao().insertSettlement(settlement)
+                    }
+                }
+
+                // 6.5 Restore Group Activities
+                if (root.has("group_activities")) {
+                    val actArray = root.getJSONArray("group_activities")
+                    for (i in 0 until actArray.length()) {
+                        val obj = actArray.getJSONObject(i)
+                        val actEntity = GroupActivityEntity(
+                            id = obj.optLong("id", 0L),
+                            groupId = obj.getLong("groupId"),
+                            activityType = obj.getString("activityType"),
+                            actorName = obj.optString("actorName", "User"),
+                            description = obj.getString("description"),
+                            amountPaise = if (obj.has("amountPaise") && !obj.isNull("amountPaise")) obj.getLong("amountPaise") else null,
+                            targetId = if (obj.has("targetId") && !obj.isNull("targetId")) obj.getLong("targetId") else null,
+                            timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                        )
+                        database.groupActivityDao().insertActivity(actEntity)
                     }
                 }
 
