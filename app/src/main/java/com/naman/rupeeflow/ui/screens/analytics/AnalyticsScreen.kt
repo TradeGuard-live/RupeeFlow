@@ -105,6 +105,16 @@ fun AnalyticsScreen(
                 )
             }
 
+            if (data.totalSpentPaise == 0L && data.totalIncomePaise == 0L) {
+                item {
+                    MascotEmptyState(
+                        pose = MascotPose.SAVING,
+                        title = "No activity in this period",
+                        subtitle = "You have not recorded any expenses or income for this ${state.selectedPeriod.lowercase()}."
+                    )
+                }
+            }
+
             // Total Spending Card with % change vs previous period
             item {
                 RupeeFlowCard(modifier = Modifier.fillMaxWidth()) {

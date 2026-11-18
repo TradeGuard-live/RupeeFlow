@@ -31,6 +31,33 @@ object AppTheme {
 // MATERIAL 3 COLOR SCHEMES
 // =============================================================================
 
+private val PeachyColorScheme = lightColorScheme(
+    primary = PeachyAppColors.primaryAccent,
+    onPrimary = PeachyAppColors.onPrimaryAccent,
+    primaryContainer = PeachyAppColors.primaryAccentContainer,
+    onPrimaryContainer = PeachyAppColors.textPrimary,
+    secondary = PeachyAppColors.deepPeach,
+    onSecondary = Color.White,
+    secondaryContainer = PeachyAppColors.surfaceSecondary,
+    onSecondaryContainer = PeachyAppColors.textPrimary,
+    tertiary = PeachyAppColors.mint,
+    onTertiary = PeachyAppColors.textPrimary,
+    tertiaryContainer = PeachyAppColors.surfaceSecondary,
+    onTertiaryContainer = PeachyAppColors.success,
+    background = PeachyAppColors.background,
+    onBackground = PeachyAppColors.textPrimary,
+    surface = PeachyAppColors.surface,
+    onSurface = PeachyAppColors.textPrimary,
+    surfaceVariant = PeachyAppColors.surfaceSecondary,
+    onSurfaceVariant = PeachyAppColors.textSecondary,
+    outline = PeachyAppColors.cardBorder,
+    outlineVariant = PeachyAppColors.divider,
+    error = PeachyAppColors.error,
+    onError = PeachyAppColors.onError,
+    errorContainer = PeachyAppColors.errorContainer,
+    onErrorContainer = PeachyAppColors.error
+)
+
 private val DarkColorScheme = darkColorScheme(
     primary = DarkAppColors.primaryAccent,
     onPrimary = DarkAppColors.onPrimaryAccent,
@@ -87,17 +114,23 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun RupeeFlowTheme(
-    themeMode: String = "DARK", // "DARK", "LIGHT", "SYSTEM"
+    themeMode: String = "PEACHY", // "PEACHY" (default), "DARK", "LIGHT", "SYSTEM"
     content: @Composable () -> Unit
 ) {
-    val darkTheme = when (themeMode) {
-        "LIGHT" -> false
-        "SYSTEM" -> isSystemInDarkTheme()
-        else -> true // Dark by default
+    val isSystemDark = isSystemInDarkTheme()
+    val isDark = when (themeMode) {
+        "DARK" -> true
+        "LIGHT", "PEACHY" -> false
+        "SYSTEM" -> isSystemDark
+        else -> false // Default to Peachy Cozy
     }
 
-    val appColors = if (darkTheme) DarkAppColors else LightAppColors
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val (appColors, colorScheme) = when (themeMode) {
+        "DARK" -> Pair(DarkAppColors, DarkColorScheme)
+        "LIGHT" -> Pair(LightAppColors, LightColorScheme)
+        "SYSTEM" -> if (isSystemDark) Pair(DarkAppColors, DarkColorScheme) else Pair(PeachyAppColors, PeachyColorScheme)
+        else -> Pair(PeachyAppColors, PeachyColorScheme) // Peachy Cozy is default!
+    }
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -107,8 +140,8 @@ fun RupeeFlowTheme(
                 window.statusBarColor = appColors.background.toArgb()
                 window.navigationBarColor = appColors.surface.toArgb()
                 val insetsController = WindowCompat.getInsetsController(window, view)
-                insetsController.isAppearanceLightStatusBars = !darkTheme
-                insetsController.isAppearanceLightNavigationBars = !darkTheme
+                insetsController.isAppearanceLightStatusBars = !isDark
+                insetsController.isAppearanceLightNavigationBars = !isDark
             }
         }
     }

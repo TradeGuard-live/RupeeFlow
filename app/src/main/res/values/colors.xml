@@ -4,4 +4,16 @@
     <color name="primary_accent">#3B82F6</color>
     <color name="surface_dark">#111827</color>
     <color name="text_primary">#F8FAFC</color>
+
+    <!-- Peachy Cozy Widget Palette -->
+    <color name="widget_bg_peachy">#FFF8F1</color>
+    <color name="widget_surface_peachy">#FFFFFF</color>
+    <color name="widget_primary_peach">#FFAD91</color>
+    <color name="widget_deep_peach">#F58B72</color>
+    <color name="widget_text_primary">#4A3028</color>
+    <color name="widget_text_secondary">#92766B</color>
+    <color name="widget_border">#F0DDD2</color>
+    <color name="widget_green">#268B65</color>
+    <color name="widget_red">#D95757</color>
+    <color name="widget_blue">#0284C7</color>
 </resources>

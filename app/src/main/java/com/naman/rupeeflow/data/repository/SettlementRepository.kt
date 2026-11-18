@@ -1,9 +1,11 @@
 package com.naman.rupeeflow.data.repository
 
+import android.content.Context
 import com.naman.rupeeflow.data.local.dao.FriendDao
 import com.naman.rupeeflow.data.local.dao.SettlementDao
 import com.naman.rupeeflow.data.local.entity.SettlementEntity
 import com.naman.rupeeflow.domain.model.Settlement
+import com.naman.rupeeflow.widget.RupeeFlowWidgetManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -25,7 +27,8 @@ interface SettlementRepository {
 
 class SettlementRepositoryImpl(
     private val settlementDao: SettlementDao,
-    private val friendDao: FriendDao? = null
+    private val friendDao: FriendDao? = null,
+    private val context: Context? = null
 ) : SettlementRepository {
 
     override fun getAllSettlements(): Flow<List<Settlement>> {
@@ -72,7 +75,9 @@ class SettlementRepositoryImpl(
             }
         }
 
-        return settlementDao.insertSettlement(settlement.toEntity())
+        val id = settlementDao.insertSettlement(settlement.toEntity())
+        context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
+        return id
     }
 
     // Update settlement preserving ID, createdAt, and reversal status with strict validations
@@ -102,18 +107,22 @@ class SettlementRepositoryImpl(
             isReversed = existing.isReversed
         )
         settlementDao.updateSettlement(safeEntity)
+        context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
     }
 
     override suspend fun reverseSettlement(id: Long) {
         settlementDao.reverseSettlement(id)
+        context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
     }
 
     override suspend fun unreverseSettlement(id: Long) {
         settlementDao.unreverseSettlement(id)
+        context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
     }
 
     override suspend fun deleteSettlement(settlement: Settlement) {
         settlementDao.deleteSettlement(settlement.toEntity())
+        context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
     }
 
     private fun SettlementEntity.toDomain() = Settlement(

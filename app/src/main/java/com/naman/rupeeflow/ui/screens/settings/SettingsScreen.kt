@@ -12,6 +12,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -117,38 +118,66 @@ fun SettingsScreen(
             // Theme Mode
             item {
                 SettingsSectionHeader("Appearance")
-                RupeeFlowCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(text = "App Theme", style = MaterialTheme.typography.titleMedium, color = AppTheme.colors.textPrimary)
-                    Spacer(modifier = Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "App Theme",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = AppTheme.colors.textPrimary
+                    )
+                    Text(
+                        text = "Choose your preferred visual aesthetic for RupeeFlow",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AppTheme.colors.textSecondary
+                    )
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(AppTheme.colors.surfaceSecondary)
-                            .padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        listOf("DARK" to "Dark Mode", "LIGHT" to "Light", "SYSTEM" to "System").forEach { (key, label) ->
-                            val isSelected = state.themeMode == key
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) AppTheme.colors.accentContainer else Color.Transparent)
-                                    .clickable { viewModel.setThemeMode(key) }
-                                    .padding(vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    // 1. Peachy Cozy (Active / Default)
+                    val isPeachySelected = state.themeMode == "PEACHY" || state.themeMode.isBlank() || state.themeMode == "LIGHT"
+                    ThemePreviewCard(
+                        title = "Peachy Cozy",
+                        subtitle = "Warm, cute, minimal and modern peach aesthetic",
+                        paletteColors = listOf(Color(0xFFFFF8F1), Color(0xFFFFAD91), Color(0xFFF58B72), Color(0xFF4A3028)),
+                        isSelected = isPeachySelected,
+                        badgeText = null,
+                        onClick = { viewModel.setThemeMode("PEACHY") }
+                    )
+
+                    // 2. Midnight Dark
+                    val isDarkSelected = state.themeMode == "DARK"
+                    ThemePreviewCard(
+                        title = "Midnight Dark",
+                        subtitle = "High-contrast dark mode with neon accents",
+                        paletteColors = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF38BDF8), Color(0xFFF8FAFC)),
+                        isSelected = isDarkSelected,
+                        badgeText = null,
+                        onClick = { viewModel.setThemeMode("DARK") }
+                    )
+
+                    // 3. Lavender Dream (Coming Soon)
+                    ThemePreviewCard(
+                        title = "Lavender Dream",
+                        subtitle = "Calm pastel floral aesthetic & serenity",
+                        paletteColors = listOf(Color(0xFFF5F3FF), Color(0xFFDDD6FE), Color(0xFF8B5CF6), Color(0xFF4C1D95)),
+                        isSelected = false,
+                        badgeText = "Coming Soon",
+                        onClick = {
+                            Toast.makeText(context, "Lavender Dream theme coming soon in a future release!", Toast.LENGTH_SHORT).show()
                         }
-                    }
+                    )
+
+                    // 4. Midnight Mochi (Coming Soon)
+                    ThemePreviewCard(
+                        title = "Midnight Mochi",
+                        subtitle = "Dark charcoal palette with cute vibrant pink pop",
+                        paletteColors = listOf(Color(0xFF18181B), Color(0xFF27272A), Color(0xFFF472B6), Color(0xFFFDF2F8)),
+                        isSelected = false,
+                        badgeText = "Coming Soon",
+                        onClick = {
+                            Toast.makeText(context, "Midnight Mochi theme coming soon in a future release!", Toast.LENGTH_SHORT).show()
+                        }
+                    )
                 }
             }
 
@@ -1526,6 +1555,115 @@ fun ExportEncryptedBackupDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ThemePreviewCard(
+    title: String,
+    subtitle: String,
+    paletteColors: List<Color>,
+    isSelected: Boolean,
+    badgeText: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val borderColor = if (isSelected) AppTheme.colors.primaryAccent else AppTheme.colors.cardBorder
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = AppTheme.colors.surface,
+        border = BorderStroke(borderWidth, borderColor),
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = AppTheme.colors.textPrimary
+                    )
+
+                    if (badgeText != null) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = AppTheme.colors.surfaceSecondary,
+                            border = BorderStroke(1.dp, AppTheme.colors.cardBorder)
+                        ) {
+                            Text(
+                                text = badgeText,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.textSecondary,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    } else if (isSelected) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = AppTheme.colors.primaryAccentContainer
+                        ) {
+                            Text(
+                                text = "Active",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.primaryAccent,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AppTheme.colors.textSecondary
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Color swatch dots preview
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    paletteColors.forEach { c ->
+                        Box(
+                            modifier = Modifier
+                                .size(18.dp)
+                                .clip(CircleShape)
+                                .background(c)
+                                .border(1.dp, AppTheme.colors.cardBorder, CircleShape)
+                        )
+                    }
+                }
+            }
+
+            RadioButton(
+                selected = isSelected,
+                onClick = onClick,
+                enabled = badgeText == null,
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = AppTheme.colors.primaryAccent,
+                    unselectedColor = AppTheme.colors.textSecondary
+                )
+            )
         }
     }
 }

@@ -20,9 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.naman.rupeeflow.domain.model.ExpenseGroup
 import com.naman.rupeeflow.domain.util.CurrencyUtils
-import com.naman.rupeeflow.ui.components.RupeeFlowCard
-import com.naman.rupeeflow.ui.components.TripCoverAvatar
-import com.naman.rupeeflow.ui.components.rupeeFlowTextFieldColors
+import com.naman.rupeeflow.ui.components.*
 import com.naman.rupeeflow.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -152,45 +150,13 @@ fun ExpenseGroupsScreen(
                         .weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Default.CardTravel,
-                            contentDescription = null,
-                            tint = AppTheme.colors.textTertiary,
-                            modifier = Modifier.size(56.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = if (state.selectedTab == 0) "No active expense groups" else "No archived expense groups",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = AppTheme.colors.textPrimary
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Create groups for trips (e.g. Goa Trip, College Tour) or events to organize your expenses.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = AppTheme.colors.textSecondary,
-                            modifier = Modifier.padding(horizontal = 32.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = { showCreateWizard = true },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.heightIn(min = 48.dp)
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                "Create Trip / Group",
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                            )
-                        }
-                    }
+                    MascotEmptyState(
+                        pose = MascotPose.TRAVEL,
+                        title = if (state.selectedTab == 0) "No active trips yet" else "No archived trips",
+                        subtitle = "Create groups for trips (e.g. Goa Trip, Vacation) or shared events to organize your expenses.",
+                        actionLabel = if (state.selectedTab == 0) "Create Trip / Group" else null,
+                        onAction = { showCreateWizard = true }
+                    )
                 }
             } else {
                 LazyColumn(

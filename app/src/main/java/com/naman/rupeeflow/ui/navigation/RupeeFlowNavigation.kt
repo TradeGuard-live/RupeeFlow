@@ -53,6 +53,8 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector?
 
     object SplitProSettings : Screen("split_pro_settings", "Split Pro Settings")
 
+    object Calendar : Screen("calendar", "Calendar", Icons.Default.DateRange)
+
     object AddEditTransaction : Screen(
         "add_edit_transaction?transactionId={transactionId}&pendingId={pendingId}",
         "Transaction Form"

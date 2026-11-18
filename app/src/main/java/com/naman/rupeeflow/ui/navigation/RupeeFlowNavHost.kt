@@ -84,6 +84,15 @@ fun RupeeFlowApp(
                     },
                     onNavigateToSplitPro = {
                         navController.navigate(Screen.SplitPro.route)
+                    },
+                    onNavigateToExpenseGroups = {
+                        navController.navigate(Screen.ExpenseGroups.route)
+                    },
+                    onNavigateToReports = {
+                        navController.navigate(Screen.ReportGenerator.createRoute())
+                    },
+                    onNavigateToCalendar = {
+                        navController.navigate(Screen.Calendar.route)
                     }
                 )
             }
@@ -215,6 +224,15 @@ fun RupeeFlowApp(
                 val pendingViewModel: PendingTransactionsViewModel = viewModel(factory = AppViewModelProvider.Factory)
                 PendingTransactionsScreen(
                     viewModel = pendingViewModel,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            // Calendar Screen
+            composable(Screen.Calendar.route) {
+                val transactionsViewModel: TransactionsViewModel = viewModel(factory = AppViewModelProvider.Factory)
+                com.naman.rupeeflow.ui.screens.calendar.CalendarScreen(
+                    viewModel = transactionsViewModel,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }

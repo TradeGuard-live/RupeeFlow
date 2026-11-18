@@ -1,5 +1,6 @@
 package com.naman.rupeeflow.ui.screens.overview
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -18,11 +19,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.naman.rupeeflow.domain.model.Friend
 import com.naman.rupeeflow.domain.model.Transaction
+import com.naman.rupeeflow.domain.model.TransactionType
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.ui.components.*
 import com.naman.rupeeflow.ui.theme.*
@@ -38,12 +41,16 @@ fun OverviewScreen(
     onNavigateToFriends: () -> Unit,
     onNavigateToFriendDetail: (Long) -> Unit,
     onNavigateToPending: () -> Unit,
-    onNavigateToSplitPro: () -> Unit = {}
+    onNavigateToSplitPro: () -> Unit = {},
+    onNavigateToExpenseGroups: () -> Unit = {},
+    onNavigateToReports: () -> Unit = {},
+    onNavigateToCalendar: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
 
     // ✅ rememberSaveable keeps the sheet open across biometric lock/unlock and activity recreation
     var showFastAddSheet by rememberSaveable { mutableStateOf(false) }
+    var fastAddInitialType by rememberSaveable { mutableStateOf(TransactionType.EXPENSE) }
     var showVoiceAssistant by remember { mutableStateOf(false) }
     var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
@@ -52,6 +59,16 @@ fun OverviewScreen(
     val todayDateStr = remember {
         val sdf = SimpleDateFormat("EEEE, dd MMMM", Locale.getDefault())
         sdf.format(Date())
+    }
+
+    val greeting = remember {
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        when (hour) {
+            in 5..11 -> "Good morning"
+            in 12..16 -> "Good afternoon"
+            in 17..21 -> "Good evening"
+            else -> "Good night"
+        }
     }
 
     Scaffold(
@@ -75,7 +92,10 @@ fun OverviewScreen(
                     )
                 }
                 FloatingActionButton(
-                    onClick = { showFastAddSheet = true },
+                    onClick = {
+                        fastAddInitialType = TransactionType.EXPENSE
+                        showFastAddSheet = true
+                    },
                     containerColor = AppTheme.colors.primaryAccent,
                     contentColor = Color.White,
                     shape = CircleShape
@@ -97,30 +117,100 @@ fun OverviewScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Header: Greeting & Date
+            // Header: Personalized Greeting with Cute Bunny Mascot & Date
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Text(
-                            text = todayDateStr,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AppTheme.colors.textSecondary
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        RupeeBunnyMascot(
+                            pose = MascotPose.HAPPY,
+                            size = 56.dp,
+                            animated = true
                         )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Financial Overview",
-                            style = MaterialTheme.typography.headlineLarge,
-                            color = AppTheme.colors.textPrimary
-                        )
+                        Column {
+                            Text(
+                                text = todayDateStr,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AppTheme.colors.textSecondary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "$greeting!",
+                                style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.textPrimary
+                            )
+                        }
                     }
 
                     DetectedTransactionsBadge(
                         pendingCount = state.pendingTransactions.size,
                         onClick = onNavigateToPending
+                    )
+                }
+            }
+
+            // Quick Actions Horizontal Row
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    QuickActionPill(
+                        label = "Add Expense",
+                        icon = Icons.Default.AddCircleOutline,
+                        accentColor = Color(0xFFF58B72),
+                        backgroundColor = Color(0xFFFFF0E6),
+                        onClick = {
+                            fastAddInitialType = TransactionType.EXPENSE
+                            showFastAddSheet = true
+                        }
+                    )
+                    QuickActionPill(
+                        label = "Add Income",
+                        icon = Icons.Default.TrendingUp,
+                        accentColor = Color(0xFF16A34A),
+                        backgroundColor = Color(0xFFDCFCE7),
+                        onClick = {
+                            fastAddInitialType = TransactionType.INCOME
+                            showFastAddSheet = true
+                        }
+                    )
+                    QuickActionPill(
+                        label = "Split Pro",
+                        icon = Icons.Default.Groups,
+                        accentColor = Color(0xFF3B82F6),
+                        backgroundColor = Color(0xFFEFF6FF),
+                        onClick = onNavigateToSplitPro
+                    )
+                    QuickActionPill(
+                        label = "Trips",
+                        icon = Icons.Default.Flight,
+                        accentColor = Color(0xFF9333EA),
+                        backgroundColor = Color(0xFFFDF4FF),
+                        onClick = onNavigateToExpenseGroups
+                    )
+                    QuickActionPill(
+                        label = "Reports",
+                        icon = Icons.Default.Description,
+                        accentColor = Color(0xFFD97706),
+                        backgroundColor = Color(0xFFFEF3C7),
+                        onClick = onNavigateToReports
+                    )
+                    QuickActionPill(
+                        label = "Calendar",
+                        icon = Icons.Default.DateRange,
+                        accentColor = Color(0xFF0D9488),
+                        backgroundColor = Color(0xFFF0FDFA),
+                        onClick = onNavigateToCalendar
                     )
                 }
             }
@@ -188,6 +278,49 @@ fun OverviewScreen(
                 )
             }
 
+            // Income & Estimated Savings Row
+            item {
+                val estimatedSavings = maxOf(0L, state.summary.totalIncomeThisMonthPaise - state.summary.totalExpenseThisMonthPaise)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    MiniStatCard(
+                        title = "Monthly Income",
+                        amountFormatted = CurrencyUtils.formatPaiseToRupees(state.summary.totalIncomeThisMonthPaise),
+                        accentColor = if (isDark) EmeraldMint else Color(0xFF16A34A),
+                        modifier = Modifier.weight(1f)
+                    )
+                    MiniStatCard(
+                        title = "Estimated Savings",
+                        amountFormatted = CurrencyUtils.formatPaiseToRupees(estimatedSavings),
+                        accentColor = if (isDark) VibrantCyan else Color(0xFF0284C7),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            // Cash vs Online Row
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    MiniStatCard(
+                        title = "Online Spending",
+                        amountFormatted = CurrencyUtils.formatPaiseToRupees(state.summary.totalOnlineSpendingPaise),
+                        accentColor = if (isDark) VibrantCyan else Color(0xFF0891B2),
+                        modifier = Modifier.weight(1f)
+                    )
+                    MiniStatCard(
+                        title = "Cash Spending",
+                        amountFormatted = CurrencyUtils.formatPaiseToRupees(state.summary.totalCashSpendingPaise),
+                        accentColor = if (isDark) AmberGold else Color(0xFFD97706),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
             // Quick Stats Row: Owed to me & I owe
             item {
                 Row(
@@ -216,10 +349,10 @@ fun OverviewScreen(
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable { onNavigateToSplitPro() },
                     color = AppTheme.colors.surfaceElevated,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.divider)
+                    border = BorderStroke(1.dp, AppTheme.colors.cardBorder)
                 ) {
                     Row(
                         modifier = Modifier
@@ -282,27 +415,6 @@ fun OverviewScreen(
                             tint = AppTheme.colors.textSecondary
                         )
                     }
-                }
-            }
-
-            // Cash vs Online Row
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    MiniStatCard(
-                        title = "Online Spending",
-                        amountFormatted = CurrencyUtils.formatPaiseToRupees(state.summary.totalOnlineSpendingPaise),
-                        accentColor = if (isDark) VibrantCyan else Color(0xFF0891B2),
-                        modifier = Modifier.weight(1f)
-                    )
-                    MiniStatCard(
-                        title = "Cash Spending",
-                        amountFormatted = CurrencyUtils.formatPaiseToRupees(state.summary.totalCashSpendingPaise),
-                        accentColor = if (isDark) AmberGold else Color(0xFFD97706),
-                        modifier = Modifier.weight(1f)
-                    )
                 }
             }
 
@@ -384,6 +496,33 @@ fun OverviewScreen(
                 }
             }
 
+            // Top Spending Categories
+            if (state.categories.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Categories",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = AppTheme.colors.textPrimary
+                    )
+                }
+
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        state.categories.take(6).forEach { cat ->
+                            CategoryBadge(
+                                categoryName = cat.name,
+                                showLabel = true
+                            )
+                        }
+                    }
+                }
+            }
+
             // Friends with Outstanding Balances
             if (state.friendsWithBalances.isNotEmpty()) {
                 item {
@@ -452,18 +591,16 @@ fun OverviewScreen(
             // Recent Transactions List
             if (state.recentTransactions.isEmpty()) {
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "No transactions yet. Tap + to add one!",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = AppTheme.colors.textSecondary
-                        )
-                    }
+                    MascotEmptyState(
+                        pose = MascotPose.THINKING,
+                        title = "No transactions yet",
+                        subtitle = "Tap + or use Quick Actions above to record your first expense!",
+                        actionLabel = "Add Expense",
+                        onAction = {
+                            fastAddInitialType = TransactionType.EXPENSE
+                            showFastAddSheet = true
+                        }
+                    )
                 }
             } else {
                 items(state.recentTransactions, key = { it.id }) { txn ->
@@ -486,7 +623,8 @@ fun OverviewScreen(
             onCreateExpenseGroup = { viewModel.createExpenseGroup(it) },
             onDismiss = { showFastAddSheet = false },
             onSave = { newTxn -> viewModel.saveTransaction(newTxn) },
-            onSaveSettlement = { settlement -> viewModel.recordSettlement(settlement) }
+            onSaveSettlement = { settlement -> viewModel.recordSettlement(settlement) },
+            initialType = fastAddInitialType
         )
     }
 
@@ -531,5 +669,41 @@ fun OverviewScreen(
             onDismiss = { settlingFriend = null },
             onConfirm = { settlement -> viewModel.recordSettlement(settlement) }
         )
+    }
+}
+
+@Composable
+private fun QuickActionPill(
+    label: String,
+    icon: ImageVector,
+    accentColor: Color,
+    backgroundColor: Color,
+    onClick: () -> Unit
+) {
+    val isDark = AppTheme.isDark
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = if (isDark) AppTheme.colors.surfaceElevated else backgroundColor,
+        border = BorderStroke(1.dp, if (isDark) AppTheme.colors.cardBorder else accentColor.copy(alpha = 0.25f)),
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = accentColor,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isDark) AppTheme.colors.textPrimary else AppTheme.colors.textPrimary
+            )
+        }
     }
 }

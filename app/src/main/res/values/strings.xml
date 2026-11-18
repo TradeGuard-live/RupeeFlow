@@ -3,4 +3,9 @@
     <string name="app_name">RupeeFlow</string>
     <string name="notification_channel_name">Financial Transactions</string>
     <string name="notification_channel_description">Notifications for detected financial SMS and payments</string>
+
+    <!-- Home Screen Widgets -->
+    <string name="widget_money_snapshot_desc">RupeeFlow Monthly Money Snapshot</string>
+    <string name="widget_quick_add_desc">Quick shortcut to add expenses</string>
+    <string name="widget_spending_summary_desc">RupeeFlow Monthly Spending Summary</string>
 </resources>

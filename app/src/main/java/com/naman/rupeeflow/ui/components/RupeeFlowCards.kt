@@ -57,7 +57,7 @@ fun RupeeFlowCard(
     modifier: Modifier = Modifier,
     backgroundColor: Color = AppTheme.colors.surface,
     borderColor: Color = AppTheme.colors.cardBorder,
-    cornerRadius: Dp = 16.dp,
+    cornerRadius: Dp = 20.dp,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -104,17 +104,17 @@ fun HeroSummaryCard(
     } else {
         Brush.linearGradient(
             colors = listOf(
-                Color(0xFFEFF6FF),
-                Color(0xFFFFFFFF)
+                AppTheme.colors.surfaceSecondary,
+                AppTheme.colors.surface
             )
         )
     }
 
-    val cardBg = if (isDark) CharcoalCard else Color.White
+    val cardBg = AppTheme.colors.surface
     val borderStroke = if (isDark) {
         BorderStroke(1.dp, accentColor.copy(alpha = 0.35f))
     } else {
-        BorderStroke(1.dp, Color(0xFFBFDBFE))
+        BorderStroke(1.dp, AppTheme.colors.cardBorder)
     }
 
     Surface(
@@ -146,15 +146,18 @@ fun HeroSummaryCard(
                     )
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (isDark) accentColor.copy(alpha = 0.2f) else Color(0xFFDBEAFE)),
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(
+                                if (isDark) accentColor.copy(alpha = 0.2f)
+                                else AppTheme.colors.primaryAccentContainer
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            tint = if (isDark) accentColor else Color(0xFF2563EB),
+                            tint = accentColor,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -194,7 +197,7 @@ fun MiniStatCard(
         modifier = modifier,
         backgroundColor = AppTheme.colors.surface,
         borderColor = if (isDark) accentColor.copy(alpha = 0.3f) else AppTheme.colors.cardBorder,
-        cornerRadius = 16.dp,
+        cornerRadius = 20.dp,
         onClick = onClick
     ) {
         Text(

@@ -211,18 +211,15 @@ fun TransactionsScreen(
             ) {
                 if (state.listItems.isEmpty()) {
                     item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 48.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No transactions found",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = AppTheme.colors.textSecondary
-                            )
-                        }
+                        MascotEmptyState(
+                            pose = MascotPose.THINKING,
+                            title = "No transactions found",
+                            subtitle = if (state.searchQuery.isNotBlank()) {
+                                "No transactions match '${state.searchQuery}'. Try resetting search or filters."
+                            } else {
+                                "No transactions recorded for this period yet. Tap + to add one!"
+                            }
+                        )
                     }
                 } else {
                     items(

@@ -1,5 +1,6 @@
 package com.naman.rupeeflow.data.repository
 
+import android.content.Context
 import com.naman.rupeeflow.data.local.dao.CategoryDao
 import com.naman.rupeeflow.data.local.dao.FriendDao
 import com.naman.rupeeflow.data.local.dao.TransactionDao
@@ -7,6 +8,7 @@ import com.naman.rupeeflow.data.local.dao.TransactionWithParticipants
 import com.naman.rupeeflow.data.local.entity.TransactionEntity
 import com.naman.rupeeflow.data.local.entity.TransactionParticipantEntity
 import com.naman.rupeeflow.domain.model.*
+import com.naman.rupeeflow.widget.RupeeFlowWidgetManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
@@ -37,7 +39,8 @@ interface TransactionRepository {
 class TransactionRepositoryImpl(
     private val transactionDao: TransactionDao,
     private val categoryDao: CategoryDao,
-    private val friendDao: FriendDao
+    private val friendDao: FriendDao,
+    private val context: Context? = null
 ) : TransactionRepository {
 
     override fun getAllTransactions(): Flow<List<Transaction>> {
@@ -121,15 +124,19 @@ class TransactionRepositoryImpl(
             updatedAt = System.currentTimeMillis()
         )
         val participantEntities = transaction.participants.map { it.toEntity(transaction.id) }
-        return transactionDao.saveTransactionWithParticipants(entity, participantEntities)
+        val result = transactionDao.saveTransactionWithParticipants(entity, participantEntities)
+        context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
+        return result
     }
 
     override suspend fun updateTransactionStatus(id: Long, status: TransactionStatus) {
         transactionDao.updateTransactionStatus(id, status)
+        context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
     }
 
     override suspend fun deleteTransaction(id: Long) {
         transactionDao.deleteTransactionById(id)
+        context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
     }
 
     override suspend fun getLatestLocationByMerchant(merchantName: String): TransactionLocation? {

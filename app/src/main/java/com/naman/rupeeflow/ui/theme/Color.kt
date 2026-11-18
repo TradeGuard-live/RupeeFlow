@@ -37,7 +37,13 @@ data class AppColors(
     val onWarning: Color,
     val info: Color,
     val infoContainer: Color,
-    val isDark: Boolean
+    val isDark: Boolean,
+    val primaryPeach: Color = Color(0xFFFFAD91),
+    val deepPeach: Color = Color(0xFFF58B72),
+    val accentPink: Color = Color(0xFFF5A6B8),
+    val softLavender: Color = Color(0xFFDCCBFA),
+    val mint: Color = Color(0xFFB9E5D2),
+    val warmYellow: Color = Color(0xFFFFD98E)
 ) {
     val cardBackground: Color get() = surface
     val accentContainer: Color get() = primaryAccentContainer
@@ -45,6 +51,40 @@ data class AppColors(
     val textMuted: Color get() = textTertiary
     val inputBackground: Color get() = if (isDark) surfaceSecondary else surface
 }
+
+// Dedicated Peachy Cozy Design System (Warm, Cute, Minimal & Modern)
+val PeachyAppColors = AppColors(
+    background = Color(0xFFFFF8F1),
+    surface = Color(0xFFFFFFFF),
+    surfaceSecondary = Color(0xFFFFF0E6),
+    surfaceElevated = Color(0xFFFFFFFF),
+    cardBorder = Color(0xFFF0DDD2),
+    divider = Color(0xFFF0DDD2),
+    textPrimary = Color(0xFF4A3028),
+    textSecondary = Color(0xFF92766B),
+    textTertiary = Color(0xFFB8A298),
+    primaryAccent = Color(0xFFF58B72),
+    primaryAccentContainer = Color(0xFFFFF0E6),
+    onPrimaryAccent = Color(0xFFFFFFFF),
+    success = Color(0xFF268B65),
+    successContainer = Color(0xFFD8F3E5),
+    onSuccess = Color(0xFFFFFFFF),
+    error = Color(0xFFD95757),
+    errorContainer = Color(0xFFFDE8E8),
+    onError = Color(0xFFFFFFFF),
+    warning = Color(0xFFFFD98E),
+    warningContainer = Color(0xFFFFF5DC),
+    onWarning = Color(0xFF4A3028),
+    info = Color(0xFFDCCBFA),
+    infoContainer = Color(0xFFF4EEFE),
+    isDark = false,
+    primaryPeach = Color(0xFFFFAD91),
+    deepPeach = Color(0xFFF58B72),
+    accentPink = Color(0xFFF5A6B8),
+    softLavender = Color(0xFFDCCBFA),
+    mint = Color(0xFFB9E5D2),
+    warmYellow = Color(0xFFFFD98E)
+)
 
 // Dedicated Light Design System (Fintech Dashboard Aesthetic)
 val LightAppColors = AppColors(
@@ -102,7 +142,26 @@ val DarkAppColors = AppColors(
     isDark = true
 )
 
-val LocalAppColors = staticCompositionLocalOf { DarkAppColors }
+val LocalAppColors = staticCompositionLocalOf { PeachyAppColors }
+
+// =============================================================================
+// PEACHY COZY COLOR CONSTANTS
+// =============================================================================
+
+val PeachyBackground = Color(0xFFFFF8F1)
+val PeachySurface = Color(0xFFFFFFFF)
+val PeachySecondarySurface = Color(0xFFFFF0E6)
+val PeachyPrimaryPeach = Color(0xFFFFAD91)
+val PeachyDeepPeach = Color(0xFFF58B72)
+val PeachyAccentPink = Color(0xFFF5A6B8)
+val PeachySoftLavender = Color(0xFFDCCBFA)
+val PeachyMint = Color(0xFFB9E5D2)
+val PeachyWarmYellow = Color(0xFFFFD98E)
+val PeachyTextPrimary = Color(0xFF4A3028)
+val PeachyTextSecondary = Color(0xFF92766B)
+val PeachyBorder = Color(0xFFF0DDD2)
+val PeachyError = Color(0xFFD95757)
+val PeachySuccess = Color(0xFF268B65)
 
 // =============================================================================
 // LEGACY CONSTANTS PRESERVED FOR TESTS & DIRECT REFERENCES

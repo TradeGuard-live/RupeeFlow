@@ -30,9 +30,7 @@ import com.naman.rupeeflow.domain.model.Transaction
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
 import com.naman.rupeeflow.report.PdfReportGenerator
-import com.naman.rupeeflow.ui.components.PeriodNavigator
-import com.naman.rupeeflow.ui.components.RupeeFlowCard
-import com.naman.rupeeflow.ui.components.rupeeFlowTextFieldColors
+import com.naman.rupeeflow.ui.components.*
 import com.naman.rupeeflow.ui.theme.*
 import java.io.File
 import java.time.Instant
@@ -618,6 +616,16 @@ fun ReportGeneratorScreen(
                             tint = AppTheme.colors.textSecondary
                         )
                     }
+                }
+            }
+
+            if (state.rawTransactionsInRange.isEmpty()) {
+                item {
+                    MascotEmptyState(
+                        pose = MascotPose.THINKING,
+                        title = "No transactions in this period",
+                        subtitle = "Try selecting a different date range or period to generate your financial report."
+                    )
                 }
             }
 

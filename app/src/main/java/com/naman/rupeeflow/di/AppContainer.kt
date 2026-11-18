@@ -71,14 +71,16 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         TransactionRepositoryImpl(
             transactionDao = database.transactionDao(),
             categoryDao = database.categoryDao(),
-            friendDao = database.friendDao()
+            friendDao = database.friendDao(),
+            context = context
         )
     }
 
     override val settlementRepository: SettlementRepository by lazy {
         SettlementRepositoryImpl(
             settlementDao = database.settlementDao(),
-            friendDao = database.friendDao()
+            friendDao = database.friendDao(),
+            context = context
         )
     }
 

@@ -24,7 +24,7 @@ import com.naman.rupeeflow.domain.model.GroupActivityType
 import com.naman.rupeeflow.domain.model.GroupType
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
-import com.naman.rupeeflow.ui.components.rupeeFlowTextFieldColors
+import com.naman.rupeeflow.ui.components.*
 import com.naman.rupeeflow.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -304,29 +304,17 @@ fun SplitProScreen(
             // 6. Groups List
             if (state.filteredGroups.isEmpty()) {
                 item {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        color = AppTheme.colors.surfaceElevated,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.divider)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(32.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Default.Groups, contentDescription = null, tint = AppTheme.colors.textSecondary, modifier = Modifier.size(44.dp))
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(
-                                    text = if (state.searchQuery.isNotBlank()) "No groups match your search." else "No groups yet. Tap \"Create Group\" to get started!",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = AppTheme.colors.textSecondary
-                                )
-                            }
-                        }
-                    }
+                    MascotEmptyState(
+                        pose = MascotPose.FRIENDLY,
+                        title = "No groups yet",
+                        subtitle = if (state.searchQuery.isNotBlank()) {
+                            "No groups match your search query."
+                        } else {
+                            "Create a group to easily split bills with friends and simplify debts!"
+                        },
+                        actionLabel = "Create Group",
+                        onAction = { showCreateGroupDialog = true }
+                    )
                 }
             } else {
                 items(state.filteredGroups, key = { it.id }) { group ->

@@ -381,34 +381,27 @@ fun FriendsScreen(
             ) {
                 if (state.filteredFriends.isEmpty()) {
                     item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 48.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (state.selectedGroupId != null) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = "No members in this group yet",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = AppTheme.colors.textPrimary
-                                    )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = "Tap 'Manage Group' to add friends to this group.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = AppTheme.colors.textSecondary,
-                                        textAlign = TextAlign.Center
-                                    )
+                        if (state.selectedGroupId != null) {
+                            MascotEmptyState(
+                                pose = MascotPose.FRIENDLY,
+                                title = "No members in this group yet",
+                                subtitle = "Tap 'Manage Group' to add friends to this group.",
+                                actionLabel = "Manage Group",
+                                onAction = {
+                                    val group = state.groups.find { it.id == state.selectedGroupId }
+                                    if (group != null) {
+                                        editingGroup = group
+                                    }
                                 }
-                            } else {
-                                Text(
-                                    text = "No friends found. Tap + to add a friend!",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = AppTheme.colors.textSecondary
-                                )
-                            }
+                            )
+                        } else {
+                            MascotEmptyState(
+                                pose = MascotPose.FRIENDLY,
+                                title = "No friends found",
+                                subtitle = "Add friends to easily split expenses, calculate balances, and track settlements.",
+                                actionLabel = "Add Friend",
+                                onAction = { showAddFriendDialog = true }
+                            )
                         }
                     }
                 } else {
