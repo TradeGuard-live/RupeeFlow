@@ -866,7 +866,8 @@ fun ExpenseGroupDetailScreen(
             onSave = { updatedTxn ->
                 viewModel.saveTransaction(updatedTxn)
                 editingTransaction = null
-            }
+            },
+            onSearchMerchantCategory = { merchant -> viewModel.getSuggestedCategoryForMerchant(merchant) }
         )
     }
 
@@ -893,7 +894,8 @@ fun ExpenseGroupDetailScreen(
             onSave = { newTxn ->
                 viewModel.saveTransaction(newTxn)
                 showAddExpenseDialog = false
-            }
+            },
+            onSearchMerchantCategory = { merchant -> viewModel.getSuggestedCategoryForMerchant(merchant) }
         )
     }
 

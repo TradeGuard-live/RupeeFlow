@@ -45,7 +45,8 @@ class OverviewViewModel(
     private val friendGroupRepository: FriendGroupRepository? = null,
     private val expenseGroupRepository: com.naman.rupeeflow.data.repository.ExpenseGroupRepository? = null,
     private val inputRankingRepository: InputRankingRepository? = null,
-    private val savingsGoalRepository: com.naman.rupeeflow.data.repository.SavingsGoalRepository? = null
+    private val savingsGoalRepository: com.naman.rupeeflow.data.repository.SavingsGoalRepository? = null,
+    private val merchantPreferenceRepository: com.naman.rupeeflow.data.repository.MerchantPreferenceRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(OverviewUiState())
@@ -199,9 +200,40 @@ class OverviewViewModel(
         weekOffset.value = 0
     }
 
+    suspend fun getSuggestedCategoryForMerchant(merchant: String?): Category? {
+        if (merchant.isNullOrBlank()) return null
+        val prefCatId = merchantPreferenceRepository?.getSuggestedCategory(merchant)
+        if (prefCatId != null && prefCatId > 0L) {
+            val found = _uiState.value.categories.firstOrNull { it.id == prefCatId }
+                ?: categoryRepository.getCategoryById(prefCatId)
+            if (found != null) return found
+        }
+        val dbCatId = transactionRepository.getLatestCategoryForMerchant(merchant)
+        if (dbCatId != null && dbCatId > 0L) {
+            try {
+                merchantPreferenceRepository?.recordMerchantCategory(merchant, dbCatId)
+            } catch (_: Exception) {}
+            return _uiState.value.categories.firstOrNull { it.id == dbCatId }
+                ?: categoryRepository.getCategoryById(dbCatId)
+        }
+        return null
+    }
+
+    suspend fun getMerchantLatestLocation(merchant: String): TransactionLocation? {
+        return transactionRepository.getLatestLocationByMerchant(merchant)
+    }
+
     fun saveTransaction(transaction: Transaction) {
         viewModelScope.launch {
             transactionRepository.saveTransaction(transaction)
+            val merchantToLearn = transaction.merchantName?.trim()?.ifBlank { null }
+                ?: transaction.rawMerchant?.trim()?.ifBlank { null }
+                ?: transaction.title.trim().takeIf { it.isNotBlank() }
+            if (!merchantToLearn.isNullOrBlank() && transaction.categoryId > 0L) {
+                try {
+                    merchantPreferenceRepository?.recordMerchantCategory(merchantToLearn, transaction.categoryId)
+                } catch (_: Exception) {}
+            }
             inputRankingRepository?.let { ranking ->
                 ranking.recordUsage("CATEGORY", transaction.categoryId.toString())
                 ranking.recordUsage("PAYMENT_METHOD", transaction.paymentMethod.name)

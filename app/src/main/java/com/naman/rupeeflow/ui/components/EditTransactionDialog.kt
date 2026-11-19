@@ -48,6 +48,7 @@ fun EditTransactionDialog(
     onDismiss: () -> Unit,
     onSave: (Transaction) -> Unit,
     onSearchMerchantLocation: (suspend (String) -> TransactionLocation?)? = null,
+    onSearchMerchantCategory: (suspend (String) -> Category?)? = null,
     lockToExpenseGroup: Boolean = false
 ) {
     val context = LocalContext.current
@@ -72,6 +73,7 @@ fun EditTransactionDialog(
     var selectedCategory by remember {
         mutableStateOf(categories.firstOrNull { it.id == transaction.categoryId } ?: transaction.category ?: categories.firstOrNull())
     }
+    var userManuallySelectedCategory by remember { mutableStateOf(false) }
 
     var selectedExpenseGroupId by remember { mutableStateOf(transaction.expenseGroupId) }
     var selectedExpenseGroupName by remember { mutableStateOf(transaction.expenseGroupName) }
@@ -151,6 +153,18 @@ fun EditTransactionDialog(
     // Location state & merchant memory
     var attachedLocation by remember { mutableStateOf<TransactionLocation?>(transaction.location) }
     var merchantSuggestion by remember { mutableStateOf<TransactionLocation?>(null) }
+
+    LaunchedEffect(merchantName, title) {
+        if (userManuallySelectedCategory) return@LaunchedEffect
+        val candidate = merchantName.trim().ifBlank { title.trim() }
+        if (candidate.length >= 2 && onSearchMerchantCategory != null) {
+            kotlinx.coroutines.delay(150)
+            val suggestedCat = onSearchMerchantCategory(candidate)
+            if (suggestedCat != null && !userManuallySelectedCategory) {
+                selectedCategory = suggestedCat
+            }
+        }
+    }
 
     LaunchedEffect(merchantName) {
         val candidate = merchantName.trim()
@@ -324,7 +338,10 @@ fun EditTransactionDialog(
             CategorySelectorRow(
                 categories = categories,
                 selectedCategory = selectedCategory,
-                onSelect = { selectedCategory = it }
+                onSelect = {
+                    selectedCategory = it
+                    userManuallySelectedCategory = true
+                }
             )
 
             Spacer(modifier = Modifier.height(16.dp))

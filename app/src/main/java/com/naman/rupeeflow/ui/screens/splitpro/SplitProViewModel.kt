@@ -302,6 +302,16 @@ class SplitProViewModel(
         }
     }
 
+    suspend fun getSuggestedCategoryForMerchant(merchant: String?): Category? {
+        if (merchant.isNullOrBlank()) return null
+        val dbCatId = transactionRepository.getLatestCategoryForMerchant(merchant)
+        if (dbCatId != null && dbCatId > 0L) {
+            return _uiState.value.categories.firstOrNull { it.id == dbCatId }
+                ?: categoryRepository.getCategoryById(dbCatId)
+        }
+        return null
+    }
+
     fun deleteGroup(groupId: Long, onDeleted: () -> Unit = {}) {
         viewModelScope.launch {
             try {

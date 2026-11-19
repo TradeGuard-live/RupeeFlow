@@ -28,7 +28,9 @@ data class UserPreferences(
     val splitProCurrency: String = "INR",
     val groupNotificationsEnabled: Boolean = true,
     val settlementRemindersEnabled: Boolean = true,
-    val autoCompressReceipts: Boolean = true
+    val autoCompressReceipts: Boolean = true,
+    val personalUpiId: String? = null,
+    val personalUpiName: String? = null
 )
 
 class UserPreferencesRepository(private val context: Context) {
@@ -47,6 +49,8 @@ class UserPreferencesRepository(private val context: Context) {
         val GROUP_NOTIFICATIONS = booleanPreferencesKey("group_notifications")
         val SETTLEMENT_REMINDERS = booleanPreferencesKey("settlement_reminders")
         val AUTO_COMPRESS_RECEIPTS = booleanPreferencesKey("auto_compress_receipts")
+        val PERSONAL_UPI_ID = stringPreferencesKey("personal_upi_id")
+        val PERSONAL_UPI_NAME = stringPreferencesKey("personal_upi_name")
     }
 
     val userPreferencesFlow: Flow<UserPreferences> = context.dataStore.data
@@ -81,7 +85,9 @@ class UserPreferencesRepository(private val context: Context) {
                 splitProCurrency = preferences[PreferencesKeys.SPLIT_PRO_CURRENCY] ?: "INR",
                 groupNotificationsEnabled = preferences[PreferencesKeys.GROUP_NOTIFICATIONS] ?: true,
                 settlementRemindersEnabled = preferences[PreferencesKeys.SETTLEMENT_REMINDERS] ?: true,
-                autoCompressReceipts = preferences[PreferencesKeys.AUTO_COMPRESS_RECEIPTS] ?: true
+                autoCompressReceipts = preferences[PreferencesKeys.AUTO_COMPRESS_RECEIPTS] ?: true,
+                personalUpiId = preferences[PreferencesKeys.PERSONAL_UPI_ID]?.takeIf { it.isNotBlank() },
+                personalUpiName = preferences[PreferencesKeys.PERSONAL_UPI_NAME]?.takeIf { it.isNotBlank() }
             )
         }
 
@@ -124,6 +130,23 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun setAutoCompressReceipts(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.AUTO_COMPRESS_RECEIPTS] = enabled
+        }
+    }
+
+    suspend fun setPersonalUpiDetails(upiId: String?, displayName: String?) {
+        context.dataStore.edit { preferences ->
+            val cleanUpi = upiId?.trim()
+            if (cleanUpi.isNullOrBlank()) {
+                preferences.remove(PreferencesKeys.PERSONAL_UPI_ID)
+            } else {
+                preferences[PreferencesKeys.PERSONAL_UPI_ID] = cleanUpi
+            }
+            val cleanName = displayName?.trim()
+            if (cleanName.isNullOrBlank()) {
+                preferences.remove(PreferencesKeys.PERSONAL_UPI_NAME)
+            } else {
+                preferences[PreferencesKeys.PERSONAL_UPI_NAME] = cleanName
+            }
         }
     }
 

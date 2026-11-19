@@ -183,7 +183,7 @@ class SplitProDirectUpiSettlementQATest {
             amountPaise = 25000L,
             note = "Dinner split"
         )
-        assertTrue(uriStr.contains("pa=priya%40okhdfcbank"))
+        assertTrue(uriStr.contains("pa=priya@okhdfcbank") || uriStr.contains("pa=priya%40okhdfcbank"))
         assertTrue(uriStr.contains("pn=Priya+Sharma") || uriStr.contains("pn=Priya%20Sharma"))
     }
 
@@ -638,5 +638,143 @@ class SplitProDirectUpiSettlementQATest {
         val ledgers = LedgerCalculator.computeFriendLedgers(listOf(friend), listOf(expense), listOf(cashSettlement))
         assertEquals(0L, ledgers.first().netBalancePaise)
         assertEquals(FriendBalanceStatus.SETTLED, ledgers.first().status)
+    }
+
+    // 31. BHIM and MobiKwik P2P URI omits 'tr' parameter
+    @Test
+    fun test31_bhimAndMobiKwikP2PUriOmitsTr() {
+        val uriStr = UpiIntentBuilder.buildUpiUri(
+            receiverUpiId = "friend@okhdfcbank",
+            receiverName = "Rahul",
+            amountPaise = 50000L,
+            note = "Split Pro Settlement"
+        )
+        assertFalse("P2P URI must not contain tr parameter to avoid BHIM and MobiKwik errors", uriStr.contains("tr="))
+    }
+
+    // 32. BHIM and MobiKwik Payee VPA retains literal '@'
+    @Test
+    fun test32_bhimAndMobiKwikPayeeVpaLiteralAtSign() {
+        val uriStr = UpiIntentBuilder.buildUpiUri(
+            receiverUpiId = "priya@axisbank",
+            receiverName = "Priya",
+            amountPaise = 25000L,
+            note = "Cab share"
+        )
+        assertTrue("Payee VPA must retain literal @ for BHIM and MobiKwik regex validation", uriStr.contains("pa=priya@axisbank"))
+        assertFalse(uriStr.contains("pa=priya%40axisbank"))
+    }
+
+    // 33. BHIM and MobiKwik spaces encoded with %20 not plus sign
+    @Test
+    fun test33_bhimAndMobiKwikSpacesEncodedWithPercent20() {
+        val uriStr = UpiIntentBuilder.buildUpiUri(
+            receiverUpiId = "user@upi",
+            receiverName = "John Doe",
+            amountPaise = 10000L,
+            note = "Friday Dinner Settlement"
+        )
+        assertTrue(uriStr.contains("pn=John%20Doe"))
+        assertTrue(uriStr.contains("tn=Friday%20Dinner%20Settlement"))
+        assertFalse(uriStr.contains("John+Doe"))
+        assertFalse(uriStr.contains("Friday+Dinner+Settlement"))
+    }
+
+    // 34. BHIM and MobiKwik special characters sanitized
+    @Test
+    fun test34_bhimAndMobiKwikSpecialCharsSanitized() {
+        val uriStr = UpiIntentBuilder.buildUpiUri(
+            receiverUpiId = "user@upi",
+            receiverName = "John & Jane (Roommates)",
+            amountPaise = 15000L,
+            note = "Split Pro: Goa Trip #1!"
+        )
+        val query = uriStr.substringAfter("?")
+        // Colons, ampersands, hashes, brackets stripped from query parameters
+        assertFalse(query.contains(":"))
+        assertFalse(query.contains("#"))
+        assertFalse(query.contains("!"))
+        assertTrue(query.contains("pn=John%20Jane%20Roommates"))
+        assertTrue(query.contains("tn=Split%20Pro%20Goa%20Trip%201"))
+    }
+
+    // 35. initiateSettlement produces P2P compliant intent without tr
+    @Test
+    fun test35_initiateSettlementProducesP2PCompliantIntent() = runBlocking {
+        val friendId = friendRepository.addFriend(Friend(name = "Kunal", upiId = "kunal@okhdfcbank"))
+        val friend = friendRepository.getFriendById(friendId)!!
+
+        val (sId, intent) = upiSettlementManager.initiateSettlement(
+            friend = friend,
+            amountPaise = 75000L,
+            note = "Trip expenses"
+        )
+        assertTrue(sId > 0L)
+        val dataUri = intent.dataString ?: ""
+        assertTrue(dataUri.startsWith("upi://pay?"))
+        assertTrue(dataUri.contains("pa=kunal@okhdfcbank"))
+        assertTrue(dataUri.contains("am=750.00"))
+        assertTrue(dataUri.contains("cu=INR"))
+        assertFalse("Intent URI data must not contain tr for personal settlements", dataUri.contains("tr="))
+    }
+
+    // 36. BHIM target omits transaction note and uses concise payee name to avoid "request not supported"
+    @Test
+    fun test36_bhimTargetOmitsTransactionNoteAndUsesConciseName() {
+        val uriStr = UpiIntentBuilder.buildUpiUri(
+            receiverUpiId = "friend@upi",
+            receiverName = "Rahul Sharma",
+            amountPaise = 25000L,
+            note = "Dinner Share",
+            targetPackage = UpiIntentBuilder.BHIM_PACKAGE
+        )
+        assertFalse("BHIM URI must omit tn to avoid 'This type of request is not supported' error", uriStr.contains("tn="))
+        assertFalse("BHIM URI must not contain tr", uriStr.contains("tr="))
+        assertTrue("BHIM URI must contain pa with literal @", uriStr.contains("pa=friend@upi"))
+        assertTrue("BHIM URI must contain am", uriStr.contains("am=250.00"))
+        assertTrue("BHIM URI must contain cu=INR", uriStr.contains("cu=INR"))
+        assertTrue("BHIM URI must contain concise pn", uriStr.contains("pn=Rahul"))
+        assertFalse("BHIM URI must not contain encoded spaces in pn", uriStr.contains("pn=Rahul%20Sharma"))
+    }
+
+    // 37. BHIM Intent sets explicit package and CATEGORY_DEFAULT
+    @Test
+    fun test37_bhimIntentExplicitPackageAndCategory() {
+        val intent = UpiIntentBuilder.buildUpiIntent(
+            receiverUpiId = "friend@upi",
+            receiverName = "Rahul Sharma",
+            amountPaise = 25000L,
+            note = "Dinner Share",
+            targetPackage = UpiIntentBuilder.BHIM_PACKAGE
+        )
+        assertEquals(UpiIntentBuilder.BHIM_PACKAGE, intent.`package`)
+        assertTrue(intent.categories?.contains(Intent.CATEGORY_DEFAULT) == true)
+        val dataUri = intent.dataString ?: ""
+        assertFalse(dataUri.contains("tn="))
+        assertTrue(dataUri.contains("pn=Rahul"))
+    }
+
+    // 38. initiateSettlement with BHIM target produces compliant BHIM intent
+    @Test
+    fun test38_initiateSettlementWithBhimTarget() = runBlocking {
+        val friendId = friendRepository.addFriend(Friend(name = "Kunal Verma", upiId = "kunal@okhdfcbank"))
+        val friend = friendRepository.getFriendById(friendId)!!
+
+        val (sId, intent) = upiSettlementManager.initiateSettlement(
+            friend = friend,
+            amountPaise = 75000L,
+            note = "Trip expenses",
+            targetPackage = UpiIntentBuilder.BHIM_PACKAGE
+        )
+        assertTrue(sId > 0L)
+        assertEquals(UpiIntentBuilder.BHIM_PACKAGE, intent.`package`)
+        val dataUri = intent.dataString ?: ""
+        assertTrue(dataUri.startsWith("upi://pay?"))
+        assertTrue(dataUri.contains("pa=kunal@okhdfcbank"))
+        assertTrue(dataUri.contains("pn=Kunal"))
+        assertTrue(dataUri.contains("am=750.00"))
+        assertTrue(dataUri.contains("cu=INR"))
+        assertFalse("BHIM intent must not contain tn", dataUri.contains("tn="))
+        assertFalse("BHIM intent must not contain tr", dataUri.contains("tr="))
     }
 }

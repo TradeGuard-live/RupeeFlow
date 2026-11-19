@@ -598,10 +598,23 @@ object LedgerCalculator {
         transactions: List<Transaction>,
         settlements: List<Settlement>
     ): List<UnsettledExpenseItem> {
+        return calculateFriendExpenseHistory(friendId, transactions, settlements)
+            .filter { it.remainingOutstandingPaise > 0L }
+    }
+
+    // Complete friend expense history retaining unpaid, partially settled and fully settled expenses
+    fun calculateFriendExpenseHistory(
+        friendId: Long,
+        transactions: List<Transaction>,
+        settlements: List<Settlement>
+    ): List<UnsettledExpenseItem> {
         // Filter active transactions
         val activeTxns = transactions.filter {
             it.transactionStatus == TransactionStatus.ACTIVE &&
-                    (it.transactionType == TransactionType.EXPENSE || it.transactionType == TransactionType.REFUND)
+                    (it.transactionType == TransactionType.EXPENSE ||
+                     it.transactionType == TransactionType.UPI_LITE_PAYMENT ||
+                     it.transactionType == TransactionType.REFUND ||
+                     it.transactionType == TransactionType.UPI_LITE_REFUND)
         }
         val validSettlements = settlements.filter { !it.isReversed && it.affectsLedger }
 
@@ -612,7 +625,10 @@ object LedgerCalculator {
 
         for (txn in activeTxns) {
             val payerId = txn.paidByFriendId
-            if (txn.transactionType == TransactionType.EXPENSE) {
+            val isExpense = txn.transactionType == TransactionType.EXPENSE || txn.transactionType == TransactionType.UPI_LITE_PAYMENT
+            val isRefund = txn.transactionType == TransactionType.REFUND || txn.transactionType == TransactionType.UPI_LITE_REFUND
+
+            if (isExpense) {
                 if (payerId == null) {
                     val part = txn.participants.firstOrNull { it.friendId == friendId }
                     if (part != null && part.shareAmountPaise > 0L) {
@@ -628,7 +644,7 @@ object LedgerCalculator {
                         )
                     }
                 }
-            } else if (txn.transactionType == TransactionType.REFUND) {
+            } else if (isRefund) {
                 if (payerId == null) {
                     val part = txn.participants.firstOrNull { it.friendId == friendId }
                     if (part != null && part.shareAmountPaise > 0L) {
@@ -676,19 +692,17 @@ object LedgerCalculator {
             val remaining = SafeMath.safeSubtract(share, allocated)
             poolFriendPaidMe = SafeMath.safeSubtract(poolFriendPaidMe, allocated)
 
-            if (remaining > 0L) {
-                result.add(
-                    UnsettledExpenseItem(
-                        transaction = entry.transaction,
-                        totalTransactionAmountPaise = entry.transaction.amountPaise,
-                        originalShareAmountPaise = share,
-                        settledAmountPaise = allocated,
-                        remainingOutstandingPaise = remaining,
-                        isPartiallySettled = allocated > 0L,
-                        direction = ExpenseObligationDirection.THEY_OWE_ME
-                    )
+            result.add(
+                UnsettledExpenseItem(
+                    transaction = entry.transaction,
+                    totalTransactionAmountPaise = entry.transaction.amountPaise,
+                    originalShareAmountPaise = share,
+                    settledAmountPaise = allocated,
+                    remainingOutstandingPaise = remaining,
+                    isPartiallySettled = allocated > 0L && remaining > 0L,
+                    direction = ExpenseObligationDirection.THEY_OWE_ME
                 )
-            }
+            )
         }
 
         // Allocate to Group 2 (ME owes Friend)
@@ -699,19 +713,17 @@ object LedgerCalculator {
             val remaining = SafeMath.safeSubtract(share, allocated)
             poolIPaidFriend = SafeMath.safeSubtract(poolIPaidFriend, allocated)
 
-            if (remaining > 0L) {
-                result.add(
-                    UnsettledExpenseItem(
-                        transaction = entry.transaction,
-                        totalTransactionAmountPaise = entry.transaction.amountPaise,
-                        originalShareAmountPaise = share,
-                        settledAmountPaise = allocated,
-                        remainingOutstandingPaise = remaining,
-                        isPartiallySettled = allocated > 0L,
-                        direction = ExpenseObligationDirection.I_OWE_THEM
-                    )
+            result.add(
+                UnsettledExpenseItem(
+                    transaction = entry.transaction,
+                    totalTransactionAmountPaise = entry.transaction.amountPaise,
+                    originalShareAmountPaise = share,
+                    settledAmountPaise = allocated,
+                    remainingOutstandingPaise = remaining,
+                    isPartiallySettled = allocated > 0L && remaining > 0L,
+                    direction = ExpenseObligationDirection.I_OWE_THEM
                 )
-            }
+            )
         }
 
         // Return sorted by date descending for UI presentation

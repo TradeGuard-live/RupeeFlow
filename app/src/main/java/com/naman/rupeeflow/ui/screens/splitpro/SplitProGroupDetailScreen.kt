@@ -807,7 +807,8 @@ fun SplitProGroupDetailScreen(
                     }
                 }
                 showAddExpenseDialog = false
-            }
+            },
+            onSearchMerchantCategory = { merchant -> viewModel.getSuggestedCategoryForMerchant(merchant) }
         )
     }
 
@@ -911,7 +912,8 @@ fun SplitProGroupDetailScreen(
                     }
                 }
                 editingTransaction = null
-            }
+            },
+            onSearchMerchantCategory = { merchant -> viewModel.getSuggestedCategoryForMerchant(merchant) }
         )
     }
 

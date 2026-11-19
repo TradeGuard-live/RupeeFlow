@@ -25,7 +25,8 @@ interface TransactionRepository {
     suspend fun saveTransaction(transaction: Transaction): Long
     suspend fun updateTransactionStatus(id: Long, status: TransactionStatus)
     suspend fun deleteTransaction(id: Long)
-    suspend fun getLatestLocationByMerchant(merchantName: String): TransactionLocation?
+    suspend fun getLatestLocationByMerchant(merchantName: String): TransactionLocation? = null
+    suspend fun getLatestCategoryForMerchant(merchant: String): Long? = null
     suspend fun clearAllLocations()
     // Contextual duplicate check: does NOT reject transactions based solely on matching amount
     suspend fun isDuplicate(
@@ -41,7 +42,8 @@ class TransactionRepositoryImpl(
     private val transactionDao: TransactionDao,
     private val categoryDao: CategoryDao,
     private val friendDao: FriendDao,
-    private val context: Context? = null
+    private val context: Context? = null,
+    private val merchantPreferenceRepository: MerchantPreferenceRepository? = null
 ) : TransactionRepository {
 
     override fun getAllTransactions(): Flow<List<Transaction>> {
@@ -126,6 +128,17 @@ class TransactionRepositoryImpl(
         )
         val participantEntities = transaction.participants.map { it.toEntity(transaction.id) }
         val result = transactionDao.saveTransactionWithParticipants(entity, participantEntities)
+
+        // Automatically learn merchant-category association
+        val merchantToLearn = transaction.merchantName?.trim()?.ifBlank { null }
+            ?: transaction.rawMerchant?.trim()?.ifBlank { null }
+            ?: transaction.title.trim().takeIf { it.isNotBlank() }
+        if (!merchantToLearn.isNullOrBlank() && transaction.categoryId > 0L) {
+            try {
+                merchantPreferenceRepository?.recordMerchantCategory(merchantToLearn, transaction.categoryId)
+            } catch (_: Exception) {}
+        }
+
         context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
         return result
     }
@@ -155,6 +168,12 @@ class TransactionRepositoryImpl(
                 googleMapsUrl = txn.googleMapsUrl
             )
         } else null
+    }
+
+    override suspend fun getLatestCategoryForMerchant(merchant: String): Long? {
+        if (merchant.isBlank()) return null
+        val norm = MerchantNormalizer.normalize(merchant)
+        return transactionDao.findLatestCategoryForMerchant(merchant.trim(), norm)
     }
 
     override suspend fun clearAllLocations() {

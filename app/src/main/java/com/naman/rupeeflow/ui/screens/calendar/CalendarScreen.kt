@@ -121,7 +121,9 @@ fun CalendarScreen(
                 showUpiDialog = true
             },
             onSave = { newTxn -> viewModel.saveTransaction(newTxn) },
-            onSaveSettlement = { settlement -> viewModel.recordSettlement(settlement) }
+            onSaveSettlement = { settlement -> viewModel.recordSettlement(settlement) },
+            onSearchMerchantLocation = { merchant -> viewModel.getMerchantLatestLocation(merchant) },
+            onSearchMerchantCategory = { merchant -> viewModel.getSuggestedCategoryForMerchant(merchant) }
         )
     }
 
@@ -169,7 +171,9 @@ fun CalendarScreen(
             expenseGroups = state.expenseGroups,
             onCreateExpenseGroup = { viewModel.createExpenseGroup(it) },
             onDismiss = { editingTransaction = null },
-            onSave = { updated -> viewModel.saveTransaction(updated) }
+            onSave = { updated -> viewModel.saveTransaction(updated) },
+            onSearchMerchantLocation = { merchant -> viewModel.getMerchantLatestLocation(merchant) },
+            onSearchMerchantCategory = { merchant -> viewModel.getSuggestedCategoryForMerchant(merchant) }
         )
     }
 }

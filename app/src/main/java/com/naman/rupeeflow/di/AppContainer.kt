@@ -73,7 +73,8 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
             transactionDao = database.transactionDao(),
             categoryDao = database.categoryDao(),
             friendDao = database.friendDao(),
-            context = context
+            context = context,
+            merchantPreferenceRepository = merchantPreferenceRepository
         )
     }
 

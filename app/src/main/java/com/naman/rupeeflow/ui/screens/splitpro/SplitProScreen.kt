@@ -579,7 +579,8 @@ fun SplitProScreen(
                 viewModel.saveGroupExpense(newTxn)
                 showAddExpenseDialog = false
                 selectedGroupForExpense = null
-            }
+            },
+            onSearchMerchantCategory = { merchant -> viewModel.getSuggestedCategoryForMerchant(merchant) }
         )
     }
 

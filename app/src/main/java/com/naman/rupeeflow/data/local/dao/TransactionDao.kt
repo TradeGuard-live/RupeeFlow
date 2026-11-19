@@ -76,6 +76,30 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE amountPaise = :amountPaise AND transactionDate BETWEEN :startMillis AND :endMillis LIMIT 1")
     suspend fun findDuplicate(amountPaise: Long, startMillis: Long, endMillis: Long): TransactionEntity?
 
+    @Query("""
+        SELECT categoryId FROM transactions 
+        WHERE (
+            (merchantName IS NOT NULL AND LOWER(TRIM(merchantName)) = LOWER(TRIM(:merchant)))
+            OR (:norm != '' AND merchantNormalized IS NOT NULL AND merchantNormalized = :norm)
+            OR (title IS NOT NULL AND LOWER(TRIM(title)) = LOWER(TRIM(:merchant)))
+            OR (:norm != '' AND title IS NOT NULL AND LOWER(TRIM(title)) = LOWER(TRIM(:norm)))
+            OR (merchantName IS NOT NULL AND LOWER(TRIM(merchantName)) LIKE LOWER(TRIM(:merchant)) || '%')
+            OR (title IS NOT NULL AND LOWER(TRIM(title)) LIKE LOWER(TRIM(:merchant)) || '%')
+        ) 
+        AND categoryId > 0 
+        AND transactionStatus != 'IGNORED'
+        ORDER BY 
+            CASE 
+                WHEN (merchantName IS NOT NULL AND LOWER(TRIM(merchantName)) = LOWER(TRIM(:merchant))) THEN 1
+                WHEN (:norm != '' AND merchantNormalized IS NOT NULL AND merchantNormalized = :norm) THEN 2
+                WHEN (title IS NOT NULL AND LOWER(TRIM(title)) = LOWER(TRIM(:merchant))) THEN 3
+                ELSE 4
+            END ASC,
+            transactionDate DESC 
+        LIMIT 1
+    """)
+    suspend fun findLatestCategoryForMerchant(merchant: String, norm: String): Long?
+
     @androidx.room.Transaction
     @Query("SELECT * FROM transactions WHERE merchantName = :merchantName AND latitude IS NOT NULL AND longitude IS NOT NULL ORDER BY transactionDate DESC LIMIT 1")
     suspend fun findLatestLocationByMerchant(merchantName: String): TransactionWithParticipants?

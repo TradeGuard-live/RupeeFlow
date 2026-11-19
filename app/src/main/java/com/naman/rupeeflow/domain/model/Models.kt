@@ -236,7 +236,10 @@ data class UnsettledExpenseItem(
     val remainingOutstandingPaise: Long,
     val isPartiallySettled: Boolean,
     val direction: ExpenseObligationDirection
-)
+) {
+    val isFullySettled: Boolean get() = remainingOutstandingPaise == 0L && originalShareAmountPaise > 0L
+    val isUnpaid: Boolean get() = settledAmountPaise == 0L && remainingOutstandingPaise > 0L
+}
 
 // Production hardening: default values for backward compatibility and clean construction
 data class Settlement(

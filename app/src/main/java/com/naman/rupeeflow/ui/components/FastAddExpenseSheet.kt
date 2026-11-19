@@ -71,6 +71,7 @@ fun FastAddExpenseSheet(
     initialSourcePackage: String? = null,
     initialLocation: TransactionLocation? = null,
     onSearchMerchantLocation: (suspend (String) -> TransactionLocation?)? = null,
+    onSearchMerchantCategory: (suspend (String) -> Category?)? = null,
     initialDateMillis: Long? = null,
     initialExpenseGroupId: Long? = null,
     lockToExpenseGroup: Boolean = false
@@ -103,12 +104,27 @@ fun FastAddExpenseSheet(
     }
     var selectedCategory by remember { mutableStateOf(initialCategory ?: categories.firstOrNull()) }
     var isSuggestedActive by remember { mutableStateOf(suggestedFromPrevious) }
+    var userManuallySelectedCategory by rememberSaveable { mutableStateOf(false) }
     var selectedPaymentMethod by rememberSaveable { mutableStateOf(initialPaymentMethod ?: PaymentMethod.UPI) }
     var selectedPayerId by rememberSaveable { mutableStateOf<Long?>(null) } // null = Me
     val initialGroup = remember(initialExpenseGroupId, expenseGroups) {
         if (initialExpenseGroupId != null) expenseGroups.firstOrNull { it.id == initialExpenseGroupId } else null
     }
     var selectedExpenseGroup by remember { mutableStateOf<ExpenseGroup?>(initialGroup) }
+
+    // Automatic category learning & selection when entering store / merchant name
+    LaunchedEffect(merchantName, title) {
+        if (userManuallySelectedCategory) return@LaunchedEffect
+        val storeQuery = merchantName.trim().ifBlank { title.trim() }
+        if (storeQuery.length >= 2 && onSearchMerchantCategory != null) {
+            kotlinx.coroutines.delay(150)
+            val suggestedCat = onSearchMerchantCategory(storeQuery)
+            if (suggestedCat != null && !userManuallySelectedCategory) {
+                selectedCategory = suggestedCat
+                isSuggestedActive = true
+            }
+        }
+    }
 
     // Location state & merchant location memory
     var attachedLocation by remember { mutableStateOf<TransactionLocation?>(initialLocation) }
@@ -230,9 +246,9 @@ fun FastAddExpenseSheet(
                         )
                         TextButton(
                             onClick = {
-                                title = originalDetectedMerchant ?: ""
-                                selectedCategory = categories.firstOrNull()
+                                selectedCategory = initialCategory ?: categories.firstOrNull()
                                 isSuggestedActive = false
+                                userManuallySelectedCategory = false
                             },
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                         ) {
@@ -636,7 +652,11 @@ fun FastAddExpenseSheet(
                 CategorySelectorRow(
                     categories = categories,
                     selectedCategory = selectedCategory,
-                    onSelect = { selectedCategory = it }
+                    onSelect = {
+                        selectedCategory = it
+                        userManuallySelectedCategory = true
+                        isSuggestedActive = false
+                    }
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))

@@ -202,7 +202,20 @@ fun UpiSettlementDialog(
                     targetPackage = selectedTargetPackage
                 )
                 activeSettlementId = settlementId
-                upiLauncher.launch(intent)
+                try {
+                    upiLauncher.launch(intent)
+                } catch (e: ActivityNotFoundException) {
+                    if (selectedTargetPackage != null) {
+                        val fallbackIntent = upiSettlementManager.buildGenericUpiIntent(
+                            friend = friend,
+                            amountPaise = currentAmountPaise,
+                            note = noteInput.trim()
+                        )
+                        upiLauncher.launch(fallbackIntent)
+                    } else {
+                        throw e
+                    }
+                }
             } catch (e: ActivityNotFoundException) {
                 errorMessage = "No compatible UPI app found to process this payment"
             } catch (e: Exception) {
@@ -501,10 +514,32 @@ fun UpiSettlementDialog(
                                 }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text("UPI ID:", style = MaterialTheme.typography.bodySmall, color = AppTheme.colors.textSecondary)
-                                    Text(upiIdInput.trim(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = AppTheme.colors.primaryAccent)
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(upiIdInput.trim(), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = AppTheme.colors.primaryAccent)
+                                        IconButton(
+                                            onClick = {
+                                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                                val clip = android.content.ClipData.newPlainText("UPI ID", upiIdInput.trim())
+                                                clipboard?.setPrimaryClip(clip)
+                                                android.widget.Toast.makeText(context, "UPI ID copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.ContentCopy,
+                                                contentDescription = "Copy UPI ID",
+                                                tint = AppTheme.colors.primaryAccent,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
                                 }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),

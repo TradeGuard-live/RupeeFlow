@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,7 +33,8 @@ fun SettleUpDialog(
     friend: Friend,
     onDismiss: () -> Unit,
     onConfirm: (Settlement) -> Unit,
-    onPayWithUpi: ((Friend, Long) -> Unit)? = null
+    onPayWithUpi: ((Friend, Long) -> Unit)? = null,
+    onRequestPaymentQr: ((Friend, Long) -> Unit)? = null
 ) {
     // Default direction based on who owes whom
     val friendOwesMe = friend.status == FriendBalanceStatus.THEY_OWE_ME
@@ -216,6 +218,38 @@ fun SettleUpDialog(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Pay with UPI",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                // Request Payment (QR) Button
+                if (isFriendPayingMe && onRequestPaymentQr != null) {
+                    Button(
+                        onClick = {
+                            if (amountPaise > 0L) {
+                                onRequestPaymentQr(friend, amountPaise)
+                                onDismiss()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = EmeraldMint,
+                            contentColor = Color.White
+                        ),
+                        enabled = amountPaise > 0L
+                    ) {
+                        Icon(Icons.Default.QrCode, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Request Payment (QR)",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,

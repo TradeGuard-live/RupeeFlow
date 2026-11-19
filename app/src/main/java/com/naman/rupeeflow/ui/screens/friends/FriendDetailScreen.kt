@@ -49,6 +49,7 @@ fun FriendDetailScreen(
 
     var showSettleDialog by remember { mutableStateOf(false) }
     var showUpiSettlementDialog by remember { mutableStateOf(false) }
+    var showPersonalUpiQrDialog by remember { mutableStateOf(false) }
     var upiTargetAmountPaise by remember { mutableStateOf(0L) }
     var reversingSettlementId by remember { mutableStateOf<Long?>(null) }
     var unreversingSettlementId by remember { mutableStateOf<Long?>(null) }
@@ -105,6 +106,17 @@ fun FriendDetailScreen(
                                 showEditDialog = true
                             }
                         )
+                        DropdownMenuItem(
+                            text = { Text("Request Payment (QR)") },
+                            leadingIcon = {
+                                Icon(Icons.Default.QrCode, contentDescription = null, tint = AppTheme.colors.primaryAccent)
+                            },
+                            enabled = friend?.status == FriendBalanceStatus.THEY_OWE_ME,
+                            onClick = {
+                                showMenu = false
+                                showPersonalUpiQrDialog = true
+                            }
+                        )
                         if (friend?.isArchived == true) {
                             DropdownMenuItem(
                                 text = { Text("Unarchive Friend") },
@@ -141,6 +153,13 @@ fun FriendDetailScreen(
                 CircularProgressIndicator(color = AppTheme.colors.primaryAccent)
             }
             return@Scaffold
+        }
+
+        val allTimelineItems = remember(state.expenseHistory, state.settlements) {
+            val list = mutableListOf<FriendTimelineItem>()
+            state.expenseHistory.forEach { list.add(FriendTimelineItem.Expense(it)) }
+            state.settlements.forEach { list.add(FriendTimelineItem.SettlementItem(it)) }
+            list.sortedByDescending { it.timestamp }
         }
 
         LazyColumn(
@@ -333,6 +352,51 @@ fun FriendDetailScreen(
                                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                         }
+                    } else if (friend.status == FriendBalanceStatus.THEY_OWE_ME) {
+                        Button(
+                            onClick = {
+                                showPersonalUpiQrDialog = true
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 52.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = EmeraldMint,
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Icon(Icons.Default.QrCode, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Request Payment",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = {
+                                showPersonalUpiQrDialog = true
+                            },
+                            enabled = false,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 52.dp),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Icon(Icons.Default.QrCode, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Request Payment",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }
@@ -390,10 +454,11 @@ fun FriendDetailScreen(
                 ) {
                     val outstandingCount = state.unsettledExpenses.size
                     val settlementsCount = state.settlements.size
+                    val allCount = state.expenseHistory.size + state.settlements.size
                     listOf(
                         "OUTSTANDING" to "Outstanding ($outstandingCount)",
                         "SETTLEMENTS" to "Settlements ($settlementsCount)",
-                        "ALL" to "All Activity"
+                        "ALL" to "All Activity ($allCount)"
                     ).forEach { (key, label) ->
                         val isSelected = state.filterType == key
                         Surface(
@@ -416,258 +481,181 @@ fun FriendDetailScreen(
                 }
             }
 
-            val showOutstanding = state.filterType == "OUTSTANDING" || state.filterType == "ALL"
-            val showSettlements = state.filterType == "SETTLEMENTS" || state.filterType == "ALL"
-
-            // ✅ Display Outstanding / Unsettled Expenses
-            if (showOutstanding) {
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Outstanding Expenses",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = AppTheme.colors.textPrimary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (state.unsettledExpenses.isNotEmpty()) {
-                            Text(
-                                text = "${state.unsettledExpenses.size} pending",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = AppTheme.colors.textSecondary
-                            )
-                        }
-                    }
-                }
-
-                if (state.unsettledExpenses.isEmpty()) {
-                    // ✅ Clean "All Settled Up" state card
+            when (state.filterType) {
+                "OUTSTANDING" -> {
                     item {
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = AppTheme.colors.cardBackground,
-                            border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(28.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = AppTheme.colors.incomeGreen,
-                                    modifier = Modifier.size(44.dp)
-                                )
-                                Spacer(modifier = Modifier.height(10.dp))
-                                Text(
-                                    text = "All Settled Up",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = AppTheme.colors.textPrimary
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "No outstanding expenses with ${friend.name}.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = AppTheme.colors.textSecondary,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    items(state.unsettledExpenses, key = { "unsettled_${it.transaction.id}" }) { item ->
-                        val txn = item.transaction
-                        val isOwedToMe = item.direction == ExpenseObligationDirection.THEY_OWE_ME
-                        val obligationColor = if (isOwedToMe) AppTheme.colors.incomeGreen else CoralRed
-                        val directionLabel = if (isOwedToMe) "${friend.name} owes you" else "You owe ${friend.name}"
-
-                        RupeeFlowCard(
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { selectedTransactionForDetail = txn },
-                            cornerRadius = 14.dp
+                                .padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.fillMaxWidth()) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = txn.title,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = AppTheme.colors.textPrimary,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = CurrencyUtils.formatPaiseToRupees(item.remainingOutstandingPaise),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = obligationColor
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(4.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = "Paid by ${txn.paidByName} • ${DateTimeUtils.formatDate(txn.transactionDate)}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = AppTheme.colors.textSecondary
-                                    )
-                                    Text(
-                                        text = directionLabel,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = obligationColor,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-
-                                if (item.isPartiallySettled) {
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = AmberGold.copy(alpha = 0.15f),
-                                        border = BorderStroke(1.dp, AmberGold.copy(alpha = 0.4f))
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = "Partially Settled: ${CurrencyUtils.formatPaiseToRupees(item.settledAmountPaise)} settled of ${CurrencyUtils.formatPaiseToRupees(item.originalShareAmountPaise)} original share",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = AmberGold,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ✅ Display Settlements History
-            if (showSettlements) {
-                item {
-                    Text(
-                        text = "Settlement History",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = AppTheme.colors.textPrimary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-
-                if (state.settlements.isEmpty()) {
-                    item {
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = AppTheme.colors.cardBackground,
-                            border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(24.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
+                            Text(
+                                text = "Outstanding Expenses",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = AppTheme.colors.textPrimary,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (state.unsettledExpenses.isNotEmpty()) {
                                 Text(
-                                    text = "No settlements recorded yet.",
-                                    style = MaterialTheme.typography.bodyMedium,
+                                    text = "${state.unsettledExpenses.size} pending",
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = AppTheme.colors.textSecondary
                                 )
                             }
                         }
                     }
-                } else {
-                    items(state.settlements, key = { "settle_${it.id}" }) { s ->
-                        val isReceived = s.receiverId == null // Friend paid ME
-                        val dirText = if (isReceived) "${friend.name} paid You" else "You paid ${friend.name}"
-                        val dirColor = if (isReceived) AppTheme.colors.incomeGreen else CoralRed
 
-                        RupeeFlowCard(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { selectedSettlementForDetail = s },
-                            cornerRadius = 14.dp
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
+                    if (state.unsettledExpenses.isEmpty()) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = AppTheme.colors.cardBackground,
+                                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(28.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = AppTheme.colors.incomeGreen,
+                                        modifier = Modifier.size(44.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text(
+                                        text = "All Settled Up",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AppTheme.colors.textPrimary
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "No outstanding expenses with ${friend.name}.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = AppTheme.colors.textSecondary,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        items(state.unsettledExpenses, key = { "unsettled_${it.transaction.id}" }) { item ->
+                            FriendExpenseCard(
+                                item = item,
+                                friend = friend,
+                                onClick = { selectedTransactionForDetail = item.transaction }
+                            )
+                        }
+                    }
+                }
+                "SETTLEMENTS" -> {
+                    item {
+                        Text(
+                            text = "Settlement History",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = AppTheme.colors.textPrimary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+
+                    if (state.settlements.isEmpty()) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = AppTheme.colors.cardBackground,
+                                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .background(dirColor.copy(alpha = 0.2f)),
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(
-                                        imageVector = if (isReceived) Icons.Default.CallReceived else Icons.Default.CallMade,
-                                        contentDescription = null,
-                                        tint = dirColor,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(12.dp))
-
-                                Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = dirText,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = if (s.isReversed) AppTheme.colors.textMuted else AppTheme.colors.textPrimary,
-                                        textDecoration = if (s.isReversed) TextDecoration.LineThrough else null
-                                    )
-                                    Spacer(modifier = Modifier.height(2.dp))
-                                    Text(
-                                        text = "${DateTimeUtils.formatDate(s.settlementDate)} • ${s.paymentMethod.displayName}",
-                                        style = MaterialTheme.typography.labelSmall,
+                                        text = "No settlements recorded yet.",
+                                        style = MaterialTheme.typography.bodyMedium,
                                         color = AppTheme.colors.textSecondary
                                     )
                                 }
+                            }
+                        }
+                    } else {
+                        items(state.settlements, key = { "settle_${it.id}" }) { s ->
+                            FriendSettlementCard(
+                                settlement = s,
+                                friend = friend,
+                                onReverse = { reversingSettlementId = it },
+                                onUnreverse = { unreversingSettlementId = it },
+                                onClick = { selectedSettlementForDetail = s }
+                            )
+                        }
+                    }
+                }
+                else -> { // "ALL"
+                    item {
+                        Text(
+                            text = "All Activity",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = AppTheme.colors.textPrimary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
 
-                                Column(horizontalAlignment = Alignment.End) {
+                    if (allTimelineItems.isEmpty()) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = AppTheme.colors.cardBackground,
+                                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Text(
-                                        text = CurrencyUtils.formatPaiseToRupees(s.amountPaise),
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = if (s.isReversed) AppTheme.colors.textMuted else dirColor,
-                                        textDecoration = if (s.isReversed) TextDecoration.LineThrough else null
+                                        text = "No activity recorded with ${friend.name} yet.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = AppTheme.colors.textSecondary
                                     )
-                                    if (!s.isReversed) {
-                                        Text(
-                                            text = "Reverse",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = AmberGold,
-                                            modifier = Modifier.clickable { reversingSettlementId = s.id }
-                                        )
-                                    } else {
-                                        Text(
-                                            text = "Convert to Normal",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = AppTheme.colors.incomeGreen,
-                                            modifier = Modifier.clickable { unreversingSettlementId = s.id }
-                                        )
-                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        items(allTimelineItems, key = { item ->
+                            when (item) {
+                                is FriendTimelineItem.Expense -> "all_exp_${item.item.transaction.id}"
+                                is FriendTimelineItem.SettlementItem -> "all_set_${item.settlement.id}"
+                            }
+                        }) { item ->
+                            when (item) {
+                                is FriendTimelineItem.Expense -> {
+                                    FriendExpenseCard(
+                                        item = item.item,
+                                        friend = friend,
+                                        onClick = { selectedTransactionForDetail = item.item.transaction }
+                                    )
+                                }
+                                is FriendTimelineItem.SettlementItem -> {
+                                    FriendSettlementCard(
+                                        settlement = item.settlement,
+                                        friend = friend,
+                                        onReverse = { reversingSettlementId = it },
+                                        onUnreverse = { unreversingSettlementId = it },
+                                        onClick = { selectedSettlementForDetail = item.settlement }
+                                    )
                                 }
                             }
                         }
@@ -689,6 +677,10 @@ fun FriendDetailScreen(
                 upiTargetAmountPaise = amountPaise
                 showSettleDialog = false
                 showUpiSettlementDialog = true
+            },
+            onRequestPaymentQr = { targetFriend, amountPaise ->
+                showSettleDialog = false
+                showPersonalUpiQrDialog = true
             }
         )
     }
@@ -707,6 +699,26 @@ fun FriendDetailScreen(
             onSettlementCompleted = {
                 showUpiSettlementDialog = false
                 upiTargetAmountPaise = 0L
+            }
+        )
+    }
+
+    // Personal UPI Settlement QR Dialog
+    if (showPersonalUpiQrDialog && friend != null) {
+        PersonalUpiQrDialog(
+            friend = friend,
+            personalUpiId = state.userPreferences.personalUpiId,
+            personalUpiName = state.userPreferences.personalUpiName,
+            outstandingAmountPaise = if (friend.status == FriendBalanceStatus.THEY_OWE_ME) abs(friend.netBalancePaise) else 0L,
+            onSavePersonalUpi = { upiId, name ->
+                viewModel.updatePersonalUpi(upiId, name)
+            },
+            onMarkAsReceived = { settlement ->
+                viewModel.recordSettlement(settlement)
+                showPersonalUpiQrDialog = false
+            },
+            onDismiss = {
+                showPersonalUpiQrDialog = false
             }
         )
     }
@@ -817,7 +829,8 @@ fun FriendDetailScreen(
             friends = state.allFriends.ifEmpty { listOfNotNull(friend) },
             groups = state.friendGroups,
             onDismiss = { editingTransaction = null },
-            onSave = { updated -> viewModel.saveTransaction(updated) }
+            onSave = { updated -> viewModel.saveTransaction(updated) },
+            onSearchMerchantCategory = { merchant -> viewModel.getSuggestedCategoryForMerchant(merchant) }
         )
     }
 
@@ -863,5 +876,239 @@ fun FriendDetailScreen(
             containerColor = AppTheme.colors.surfaceElevated,
             shape = RoundedCornerShape(20.dp)
         )
+    }
+}
+
+private sealed interface FriendTimelineItem {
+    val timestamp: Long
+
+    data class Expense(val item: UnsettledExpenseItem) : FriendTimelineItem {
+        override val timestamp: Long get() = item.transaction.transactionDate
+    }
+
+    data class SettlementItem(val settlement: Settlement) : FriendTimelineItem {
+        override val timestamp: Long get() = settlement.settlementDate
+    }
+}
+
+@Composable
+private fun FriendExpenseCard(
+    item: UnsettledExpenseItem,
+    friend: com.naman.rupeeflow.domain.model.Friend,
+    onClick: () -> Unit
+) {
+    val txn = item.transaction
+    val isOwedToMe = item.direction == ExpenseObligationDirection.THEY_OWE_ME
+    val obligationColor = if (isOwedToMe) AppTheme.colors.incomeGreen else CoralRed
+    val directionLabel = if (isOwedToMe) "${friend.name} owes you" else "You owe ${friend.name}"
+
+    RupeeFlowCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        cornerRadius = 14.dp
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = txn.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AppTheme.colors.textPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (item.isFullySettled) "₹0.00" else CurrencyUtils.formatPaiseToRupees(item.remainingOutstandingPaise),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (item.isFullySettled) AppTheme.colors.incomeGreen else obligationColor
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Paid by ${txn.paidByName} • ${DateTimeUtils.formatDate(txn.transactionDate)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = AppTheme.colors.textSecondary
+                )
+                Text(
+                    text = if (item.isFullySettled) "Settled" else directionLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (item.isFullySettled) AppTheme.colors.incomeGreen else obligationColor,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            when {
+                item.isFullySettled -> {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = AppTheme.colors.incomeGreen.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, AppTheme.colors.incomeGreen.copy(alpha = 0.4f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "Fully Settled",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AppTheme.colors.incomeGreen,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "• Original: ${CurrencyUtils.formatPaiseToRupees(item.originalShareAmountPaise)} • Settled: ${CurrencyUtils.formatPaiseToRupees(item.settledAmountPaise)} • Remaining: ₹0.00",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AppTheme.colors.incomeGreen
+                            )
+                        }
+                    }
+                }
+                item.isPartiallySettled -> {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = AmberGold.copy(alpha = 0.15f),
+                        border = BorderStroke(1.dp, AmberGold.copy(alpha = 0.4f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "Partially Settled",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AmberGold,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "• Settled: ${CurrencyUtils.formatPaiseToRupees(item.settledAmountPaise)} of ${CurrencyUtils.formatPaiseToRupees(item.originalShareAmountPaise)} • Remaining: ${CurrencyUtils.formatPaiseToRupees(item.remainingOutstandingPaise)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AmberGold
+                            )
+                        }
+                    }
+                }
+                else -> {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = AppTheme.colors.surfaceSecondary,
+                        border = BorderStroke(1.dp, AppTheme.colors.cardBorder)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "Unpaid",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = obligationColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "• Share: ${CurrencyUtils.formatPaiseToRupees(item.originalShareAmountPaise)}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AppTheme.colors.textSecondary
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FriendSettlementCard(
+    settlement: Settlement,
+    friend: com.naman.rupeeflow.domain.model.Friend,
+    onReverse: (Long) -> Unit,
+    onUnreverse: (Long) -> Unit,
+    onClick: () -> Unit
+) {
+    val isReceived = settlement.receiverId == null
+    val dirText = if (isReceived) "${friend.name} paid You" else "You paid ${friend.name}"
+    val dirColor = if (isReceived) AppTheme.colors.incomeGreen else CoralRed
+
+    RupeeFlowCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        cornerRadius = 14.dp
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(dirColor.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isReceived) Icons.Default.CallReceived else Icons.Default.CallMade,
+                    contentDescription = null,
+                    tint = dirColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = dirText,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (settlement.isReversed) AppTheme.colors.textMuted else AppTheme.colors.textPrimary,
+                    textDecoration = if (settlement.isReversed) TextDecoration.LineThrough else null
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "${DateTimeUtils.formatDate(settlement.settlementDate)} • ${settlement.paymentMethod.displayName}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = AppTheme.colors.textSecondary
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = CurrencyUtils.formatPaiseToRupees(settlement.amountPaise),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (settlement.isReversed) AppTheme.colors.textMuted else dirColor,
+                    textDecoration = if (settlement.isReversed) TextDecoration.LineThrough else null
+                )
+                if (!settlement.isReversed) {
+                    Text(
+                        text = "Reverse",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AmberGold,
+                        modifier = Modifier.clickable { onReverse(settlement.id) }
+                    )
+                } else {
+                    Text(
+                        text = "Convert to Normal",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AppTheme.colors.incomeGreen,
+                        modifier = Modifier.clickable { onUnreverse(settlement.id) }
+                    )
+                }
+            }
+        }
     }
 }

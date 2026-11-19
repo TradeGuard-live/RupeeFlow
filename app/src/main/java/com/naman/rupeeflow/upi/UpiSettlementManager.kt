@@ -53,16 +53,40 @@ class UpiSettlementManager(
 
         val settlementId = settlementRepository.recordSettlement(settlement)
 
+        // For peer-to-peer friend settlements, transactionRef (tr) must NOT be passed to UPI URI.
+        // NPCI UPI specification restricts 'tr' to merchant transactions.
+        // Supplying 'tr' for personal accounts causes BHIM and MobiKwik to display an error.
         val intent = UpiIntentBuilder.buildUpiIntent(
             receiverUpiId = upiId,
             receiverName = friend.upiVerifiedName ?: friend.name,
             amountPaise = amountPaise,
             note = defaultNote,
-            transactionRef = transactionRef,
+            transactionRef = null,
             targetPackage = targetPackage
         )
 
         return Pair(settlementId, intent)
+    }
+
+    /**
+     * Builds a fallback generic UPI intent without package constraint for system chooser.
+     */
+    fun buildGenericUpiIntent(
+        friend: Friend,
+        amountPaise: Long,
+        note: String? = null
+    ): Intent {
+        val upiId = friend.upiId?.trim() ?: ""
+        val defaultNote = note?.trim()?.takeIf { it.isNotBlank() }
+            ?: "RupeeFlow settlement to ${friend.name}"
+        return UpiIntentBuilder.buildUpiIntent(
+            receiverUpiId = upiId,
+            receiverName = friend.upiVerifiedName ?: friend.name,
+            amountPaise = amountPaise,
+            note = defaultNote,
+            transactionRef = null,
+            targetPackage = null
+        )
     }
 
     /**

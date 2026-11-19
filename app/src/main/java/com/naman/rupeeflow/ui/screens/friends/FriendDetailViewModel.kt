@@ -18,6 +18,8 @@ data class FriendDetailUiState(
     val relatedTransactions: List<Transaction> = emptyList(),
     // ✅ Outstanding / unsettled expenses for this friend
     val unsettledExpenses: List<UnsettledExpenseItem> = emptyList(),
+    // Complete expense history (unpaid, partially settled, and fully settled)
+    val expenseHistory: List<UnsettledExpenseItem> = emptyList(),
     val settlements: List<Settlement> = emptyList(),
     val totalSharedExpensesPaise: Long = 0L,
     val totalPaymentsReceivedPaise: Long = 0L,
@@ -26,7 +28,8 @@ data class FriendDetailUiState(
     val filterType: String = "OUTSTANDING", // "OUTSTANDING", "SETTLEMENTS", "ALL"
     val allFriends: List<Friend> = emptyList(),
     val categories: List<Category> = emptyList(),
-    val friendGroups: List<FriendGroup> = emptyList()
+    val friendGroups: List<FriendGroup> = emptyList(),
+    val userPreferences: com.naman.rupeeflow.data.repository.UserPreferences = com.naman.rupeeflow.data.repository.UserPreferences()
 )
 
 class FriendDetailViewModel(
@@ -35,7 +38,8 @@ class FriendDetailViewModel(
     private val transactionRepository: TransactionRepository,
     private val settlementRepository: SettlementRepository,
     private val categoryRepository: CategoryRepository? = null,
-    private val friendGroupRepository: FriendGroupRepository? = null
+    private val friendGroupRepository: FriendGroupRepository? = null,
+    private val userPreferencesRepository: com.naman.rupeeflow.data.repository.UserPreferencesRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FriendDetailUiState())
@@ -49,6 +53,8 @@ class FriendDetailViewModel(
         viewModelScope.launch {
             val categoriesFlow = categoryRepository?.getAllCategories() ?: flowOf(emptyList())
             val groupsFlow = friendGroupRepository?.getAllGroups() ?: flowOf(emptyList())
+            val prefsFlow = userPreferencesRepository?.userPreferencesFlow
+                ?: flowOf(com.naman.rupeeflow.data.repository.UserPreferences())
 
             val baseFlow = combine(
                 friendRepository.getFriendByIdFlow(friendId),
@@ -60,7 +66,7 @@ class FriendDetailViewModel(
                 FriendBaseData(rawFriend, allTxns, settlements, allFriends, categories)
             }
 
-            combine(baseFlow, groupsFlow) { data, groups ->
+            combine(baseFlow, groupsFlow, prefsFlow) { data, groups, prefs ->
                 val rawFriend = data.rawFriend ?: return@combine null
 
                 // Compute ledger for this friend
@@ -90,14 +96,16 @@ class FriendDetailViewModel(
                     .filter { it.payerId == null && it.receiverId == friendId }
                     .sumOf { it.amountPaise }
 
-                // ✅ Compute outstanding/unsettled expenses using FIFO settlement allocation
-                val unsettled = LedgerCalculator.calculateUnsettledExpenses(friendId, data.allTxns, data.settlements)
+                // Compute complete friend expense history and outstanding expenses using FIFO settlement allocation
+                val allExpenseHistory = LedgerCalculator.calculateFriendExpenseHistory(friendId, data.allTxns, data.settlements)
+                val unsettled = allExpenseHistory.filter { it.remainingOutstandingPaise > 0L }
 
                 FriendDetailUiState(
                     isLoading = false,
                     friend = computedFriend,
                     relatedTransactions = relatedTxns,
                     unsettledExpenses = unsettled,
+                    expenseHistory = allExpenseHistory,
                     settlements = data.settlements,
                     totalSharedExpensesPaise = totalShared,
                     totalPaymentsReceivedPaise = received,
@@ -106,7 +114,8 @@ class FriendDetailViewModel(
                     filterType = _uiState.value.filterType,
                     allFriends = data.allFriends,
                     categories = data.categories,
-                    friendGroups = groups
+                    friendGroups = groups,
+                    userPreferences = prefs
                 )
             }.collect { state ->
                 if (state != null) {
@@ -148,6 +157,12 @@ class FriendDetailViewModel(
         }
     }
 
+    fun updatePersonalUpi(upiId: String?, displayName: String?) {
+        viewModelScope.launch {
+            userPreferencesRepository?.setPersonalUpiDetails(upiId, displayName)
+        }
+    }
+
     // Update existing settlement with ledger recalculation
     fun updateSettlement(settlement: Settlement) {
         viewModelScope.launch {
@@ -171,6 +186,16 @@ class FriendDetailViewModel(
         viewModelScope.launch {
             settlementRepository.deleteSettlement(settlement)
         }
+    }
+
+    suspend fun getSuggestedCategoryForMerchant(merchant: String?): Category? {
+        if (merchant.isNullOrBlank()) return null
+        val dbCatId = transactionRepository.getLatestCategoryForMerchant(merchant)
+        if (dbCatId != null && dbCatId > 0L) {
+            return _uiState.value.categories.firstOrNull { it.id == dbCatId }
+                ?: categoryRepository?.getCategoryById(dbCatId)
+        }
+        return null
     }
 
     // Transaction operations

@@ -1066,6 +1066,7 @@ fun PendingTransactionsScreen(
             initialSourcePackage = item.sourcePackage,
             initialLocation = item.location,
             onSearchMerchantLocation = { merchant -> viewModel.getMerchantLatestLocation(merchant) },
+            onSearchMerchantCategory = { merchant -> viewModel.getSuggestedCategoryForMerchant(merchant) },
             suggestedFromPrevious = selectedMatchDraft != null || learnedCategoryForSelected != null,
             originalDetectedMerchant = item.detectedMerchant,
             onSave = { newTxn ->

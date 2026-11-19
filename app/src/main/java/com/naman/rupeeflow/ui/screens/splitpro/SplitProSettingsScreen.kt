@@ -1,5 +1,6 @@
 package com.naman.rupeeflow.ui.screens.splitpro
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,11 +12,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.naman.rupeeflow.data.repository.UserPreferencesRepository
 import com.naman.rupeeflow.domain.model.SplitMethod
+import com.naman.rupeeflow.ui.components.rupeeFlowTextFieldColors
 import com.naman.rupeeflow.ui.theme.*
+import com.naman.rupeeflow.upi.UpiValidator
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -24,10 +28,20 @@ fun SplitProSettingsScreen(
     userPreferencesRepository: UserPreferencesRepository,
     onNavigateBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs by userPreferencesRepository.userPreferencesFlow.collectAsState(
         initial = com.naman.rupeeflow.data.repository.UserPreferences()
     )
+
+    var personalUpiInput by remember(prefs.personalUpiId) {
+        mutableStateOf(prefs.personalUpiId ?: "")
+    }
+    var personalNameInput by remember(prefs.personalUpiName) {
+        mutableStateOf(prefs.personalUpiName ?: "")
+    }
+    var upiError by remember { mutableStateOf<String?>(null) }
+    var isSavingUpi by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -57,6 +71,174 @@ fun SplitProSettingsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Personal UPI Configuration for Payment Requests / QR
+            item {
+                Text(
+                    text = "Personal UPI Settlement",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = AppTheme.colors.primaryAccent
+                )
+            }
+
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = AppTheme.colors.surfaceElevated,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.divider)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode,
+                                contentDescription = null,
+                                tint = AppTheme.colors.primaryAccent,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "My UPI ID & Display Name",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = AppTheme.colors.textPrimary
+                                )
+                                Text(
+                                    text = "Used to generate local settlement QR codes when friends owe you money",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = AppTheme.colors.textSecondary
+                                )
+                            }
+                        }
+
+                        // My UPI ID (VPA)
+                        OutlinedTextField(
+                            value = personalUpiInput,
+                            onValueChange = { input ->
+                                personalUpiInput = input
+                                val trimmed = input.trim()
+                                upiError = if (trimmed.isNotBlank() && !UpiValidator.isValidUpiId(trimmed)) {
+                                    "Invalid UPI ID format (e.g. name@bank or 9876543210@upi)"
+                                } else {
+                                    null
+                                }
+                            },
+                            label = { Text("My UPI ID (VPA) *") },
+                            placeholder = { Text("e.g. yourname@okhdfcbank") },
+                            singleLine = true,
+                            isError = upiError != null,
+                            supportingText = {
+                                if (upiError != null) {
+                                    Text(upiError ?: "", color = CoralRed)
+                                } else if (!prefs.personalUpiId.isNullOrBlank()) {
+                                    Text("Active receiver VPA", color = EmeraldMint)
+                                } else {
+                                    Text("Standard personal UPI address", color = AppTheme.colors.textTertiary)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = rupeeFlowTextFieldColors(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        // My Display Name
+                        OutlinedTextField(
+                            value = personalNameInput,
+                            onValueChange = { personalNameInput = it },
+                            label = { Text("My Display Name (Payee Name)") },
+                            placeholder = { Text("e.g. Rahul Sharma") },
+                            singleLine = true,
+                            supportingText = {
+                                Text("Displayed to friends when scanning your settlement QR", color = AppTheme.colors.textTertiary)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = rupeeFlowTextFieldColors(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+
+                        // Credential Security Advisory
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = AppTheme.colors.surface,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.cardBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Security,
+                                    contentDescription = null,
+                                    tint = EmeraldMint,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "RupeeFlow never requests or stores your UPI PIN, bank password, OTP, or any account credentials.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AppTheme.colors.textSecondary
+                                )
+                            }
+                        }
+
+                        // Action Buttons: Save & Clear
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (!prefs.personalUpiId.isNullOrBlank()) {
+                                OutlinedButton(
+                                    onClick = {
+                                        scope.launch {
+                                            userPreferencesRepository.setPersonalUpiDetails(null, null)
+                                            personalUpiInput = ""
+                                            personalNameInput = ""
+                                            upiError = null
+                                            Toast.makeText(context, "Personal UPI details removed", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Text("Clear")
+                                }
+                            }
+
+                            Button(
+                                onClick = {
+                                    val trimmedUpi = personalUpiInput.trim()
+                                    if (trimmedUpi.isBlank() || !UpiValidator.isValidUpiId(trimmedUpi)) {
+                                        upiError = "Please enter a valid UPI address"
+                                        return@Button
+                                    }
+                                    isSavingUpi = true
+                                    scope.launch {
+                                        userPreferencesRepository.setPersonalUpiDetails(
+                                            upiId = trimmedUpi,
+                                            displayName = personalNameInput.trim().ifBlank { null }
+                                        )
+                                        isSavingUpi = false
+                                        Toast.makeText(context, "Personal UPI details saved", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                enabled = personalUpiInput.isNotBlank() && upiError == null && !isSavingUpi,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = AppTheme.colors.primaryAccent)
+                            ) {
+                                Text("Save UPI Details")
+                            }
+                        }
+                    }
+                }
+            }
+
             // General Splitting Preferences
             item {
                 Text(
@@ -282,7 +464,7 @@ fun SplitProSettingsScreen(
                             )
                         }
 
-                        Divider(color = AppTheme.colors.divider)
+                        HorizontalDivider(color = AppTheme.colors.divider)
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),

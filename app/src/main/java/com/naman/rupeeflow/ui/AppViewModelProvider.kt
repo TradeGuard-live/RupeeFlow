@@ -27,7 +27,8 @@ object AppViewModelProvider {
                 friendGroupRepository = app.appContainer.friendGroupRepository,
                 expenseGroupRepository = app.appContainer.expenseGroupRepository,
                 inputRankingRepository = app.appContainer.inputRankingRepository,
-                savingsGoalRepository = app.appContainer.savingsGoalRepository
+                savingsGoalRepository = app.appContainer.savingsGoalRepository,
+                merchantPreferenceRepository = app.appContainer.merchantPreferenceRepository
             )
         }
         initializer {
@@ -40,7 +41,8 @@ object AppViewModelProvider {
                 friendGroupRepository = app.appContainer.friendGroupRepository,
                 expenseGroupRepository = app.appContainer.expenseGroupRepository,
                 inputRankingRepository = app.appContainer.inputRankingRepository,
-                pendingTransactionRepository = app.appContainer.pendingTransactionRepository
+                pendingTransactionRepository = app.appContainer.pendingTransactionRepository,
+                merchantPreferenceRepository = app.appContainer.merchantPreferenceRepository
             )
         }
         initializer {
@@ -158,7 +160,8 @@ object AppViewModelProvider {
                 transactionRepository = app.appContainer.transactionRepository,
                 settlementRepository = app.appContainer.settlementRepository,
                 categoryRepository = app.appContainer.categoryRepository,
-                friendGroupRepository = app.appContainer.friendGroupRepository
+                friendGroupRepository = app.appContainer.friendGroupRepository,
+                userPreferencesRepository = app.appContainer.userPreferencesRepository
             )
         }
     }
