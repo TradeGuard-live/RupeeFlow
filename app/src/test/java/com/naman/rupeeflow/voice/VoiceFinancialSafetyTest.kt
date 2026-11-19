@@ -179,8 +179,8 @@ class VoiceFinancialSafetyTest {
             override suspend fun getSettlementById(id: Long): Settlement? = null
             override suspend fun recordSettlement(settlement: Settlement) = 1L
             override suspend fun updateSettlement(settlement: Settlement) {}
-            override suspend fun reverseSettlement(id: Long) {}
-            override suspend fun unreverseSettlement(id: Long) {}
+            override suspend fun reverseSettlement(id: Long): Boolean = true
+            override suspend fun unreverseSettlement(id: Long): Boolean = true
             override suspend fun deleteSettlement(settlement: Settlement) {}
         }
 

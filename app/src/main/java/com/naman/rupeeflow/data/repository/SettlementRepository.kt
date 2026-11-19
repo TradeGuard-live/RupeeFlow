@@ -20,8 +20,8 @@ interface SettlementRepository {
     suspend fun recordSettlement(settlement: Settlement): Long
     // Edit existing settlement with ledger recalculation
     suspend fun updateSettlement(settlement: Settlement)
-    suspend fun reverseSettlement(id: Long)
-    suspend fun unreverseSettlement(id: Long)
+    suspend fun reverseSettlement(id: Long): Boolean
+    suspend fun unreverseSettlement(id: Long): Boolean
     suspend fun deleteSettlement(settlement: Settlement)
 }
 
@@ -110,14 +110,22 @@ class SettlementRepositoryImpl(
         context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
     }
 
-    override suspend fun reverseSettlement(id: Long) {
-        settlementDao.reverseSettlement(id)
-        context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
+    override suspend fun reverseSettlement(id: Long): Boolean {
+        val affected = settlementDao.reverseSettlement(id)
+        if (affected > 0) {
+            context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
+            return true
+        }
+        return false
     }
 
-    override suspend fun unreverseSettlement(id: Long) {
-        settlementDao.unreverseSettlement(id)
-        context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
+    override suspend fun unreverseSettlement(id: Long): Boolean {
+        val affected = settlementDao.unreverseSettlement(id)
+        if (affected > 0) {
+            context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
+            return true
+        }
+        return false
     }
 
     override suspend fun deleteSettlement(settlement: Settlement) {

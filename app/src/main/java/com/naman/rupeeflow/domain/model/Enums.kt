@@ -106,7 +106,8 @@ enum class GroupActivityType {
     EXPENSE_EDITED,
     EXPENSE_DELETED,
     SETTLEMENT_RECORDED,
-    SETTLEMENT_REVERSED;
+    SETTLEMENT_REVERSED,
+    SETTLEMENT_RESTORED;
 
     val displayName: String
         get() = when (this) {
@@ -120,6 +121,7 @@ enum class GroupActivityType {
             EXPENSE_DELETED -> "Expense removed"
             SETTLEMENT_RECORDED -> "Payment recorded"
             SETTLEMENT_REVERSED -> "Payment reversed"
+            SETTLEMENT_RESTORED -> "Payment restored"
         }
 }
 

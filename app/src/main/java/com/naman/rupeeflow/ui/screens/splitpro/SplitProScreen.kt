@@ -474,6 +474,7 @@ fun SplitProScreen(
                                 GroupActivityType.EXPENSE_DELETED -> Icons.Default.DeleteOutline
                                 GroupActivityType.SETTLEMENT_RECORDED -> Icons.Default.CheckCircle
                                 GroupActivityType.SETTLEMENT_REVERSED -> Icons.Default.Undo
+                                GroupActivityType.SETTLEMENT_RESTORED -> Icons.Default.Restore
                                 GroupActivityType.GROUP_CREATED -> Icons.Default.Groups
                                 GroupActivityType.GROUP_UPDATED -> Icons.Default.Settings
                                 GroupActivityType.GROUP_ARCHIVED -> Icons.Default.Archive
@@ -535,16 +536,23 @@ fun SplitProScreen(
         )
     }
 
-    // Dialog: Add Group Expense
+    // Unified Add Transaction Sheet
     if (showAddExpenseDialog && selectedGroupForExpense != null) {
-        AddGroupExpenseDialog(
-            group = selectedGroupForExpense!!,
-            friends = state.friends,
+        FastAddExpenseSheet(
             categories = state.categories,
-            onDismiss = { showAddExpenseDialog = false },
-            onSaveExpense = { txn ->
-                viewModel.saveGroupExpense(txn)
+            friends = state.friends,
+            groups = emptyList(),
+            expenseGroups = state.groups,
+            initialExpenseGroupId = selectedGroupForExpense!!.id,
+            lockToExpenseGroup = true,
+            onDismiss = {
                 showAddExpenseDialog = false
+                selectedGroupForExpense = null
+            },
+            onSave = { newTxn ->
+                viewModel.saveGroupExpense(newTxn)
+                showAddExpenseDialog = false
+                selectedGroupForExpense = null
             }
         )
     }

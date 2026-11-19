@@ -64,7 +64,9 @@ fun FastAddExpenseSheet(
     originalDetectedMerchant: String? = null,
     initialLocation: TransactionLocation? = null,
     onSearchMerchantLocation: (suspend (String) -> TransactionLocation?)? = null,
-    initialDateMillis: Long? = null
+    initialDateMillis: Long? = null,
+    initialExpenseGroupId: Long? = null,
+    lockToExpenseGroup: Boolean = false
 ) {
     // Mode: Expense, Income, or Settlement (rememberSaveable survives recreation)
     var selectedEntryType by rememberSaveable {
@@ -93,7 +95,10 @@ fun FastAddExpenseSheet(
     var isSuggestedActive by remember { mutableStateOf(suggestedFromPrevious) }
     var selectedPaymentMethod by rememberSaveable { mutableStateOf(initialPaymentMethod ?: PaymentMethod.UPI) }
     var selectedPayerId by rememberSaveable { mutableStateOf<Long?>(null) } // null = Me
-    var selectedExpenseGroup by remember { mutableStateOf<ExpenseGroup?>(null) }
+    val initialGroup = remember(initialExpenseGroupId, expenseGroups) {
+        if (initialExpenseGroupId != null) expenseGroups.firstOrNull { it.id == initialExpenseGroupId } else null
+    }
+    var selectedExpenseGroup by remember { mutableStateOf<ExpenseGroup?>(initialGroup) }
 
     // Location state & merchant location memory
     var attachedLocation by remember { mutableStateOf<TransactionLocation?>(initialLocation) }
@@ -117,10 +122,18 @@ fun FastAddExpenseSheet(
     }
     var settlementRefNumber by rememberSaveable { mutableStateOf("") }
 
+    val defaultGroupFriendIds = remember(initialGroup, friends) {
+        if (initialGroup != null && initialGroup.memberFriendIds.isNotEmpty()) {
+            initialGroup.memberFriendIds.filter { mId -> friends.any { it.id == mId } }.toSet()
+        } else {
+            setOf()
+        }
+    }
+
     // Splitting state
-    var isSplitEnabled by rememberSaveable { mutableStateOf(false) }
+    var isSplitEnabled by rememberSaveable { mutableStateOf(initialExpenseGroupId != null) }
     var isMeIncluded by rememberSaveable { mutableStateOf(true) }
-    var selectedFriendIds by remember { mutableStateOf(setOf<Long>()) }
+    var selectedFriendIds by remember { mutableStateOf(defaultGroupFriendIds) }
     var selectedGroupFilterId by remember { mutableStateOf<Long?>(null) }
     var splitMethod by rememberSaveable { mutableStateOf(SplitMethod.EQUAL) }
     var customRupeeInputs by remember { mutableStateOf(mapOf<Long?, String>()) } // null = Me
@@ -548,6 +561,7 @@ fun FastAddExpenseSheet(
                     expenseGroups = expenseGroups,
                     selectedExpenseGroupId = selectedExpenseGroup?.id,
                     selectedExpenseGroupName = selectedExpenseGroup?.name,
+                    enabled = !lockToExpenseGroup,
                     onSelectGroup = { selectedExpenseGroup = it },
                     onCreateNewGroup = { newName ->
                         onCreateExpenseGroup?.invoke(newName)
@@ -1110,8 +1124,8 @@ fun FastAddExpenseSheet(
                             transactionStatus = TransactionStatus.ACTIVE,
                             source = TransactionSource.MANUAL,
                             groupId = selectedGroupFilterId,
-                            expenseGroupId = selectedExpenseGroup?.id,
-                            expenseGroupName = selectedExpenseGroup?.name,
+                            expenseGroupId = selectedExpenseGroup?.id ?: initialExpenseGroupId,
+                            expenseGroupName = selectedExpenseGroup?.name ?: initialGroup?.name,
                             billImagePath = billImagePath,
                             latitude = attachedLocation?.latitude,
                             longitude = attachedLocation?.longitude,

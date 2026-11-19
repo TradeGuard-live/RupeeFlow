@@ -29,7 +29,9 @@ import com.naman.rupeeflow.ui.theme.*
 @Composable
 fun SettlementDetailDialog(
     settlement: Settlement,
-    friendName: String,
+    friendName: String = "",
+    payerName: String? = null,
+    receiverName: String? = null,
     onDismiss: () -> Unit,
     onReverse: (Settlement) -> Unit,
     onUnreverse: (Settlement) -> Unit,
@@ -40,9 +42,23 @@ fun SettlementDetailDialog(
     var showReverseConfirm by remember { mutableStateOf(false) }
     var showUnreverseConfirm by remember { mutableStateOf(false) }
 
+    val directionText = when {
+        settlement.payerId != null && settlement.receiverId != null -> {
+            val p = payerName ?: "Member #${settlement.payerId}"
+            val r = receiverName ?: "Member #${settlement.receiverId}"
+            "$p paid $r"
+        }
+        settlement.receiverId == null -> {
+            val p = payerName ?: friendName.ifBlank { "Friend" }
+            "$p paid You"
+        }
+        else -> {
+            val r = receiverName ?: friendName.ifBlank { "Friend" }
+            "You paid $r"
+        }
+    }
     val isFriendPayingMe = settlement.receiverId == null
-    val directionText = if (isFriendPayingMe) "$friendName paid You" else "You paid $friendName"
-    val accentColor = if (isFriendPayingMe) AppTheme.colors.incomeGreen else CoralRed
+    val accentColor = if (settlement.receiverId == null) AppTheme.colors.incomeGreen else AppTheme.colors.primaryAccent
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -148,8 +164,10 @@ fun SettlementDetailDialog(
 
                 DetailRow(
                     icon = Icons.Default.Person,
-                    label = "Settled With",
-                    value = friendName
+                    label = if (settlement.payerId != null && settlement.receiverId != null) "Parties" else "Settled With",
+                    value = if (settlement.payerId != null && settlement.receiverId != null) {
+                        "${payerName ?: "Member #${settlement.payerId}"} -> ${receiverName ?: "Member #${settlement.receiverId}"}"
+                    } else friendName.ifBlank { payerName ?: receiverName ?: "Friend" }
                 )
 
                 if (!settlement.referenceNumber.isNullOrBlank()) {

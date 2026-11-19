@@ -36,11 +36,11 @@ interface SettlementDao {
     @Update
     suspend fun updateSettlement(settlement: SettlementEntity)
 
-    @Query("UPDATE settlements SET isReversed = 1 WHERE id = :id")
-    suspend fun reverseSettlement(id: Long)
+    @Query("UPDATE settlements SET isReversed = 1 WHERE id = :id AND isReversed = 0")
+    suspend fun reverseSettlement(id: Long): Int
 
-    @Query("UPDATE settlements SET isReversed = 0 WHERE id = :id")
-    suspend fun unreverseSettlement(id: Long)
+    @Query("UPDATE settlements SET isReversed = 0 WHERE id = :id AND isReversed = 1")
+    suspend fun unreverseSettlement(id: Long): Int
 
     @Delete
     suspend fun deleteSettlement(settlement: SettlementEntity)

@@ -24,10 +24,13 @@ import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
 import com.naman.rupeeflow.domain.util.SafeMath
 import com.naman.rupeeflow.ui.components.EditTransactionDialog
+import com.naman.rupeeflow.ui.components.FastAddExpenseSheet
 import com.naman.rupeeflow.ui.components.FriendAvatar
+import com.naman.rupeeflow.ui.components.SettlementDetailDialog
 import com.naman.rupeeflow.ui.components.TransactionDetailDialog
 import com.naman.rupeeflow.ui.components.TransactionItemCard
 import com.naman.rupeeflow.ui.theme.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +60,9 @@ fun SplitProGroupDetailScreen(
     var selectedTabIndex by remember { mutableStateOf(0) }
     val tabs = listOf("Expenses", "Balances", "Simplify Debts", "Activity")
 
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+
     var showAddExpenseDialog by remember { mutableStateOf(false) }
     var showEditGroupDialog by remember { mutableStateOf(false) }
     var showSettleUpDialog by remember { mutableStateOf(false) }
@@ -65,6 +71,9 @@ fun SplitProGroupDetailScreen(
     var settleUpAmountPaise by remember { mutableStateOf<Long?>(null) }
     var selectedTransactionForDetail by remember { mutableStateOf<Transaction?>(null) }
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
+    var selectedSettlementForDetail by remember { mutableStateOf<Settlement?>(null) }
+    var settlementToReverse by remember { mutableStateOf<Settlement?>(null) }
+    var settlementToRestore by remember { mutableStateOf<Settlement?>(null) }
 
     // Activity filter
     var activityFilter by remember { mutableStateOf("ALL") }
@@ -99,6 +108,7 @@ fun SplitProGroupDetailScreen(
     var isSimplifyDebtsMode by remember(group.id) { mutableStateOf(group.simplifyDebts) }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -428,7 +438,9 @@ fun SplitProGroupDetailScreen(
                                 val rName = if (s.receiverId == null) "You" else friendsMap[s.receiverId]?.name ?: "Unavailable Member"
 
                                 Surface(
-                                    modifier = Modifier.fillMaxWidth(),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { selectedSettlementForDetail = s },
                                     shape = RoundedCornerShape(14.dp),
                                     color = AppTheme.colors.surface
                                 ) {
@@ -469,8 +481,12 @@ fun SplitProGroupDetailScreen(
                                                 color = if (s.isReversed) AppTheme.colors.textSecondary else EmeraldMint
                                             )
                                             if (!s.isReversed) {
-                                                IconButton(onClick = { viewModel.reverseGroupSettlement(s) }) {
-                                                    Icon(Icons.Default.Undo, contentDescription = "Reverse", tint = AppTheme.colors.textSecondary, modifier = Modifier.size(18.dp))
+                                                IconButton(onClick = { settlementToReverse = s }) {
+                                                    Icon(Icons.Default.Undo, contentDescription = "Reverse Settlement", tint = AppTheme.colors.textSecondary, modifier = Modifier.size(18.dp))
+                                                }
+                                            } else {
+                                                IconButton(onClick = { settlementToRestore = s }) {
+                                                    Icon(Icons.Default.Restore, contentDescription = "Restore Settlement", tint = AppTheme.colors.incomeGreen, modifier = Modifier.size(18.dp))
                                                 }
                                             }
                                         }
@@ -623,7 +639,8 @@ fun SplitProGroupDetailScreen(
                             }
                             "PAYMENTS" -> activities.filter {
                                 it.activityType == GroupActivityType.SETTLEMENT_RECORDED ||
-                                        it.activityType == GroupActivityType.SETTLEMENT_REVERSED
+                                        it.activityType == GroupActivityType.SETTLEMENT_REVERSED ||
+                                        it.activityType == GroupActivityType.SETTLEMENT_RESTORED
                             }
                             "MEMBERS" -> activities.filter {
                                 it.activityType == GroupActivityType.MEMBER_ADDED ||
@@ -662,8 +679,29 @@ fun SplitProGroupDetailScreen(
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
                                 items(filteredActivities, key = { "act_${it.id}_${it.timestamp}_${it.hashCode()}" }) { act ->
+                                    val linkedSettlement = remember(act.targetId, state.allSettlements) {
+                                        if (act.targetId != null && (act.activityType == GroupActivityType.SETTLEMENT_RECORDED ||
+                                                act.activityType == GroupActivityType.SETTLEMENT_REVERSED ||
+                                                act.activityType == GroupActivityType.SETTLEMENT_RESTORED)) {
+                                            state.allSettlements.firstOrNull { it.id == act.targetId }
+                                        } else null
+                                    }
+
+                                    val linkedTransaction = remember(act.targetId, state.allTransactions) {
+                                        if (act.targetId != null && (act.activityType == GroupActivityType.EXPENSE_CREATED ||
+                                                act.activityType == GroupActivityType.EXPENSE_EDITED)) {
+                                            state.allTransactions.firstOrNull { it.id == act.targetId && it.transactionStatus == TransactionStatus.ACTIVE }
+                                        } else null
+                                    }
+
+                                    val clickableMod = when {
+                                        linkedSettlement != null -> Modifier.clickable { selectedSettlementForDetail = linkedSettlement }
+                                        linkedTransaction != null -> Modifier.clickable { selectedTransactionForDetail = linkedTransaction }
+                                        else -> Modifier
+                                    }
+
                                     Surface(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier.fillMaxWidth().then(clickableMod),
                                         shape = RoundedCornerShape(14.dp),
                                         color = AppTheme.colors.surfaceElevated,
                                         border = androidx.compose.foundation.BorderStroke(1.dp, AppTheme.colors.divider)
@@ -678,6 +716,7 @@ fun SplitProGroupDetailScreen(
                                                 GroupActivityType.EXPENSE_DELETED -> Icons.Default.DeleteOutline
                                                 GroupActivityType.SETTLEMENT_RECORDED -> Icons.Default.CheckCircle
                                                 GroupActivityType.SETTLEMENT_REVERSED -> Icons.Default.Undo
+                                                GroupActivityType.SETTLEMENT_RESTORED -> Icons.Default.Restore
                                                 GroupActivityType.GROUP_CREATED -> Icons.Default.Groups
                                                 GroupActivityType.GROUP_UPDATED -> Icons.Default.Settings
                                                 GroupActivityType.GROUP_ARCHIVED -> Icons.Default.Archive
@@ -707,6 +746,30 @@ fun SplitProGroupDetailScreen(
                                                     color = AppTheme.colors.textPrimary
                                                 )
                                             }
+                                            if (linkedSettlement != null) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                if (!linkedSettlement.isReversed) {
+                                                    IconButton(onClick = { settlementToReverse = linkedSettlement }) {
+                                                        Icon(Icons.Default.Undo, contentDescription = "Reverse Settlement", tint = AppTheme.colors.textSecondary, modifier = Modifier.size(18.dp))
+                                                    }
+                                                } else {
+                                                    IconButton(onClick = { settlementToRestore = linkedSettlement }) {
+                                                        Icon(Icons.Default.Restore, contentDescription = "Restore Settlement", tint = AppTheme.colors.incomeGreen, modifier = Modifier.size(18.dp))
+                                                    }
+                                                }
+                                            } else if (linkedTransaction != null) {
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                IconButton(
+                                                    onClick = {
+                                                        scope.launch {
+                                                            val freshTxn = viewModel.getTransactionById(linkedTransaction.id) ?: linkedTransaction
+                                                            editingTransaction = freshTxn
+                                                        }
+                                                    }
+                                                ) {
+                                                    Icon(Icons.Default.Edit, contentDescription = "Edit Expense", tint = AppTheme.colors.primaryAccent, modifier = Modifier.size(18.dp))
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -718,15 +781,22 @@ fun SplitProGroupDetailScreen(
         }
     }
 
-    // Add Expense Dialog
+    // Unified Add Transaction Sheet
     if (showAddExpenseDialog && group != null) {
-        AddGroupExpenseDialog(
-            group = group,
-            friends = state.friends,
+        FastAddExpenseSheet(
             categories = state.categories,
+            friends = state.friends,
+            groups = emptyList(),
+            expenseGroups = state.groups,
+            initialExpenseGroupId = groupId,
+            lockToExpenseGroup = true,
             onDismiss = { showAddExpenseDialog = false },
-            onSaveExpense = { txn ->
-                viewModel.saveGroupExpense(txn)
+            onSave = { newTxn ->
+                viewModel.saveGroupExpense(newTxn) {
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Expense added successfully")
+                    }
+                }
                 showAddExpenseDialog = false
             }
         )
@@ -780,8 +850,11 @@ fun SplitProGroupDetailScreen(
                 selectedTransactionForDetail = null
             },
             onEdit = { toEdit ->
-                editingTransaction = toEdit
-                selectedTransactionForDetail = null
+                scope.launch {
+                    val freshTxn = viewModel.getTransactionById(toEdit.id) ?: toEdit
+                    editingTransaction = freshTxn
+                    selectedTransactionForDetail = null
+                }
             },
             onSaveTransaction = { viewModel.saveGroupExpense(it) }
         )
@@ -795,11 +868,130 @@ fun SplitProGroupDetailScreen(
             friends = state.friends,
             groups = emptyList(),
             expenseGroups = state.groups,
+            lockToExpenseGroup = true,
             onDismiss = { editingTransaction = null },
             onSave = { updated ->
-                viewModel.saveGroupExpense(updated)
+                viewModel.saveGroupExpense(updated) {
+                    scope.launch {
+                        snackbarHostState.showSnackbar("Expense updated successfully")
+                    }
+                }
                 editingTransaction = null
             }
+        )
+    }
+
+    // Settlement Detail Dialog
+    selectedSettlementForDetail?.let { s ->
+        val friendsMap = state.friends.associateBy { it.id }
+        val pName = if (s.payerId == null) "You" else friendsMap[s.payerId]?.name ?: "Unavailable Member"
+        val rName = if (s.receiverId == null) "You" else friendsMap[s.receiverId]?.name ?: "Unavailable Member"
+        SettlementDetailDialog(
+            settlement = s,
+            friendName = if (s.payerId == null) rName else pName,
+            payerName = pName,
+            receiverName = rName,
+            onDismiss = { selectedSettlementForDetail = null },
+            onReverse = { toRev ->
+                viewModel.reverseGroupSettlement(toRev) { success ->
+                    if (success) {
+                        scope.launch { snackbarHostState.showSnackbar("Settlement reversed") }
+                    }
+                }
+                selectedSettlementForDetail = null
+            },
+            onUnreverse = { toRes ->
+                viewModel.restoreGroupSettlement(toRes) { success ->
+                    if (success) {
+                        scope.launch { snackbarHostState.showSnackbar("Settlement restored") }
+                    }
+                }
+                selectedSettlementForDetail = null
+            },
+            onDelete = {
+                selectedSettlementForDetail = null
+            },
+            onEdit = {
+                selectedSettlementForDetail = null
+            }
+        )
+    }
+
+    // Settlement Reverse Confirmation Dialog
+    settlementToReverse?.let { s ->
+        val friendsMap = state.friends.associateBy { it.id }
+        val pName = if (s.payerId == null) "You" else friendsMap[s.payerId]?.name ?: "Unavailable Member"
+        val rName = if (s.receiverId == null) "You" else friendsMap[s.receiverId]?.name ?: "Unavailable Member"
+        AlertDialog(
+            onDismissRequest = { settlementToReverse = null },
+            title = { Text("Reverse Settlement?", color = AppTheme.colors.textPrimary) },
+            text = {
+                Text(
+                    "Are you sure you want to reverse this settlement ($pName paid $rName ${CurrencyUtils.formatPaiseToRupees(s.amountPaise)})? Its effect on group balances will be removed.",
+                    color = AppTheme.colors.textSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val toRev = s
+                        settlementToReverse = null
+                        viewModel.reverseGroupSettlement(toRev) { success ->
+                            if (success) {
+                                scope.launch { snackbarHostState.showSnackbar("Settlement reversed") }
+                            }
+                        }
+                    }
+                ) {
+                    Text("Confirm Reverse", color = AmberGold, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { settlementToReverse = null }) {
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
+                }
+            },
+            containerColor = AppTheme.colors.surfaceElevated,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
+
+    // Settlement Restore Confirmation Dialog
+    settlementToRestore?.let { s ->
+        val friendsMap = state.friends.associateBy { it.id }
+        val pName = if (s.payerId == null) "You" else friendsMap[s.payerId]?.name ?: "Unavailable Member"
+        val rName = if (s.receiverId == null) "You" else friendsMap[s.receiverId]?.name ?: "Unavailable Member"
+        AlertDialog(
+            onDismissRequest = { settlementToRestore = null },
+            title = { Text("Restore Settlement?", color = AppTheme.colors.textPrimary) },
+            text = {
+                Text(
+                    "Are you sure you want to restore this settlement ($pName paid $rName ${CurrencyUtils.formatPaiseToRupees(s.amountPaise)})? Its effect on group balances will be reapplied.",
+                    color = AppTheme.colors.textSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val toRes = s
+                        settlementToRestore = null
+                        viewModel.restoreGroupSettlement(toRes) { success ->
+                            if (success) {
+                                scope.launch { snackbarHostState.showSnackbar("Settlement restored") }
+                            }
+                        }
+                    }
+                ) {
+                    Text("Confirm Restore", color = AppTheme.colors.incomeGreen, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { settlementToRestore = null }) {
+                    Text("Cancel", color = AppTheme.colors.textSecondary)
+                }
+            },
+            containerColor = AppTheme.colors.surfaceElevated,
+            shape = RoundedCornerShape(20.dp)
         )
     }
 }

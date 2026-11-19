@@ -387,24 +387,65 @@ class SplitProViewModel(
         }
     }
 
-    fun reverseGroupSettlement(settlement: Settlement) {
+    suspend fun getTransactionById(id: Long): Transaction? {
+        return transactionRepository.getTransactionById(id)
+    }
+
+    fun reverseGroupSettlement(
+        settlement: Settlement,
+        onReversed: (Boolean) -> Unit = {}
+    ) {
         viewModelScope.launch {
             try {
-                settlementRepository.reverseSettlement(settlement.id)
+                val success = settlementRepository.reverseSettlement(settlement.id)
                 val gId = settlement.groupId
-                if (gId != null && gId > 0L) {
+                if (success && gId != null && gId > 0L) {
+                    val payerName = if (settlement.payerId == null) "You" else _uiState.value.friends.firstOrNull { it.id == settlement.payerId }?.name ?: "Unavailable Member"
+                    val receiverName = if (settlement.receiverId == null) "You" else _uiState.value.friends.firstOrNull { it.id == settlement.receiverId }?.name ?: "Unavailable Member"
                     try {
                         groupActivityRepository.recordActivity(
                             groupId = gId,
                             activityType = GroupActivityType.SETTLEMENT_REVERSED,
                             actorName = "You",
-                            description = "Reversed payment of ₹${settlement.amountPaise / 100}",
+                            description = "Reversed payment: $payerName paid $receiverName (₹${settlement.amountPaise / 100})",
                             amountPaise = settlement.amountPaise,
                             targetId = settlement.id
                         )
                     } catch (_: Exception) { }
                 }
-            } catch (_: Exception) { }
+                onReversed(success)
+            } catch (_: Exception) {
+                onReversed(false)
+            }
+        }
+    }
+
+    fun restoreGroupSettlement(
+        settlement: Settlement,
+        onRestored: (Boolean) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            try {
+                val success = settlementRepository.unreverseSettlement(settlement.id)
+                val gId = settlement.groupId
+                if (success && gId != null && gId > 0L) {
+                    val payerName = if (settlement.payerId == null) "You" else _uiState.value.friends.firstOrNull { it.id == settlement.payerId }?.name ?: "Unavailable Member"
+                    val receiverName = if (settlement.receiverId == null) "You" else _uiState.value.friends.firstOrNull { it.id == settlement.receiverId }?.name ?: "Unavailable Member"
+                    try {
+                        groupActivityRepository.recordActivity(
+                            groupId = gId,
+                            activityType = GroupActivityType.SETTLEMENT_RESTORED,
+                            actorName = "You",
+                            description = "Restored payment: $payerName paid $receiverName (₹${settlement.amountPaise / 100})",
+                            amountPaise = settlement.amountPaise,
+                            targetId = settlement.id
+                        )
+                    } catch (_: Exception) { }
+                }
+                onRestored(success)
+            } catch (_: Exception) {
+                onRestored(false)
+            }
         }
     }
 

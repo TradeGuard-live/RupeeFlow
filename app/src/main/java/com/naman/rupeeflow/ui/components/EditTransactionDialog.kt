@@ -46,7 +46,8 @@ fun EditTransactionDialog(
     onCreateExpenseGroup: ((String) -> Unit)? = null,
     onDismiss: () -> Unit,
     onSave: (Transaction) -> Unit,
-    onSearchMerchantLocation: (suspend (String) -> TransactionLocation?)? = null
+    onSearchMerchantLocation: (suspend (String) -> TransactionLocation?)? = null,
+    lockToExpenseGroup: Boolean = false
 ) {
     val context = LocalContext.current
 
@@ -332,6 +333,7 @@ fun EditTransactionDialog(
                 expenseGroups = expenseGroups,
                 selectedExpenseGroupId = selectedExpenseGroupId,
                 selectedExpenseGroupName = selectedExpenseGroupName,
+                enabled = !lockToExpenseGroup,
                 onSelectGroup = { group ->
                     selectedExpenseGroupId = group?.id
                     selectedExpenseGroupName = group?.name
@@ -852,7 +854,7 @@ fun EditTransactionDialog(
                 SplitMethod.EQUAL -> true
                 SplitMethod.PERCENTAGE -> {
                     val totalPct = allParticipantIds.sumOf { percentageInputs[it]?.toDoubleOrNull() ?: 0.0 }
-                    abs(totalPct - 100.0) <= 0.01
+                    abs(totalPct - 100.0) <= 0.5
                 }
                 SplitMethod.EXACT_AMOUNT, SplitMethod.CUSTOM -> {
                     val sumPaise = allParticipantIds.sumOf { CurrencyUtils.parseInputToPaise(customRupeeInputs[it] ?: "") }

@@ -25,7 +25,8 @@ fun ExpenseGroupSelector(
     selectedExpenseGroupId: Long?,
     selectedExpenseGroupName: String?,
     onSelectGroup: (ExpenseGroup?) -> Unit,
-    onCreateNewGroup: (String) -> Unit
+    onCreateNewGroup: (String) -> Unit,
+    enabled: Boolean = true
 ) {
     var expanded by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
@@ -59,7 +60,7 @@ fun ExpenseGroupSelector(
             border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expanded = true }
+                .clickable(enabled = enabled) { expanded = true }
         ) {
             Row(
                 modifier = Modifier
@@ -91,11 +92,13 @@ fun ExpenseGroupSelector(
                         color = if (hasSelectedGroup) AppTheme.colors.textPrimary else AppTheme.colors.textSecondary
                     )
                 }
-                Icon(
-                    imageVector = Icons.Default.ArrowDropDown,
-                    contentDescription = null,
-                    tint = AppTheme.colors.textSecondary
-                )
+                if (enabled) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        tint = AppTheme.colors.textSecondary
+                    )
+                }
             }
         }
 
