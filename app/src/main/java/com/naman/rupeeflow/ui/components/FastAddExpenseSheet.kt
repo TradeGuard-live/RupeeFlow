@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.naman.rupeeflow.domain.ledger.LedgerCalculator
+import com.naman.rupeeflow.domain.matching.MerchantNormalizer
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
@@ -55,6 +56,7 @@ fun FastAddExpenseSheet(
     onSaveSettlement: ((Settlement) -> Unit)? = null,
     initialAmountPaise: Long? = null,
     initialTitle: String? = null,
+    initialMerchant: String? = null,
     initialType: TransactionType? = null,
     initialPaymentMethod: PaymentMethod? = null,
     initialPendingId: Long? = null,
@@ -62,6 +64,8 @@ fun FastAddExpenseSheet(
     initialCategory: Category? = null,
     suggestedFromPrevious: Boolean = false,
     originalDetectedMerchant: String? = null,
+    initialSource: TransactionSource? = null,
+    initialSourcePackage: String? = null,
     initialLocation: TransactionLocation? = null,
     onSearchMerchantLocation: (suspend (String) -> TransactionLocation?)? = null,
     initialDateMillis: Long? = null,
@@ -83,6 +87,9 @@ fun FastAddExpenseSheet(
         mutableStateOf(initialDateMillis ?: System.currentTimeMillis())
     }
     var title by rememberSaveable { mutableStateOf(initialTitle ?: "") }
+    var merchantName by rememberSaveable {
+        mutableStateOf(initialMerchant ?: originalDetectedMerchant ?: "")
+    }
     var description by rememberSaveable { mutableStateOf("") }
     var amountText by rememberSaveable {
         mutableStateOf(
@@ -104,8 +111,8 @@ fun FastAddExpenseSheet(
     var attachedLocation by remember { mutableStateOf<TransactionLocation?>(initialLocation) }
     var merchantSuggestion by remember { mutableStateOf<TransactionLocation?>(null) }
 
-    LaunchedEffect(title, originalDetectedMerchant) {
-        val merchant = title.trim().ifBlank { originalDetectedMerchant?.trim() ?: "" }
+    LaunchedEffect(merchantName) {
+        val merchant = merchantName.trim().ifBlank { originalDetectedMerchant?.trim() ?: "" }
         if (merchant.isNotBlank() && attachedLocation == null && onSearchMerchantLocation != null) {
             merchantSuggestion = onSearchMerchantLocation(merchant)
         }
@@ -516,8 +523,22 @@ fun FastAddExpenseSheet(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Title / Merchant", color = AppTheme.colors.textSecondary) },
-                    placeholder = { Text("e.g. Swiggy, Groceries, Salary, Dinner", color = AppTheme.colors.textMuted) },
+                    label = { Text("Title / Description", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("e.g. Dinner with friends, Weekly groceries", color = AppTheme.colors.textMuted) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = rupeeFlowTextFieldColors(),
+                    shape = RoundedCornerShape(16.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Dedicated Merchant Field
+                OutlinedTextField(
+                    value = merchantName,
+                    onValueChange = { merchantName = it },
+                    label = { Text("Merchant / Store (Optional)", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("e.g. Domino's, Swiggy, Amazon", color = AppTheme.colors.textMuted) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     colors = rupeeFlowTextFieldColors(),
@@ -971,7 +992,7 @@ fun FastAddExpenseSheet(
                     location = attachedLocation,
                     onLocationChanged = { attachedLocation = it },
                     merchantSuggestion = merchantSuggestion,
-                    merchantName = title.ifBlank { originalDetectedMerchant },
+                    merchantName = merchantName.trim().ifBlank { originalDetectedMerchant },
                     onApplyMerchantSuggestion = {
                         attachedLocation = merchantSuggestion?.copy(locationSource = LocationSource.HISTORICAL_LOCATION_SUGGESTION)
                         merchantSuggestion = null
@@ -1108,6 +1129,7 @@ fun FastAddExpenseSheet(
                             selectedPaymentMethod
                         }
 
+                        val effectiveMerchant = merchantName.trim().takeIf { it.isNotBlank() }
                         val newTxn = Transaction(
                             title = finalTitle,
                             description = description.trim(),
@@ -1122,7 +1144,11 @@ fun FastAddExpenseSheet(
                             splitMethod = splitMethod,
                             transactionType = transactionType,
                             transactionStatus = TransactionStatus.ACTIVE,
-                            source = TransactionSource.MANUAL,
+                            source = initialSource ?: if (initialPendingId != null) TransactionSource.SMS else TransactionSource.MANUAL,
+                            merchantName = effectiveMerchant,
+                            merchantNormalized = effectiveMerchant?.let { MerchantNormalizer.normalize(it).takeIf { n -> n.isNotBlank() } },
+                            rawMerchant = originalDetectedMerchant ?: effectiveMerchant,
+                            sourcePackage = initialSourcePackage,
                             groupId = selectedGroupFilterId,
                             expenseGroupId = selectedExpenseGroup?.id ?: initialExpenseGroupId,
                             expenseGroupName = selectedExpenseGroup?.name ?: initialGroup?.name,

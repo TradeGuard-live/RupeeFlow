@@ -5,6 +5,7 @@ import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.naman.rupeeflow.RupeeFlowApplication
 import com.naman.rupeeflow.data.local.entity.PendingTransactionEntity
+import com.naman.rupeeflow.domain.matching.MerchantNormalizer
 import com.naman.rupeeflow.domain.model.PendingStatus
 import com.naman.rupeeflow.domain.model.TransactionSource
 import kotlinx.coroutines.*
@@ -144,6 +145,9 @@ class RupeeFlowNotificationListener : NotificationListenerService() {
                         detectedBank = parseResult.bankName ?: pkg,
                         detectedAccount = parseResult.accountLast4,
                         detectedMerchant = parseResult.merchant,
+                        rawMerchant = parseResult.merchant,
+                        merchantNormalized = MerchantNormalizer.normalize(parseResult.merchant).takeIf { it.isNotBlank() },
+                        sourcePackage = pkg,
                         phoneNumber = parseResult.phoneNumber,
                         upiId = parseResult.upiId,
                         referenceNumber = parseResult.referenceNumber,

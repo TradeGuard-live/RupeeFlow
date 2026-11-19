@@ -36,7 +36,7 @@ class SmartTransactionMatcher(
         historicalTransactions: List<Transaction>,
         categories: List<Category>
     ): List<HistoricalCandidateMatch> {
-        val detectedMerchant = detected.detectedMerchant ?: detected.detectedBank
+        val detectedMerchant = detected.detectedMerchant
         if (detectedMerchant.isNullOrBlank()) return emptyList()
 
         val normDetected = MerchantNormalizer.normalize(detectedMerchant)
@@ -60,8 +60,9 @@ class SmartTransactionMatcher(
             // Must have non-blank title
             if (history.title.isBlank()) continue
 
-            // Calculate merchant match score
-            val historyMerchant = history.merchantName ?: history.title
+            // Calculate merchant match score (dedicated merchant field only, never title)
+            val historyMerchant = history.merchantName
+            if (historyMerchant.isNullOrBlank()) continue
             val historyVpa = MerchantNormalizer.extractVpa(history.referenceNumber)
                 ?: MerchantNormalizer.extractVpa(history.merchantName)
 

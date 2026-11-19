@@ -7,6 +7,7 @@ import com.naman.rupeeflow.data.local.dao.TransactionDao
 import com.naman.rupeeflow.data.local.dao.TransactionWithParticipants
 import com.naman.rupeeflow.data.local.entity.TransactionEntity
 import com.naman.rupeeflow.data.local.entity.TransactionParticipantEntity
+import com.naman.rupeeflow.domain.matching.MerchantNormalizer
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.widget.RupeeFlowWidgetManager
 import kotlinx.coroutines.flow.Flow
@@ -245,6 +246,9 @@ class TransactionRepositoryImpl(
             transactionStatus = transaction.transactionStatus,
             source = transaction.source,
             merchantName = transaction.merchantName,
+            merchantNormalized = transaction.merchantNormalized,
+            rawMerchant = transaction.rawMerchant,
+            sourcePackage = transaction.sourcePackage,
             referenceNumber = transaction.referenceNumber,
             phoneNumber = transaction.phoneNumber,
             upiId = transaction.upiId,
@@ -279,6 +283,9 @@ class TransactionRepositoryImpl(
         transactionStatus = transactionStatus,
         source = source,
         merchantName = merchantName,
+        merchantNormalized = merchantNormalized ?: merchantName?.let { MerchantNormalizer.normalize(it).takeIf { n -> n.isNotBlank() } },
+        rawMerchant = rawMerchant ?: merchantName,
+        sourcePackage = sourcePackage,
         referenceNumber = referenceNumber,
         phoneNumber = phoneNumber,
         upiId = upiId,

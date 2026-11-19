@@ -25,24 +25,42 @@ object PaymentRecipientExtractor {
 
     private val RECIPIENT_PATTERNS = listOf(
         // e.g. "Paid ₹250 to Swiggy", "Payment of ₹85.00 successful to Chai Point", "Paid to 7308080808"
-        Pattern.compile("(?i)(?:paid|sent|transferred|payment)\\s*(?:of)?\\s*(?:rs\\.?|inr|₹)?[\\d,.]*\\s*(?:successful)?\\s*(?:to)\\s+([a-zA-Z0-9@._\\-\\s]{2,40})"),
+        Pattern.compile("(?i)(?:paid|sent|transferred|payment)\\s*(?:of)?\\s*(?:rs\\.?|inr|₹)?[\\d,.]*\\s*(?:successful)?\\s*(?:to)\\s+([a-zA-Z0-9@._'\\-\\s]{2,40})"),
         // e.g. "Received ₹1,000 from Rohit Sharma", "Refund of ₹300 from Uber", "Money received from 9876543210"
-        Pattern.compile("(?i)(?:received|credited|refund|money\\s+received)\\s*(?:of)?\\s*(?:rs\\.?|inr|₹)?[\\d,.]*\\s*(?:from)\\s+([a-zA-Z0-9@._\\-\\s]{2,40})"),
+        Pattern.compile("(?i)(?:received|credited|refund|money\\s+received)\\s*(?:of)?\\s*(?:rs\\.?|inr|₹)?[\\d,.]*\\s*(?:from)\\s+([a-zA-Z0-9@._'\\-\\s]{2,40})"),
         // e.g. "Karan sent you ₹750"
-        Pattern.compile("(?i)([a-zA-Z0-9@._\\-\\s]{2,30})\\s+(?:sent\\s+you)"),
+        Pattern.compile("(?i)([a-zA-Z0-9@._'\\-\\s]{2,30})\\s+(?:sent\\s+you)"),
         // e.g. "to Swiggy", "to 7308080808"
-        Pattern.compile("(?i)(?:\\bto\\s+)([a-zA-Z0-9@._\\-\\s]{2,40})"),
+        Pattern.compile("(?i)(?:\\bto\\s+)([a-zA-Z0-9@._'\\-\\s]{2,40})"),
         // e.g. "from Amit"
-        Pattern.compile("(?i)(?:\\bfrom\\s+)([a-zA-Z0-9@._\\-\\s]{2,40})"),
+        Pattern.compile("(?i)(?:\\bfrom\\s+)([a-zA-Z0-9@._'\\-\\s]{2,40})"),
         // e.g. "at Starbucks Coffee", "at Dominos"
-        Pattern.compile("(?i)(?:\\bat\\s+)([a-zA-Z0-9&._\\-\\s]{2,35})")
+        Pattern.compile("(?i)(?:\\bat\\s+)([a-zA-Z0-9&._'\\-\\s]{2,35})")
     )
 
     private val GENERIC_IGNORE_WORDS = setOf(
         "upi", "vpa", "account", "a/c", "acct", "bank", "card", "wallet",
         "payment", "transfer", "self", "atm", "branch", "sms", "alert",
-        "successful", "done", "using", "via", "your", "the", "credited", "debited"
+        "successful", "done", "using", "via", "your", "the", "credited", "debited",
+        "debit", "credit", "inr", "rs", "rupees", "balance", "total", "notification", "transaction"
     )
+
+    private val PAYMENT_PROVIDERS_AND_BANKS = setOf(
+        "paytm", "phonepe", "gpay", "google pay", "googlepay", "bhim", "cred",
+        "amazon pay", "amazonpay", "mobikwik", "freecharge", "airtel money", "jio payments bank",
+        "paytm wallet", "phonepe wallet", "amazon pay wallet",
+        "hdfc", "hdfc bank", "icici", "icici bank", "sbi", "state bank of india",
+        "axis", "axis bank", "kotak", "kotak mahindra bank", "pnb", "punjab national bank",
+        "bob", "bank of baroda", "canara bank", "union bank", "idbi", "yes bank", "indusind bank",
+        "federal bank", "rbl", "rbl bank", "standard chartered", "hsbc", "citi", "citibank"
+    )
+
+    private fun isPaymentProviderOrBank(text: String): Boolean {
+        val lower = text.lowercase(Locale.ROOT).trim()
+        if (PAYMENT_PROVIDERS_AND_BANKS.contains(lower)) return true
+        if (lower.endsWith(" bank") || lower.endsWith(" wallet")) return true
+        return false
+    }
 
     /**
      * Extracts and strictly categorizes payee details: merchant name, phone number,
@@ -52,7 +70,7 @@ object PaymentRecipientExtractor {
     fun extract(body: String): ExtractedRecipientInfo {
         for (pattern in RECIPIENT_PATTERNS) {
             val matcher = pattern.matcher(body)
-            if (matcher.find()) {
+            while (matcher.find()) {
                 val raw = matcher.group(1)?.trim()
                 if (!raw.isNullOrBlank()) {
                     var cleanedCandidate: String = raw
@@ -138,9 +156,9 @@ object PaymentRecipientExtractor {
             )
         }
 
-        // 4. Filter out generic reserved non-merchant words
+        // 4. Filter out generic reserved non-merchant words, payment providers, and bank names
         val lower = candidate.lowercase(Locale.ROOT)
-        if (GENERIC_IGNORE_WORDS.contains(lower)) {
+        if (GENERIC_IGNORE_WORDS.contains(lower) || isPaymentProviderOrBank(lower)) {
             return ExtractedRecipientInfo()
         }
 

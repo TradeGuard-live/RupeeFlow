@@ -6,6 +6,7 @@ import android.content.Intent
 import android.provider.Telephony
 import com.naman.rupeeflow.RupeeFlowApplication
 import com.naman.rupeeflow.data.local.entity.PendingTransactionEntity
+import com.naman.rupeeflow.domain.matching.MerchantNormalizer
 import com.naman.rupeeflow.domain.model.PendingStatus
 import com.naman.rupeeflow.domain.model.TransactionSource
 import kotlinx.coroutines.CoroutineScope
@@ -95,6 +96,9 @@ class SmsReceiver : BroadcastReceiver() {
                     detectedBank = parseResult.bankName,
                     detectedAccount = parseResult.accountLast4,
                     detectedMerchant = parseResult.merchant,
+                    rawMerchant = parseResult.merchant,
+                    merchantNormalized = MerchantNormalizer.normalize(parseResult.merchant).takeIf { it.isNotBlank() },
+                    sourcePackage = null,
                     phoneNumber = parseResult.phoneNumber,
                     upiId = parseResult.upiId,
                     referenceNumber = parseResult.referenceNumber,

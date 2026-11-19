@@ -892,6 +892,25 @@ class TransactionMatchingAndSafetyTest {
     private class FakeMerchantPreferenceRepository : MerchantPreferenceRepository {
         private val rejections = mutableSetOf<String>()
         private val preferences = mutableListOf<LearnedMerchantPreference>()
+        private val merchantCategories = mutableMapOf<String, Long>()
+
+        override suspend fun recordMerchantCategory(rawMerchant: String?, categoryId: Long) {
+            val norm = MerchantNormalizer.normalize(rawMerchant)
+            if (norm.isBlank() || categoryId <= 0L) return
+            merchantCategories[norm] = categoryId
+        }
+
+        override suspend fun getSuggestedCategory(rawMerchant: String?): Long? {
+            val norm = MerchantNormalizer.normalize(rawMerchant)
+            if (norm.isBlank()) return null
+            return merchantCategories[norm]
+        }
+
+        override suspend fun clearMerchantCategory(rawMerchant: String?) {
+            val norm = MerchantNormalizer.normalize(rawMerchant)
+            if (norm.isBlank()) return
+            merchantCategories.remove(norm)
+        }
 
         private fun key(merchant: String, categoryId: Long, title: String) =
             "${MerchantNormalizer.normalize(merchant)}|$categoryId|${title.trim().lowercase()}"

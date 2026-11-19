@@ -36,8 +36,8 @@ class HdfcBankParser : BankMessageParser {
     )
 
     private val MERCHANT_PATTERNS = listOf(
-        Pattern.compile("(?i)(?:to\\s+vpa|paid\\s+to|sent\\s+to|transferred\\s+to|\\bto\\b)\\s+([a-zA-Z0-9&._\\-\\s]{3,30}?)(?:\\s+(?:on|ref|upi|avl|bal|using|via|dated|\\.)|$)"),
-        Pattern.compile("(?i)(?:at|towards|info:?|for)\\s+([a-zA-Z0-9&._\\-\\s]{3,30}?)(?:\\s+(?:on|ref|upi|avl|bal|using|via|dated|\\.)|$)"),
+        Pattern.compile("(?i)(?:to\\s+vpa|paid\\s+to|sent\\s+to|transferred\\s+to|\\bto\\b)\\s+([a-zA-Z0-9&._'\\-\\s]{3,30}?)(?:\\s+(?:on|ref|upi|avl|bal|using|via|dated|\\.)|$)"),
+        Pattern.compile("(?i)(?:at|towards|info:?|for)\\s+([a-zA-Z0-9&._'\\-\\s]{3,30}?)(?:\\s+(?:on|ref|upi|avl|bal|using|via|dated|\\.)|$)"),
         Pattern.compile("(?i)(?:vpa\\s+)([a-zA-Z0-9@._\\-]+)")
     )
 

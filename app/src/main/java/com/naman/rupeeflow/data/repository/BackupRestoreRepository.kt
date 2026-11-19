@@ -5,6 +5,7 @@ import androidx.room.withTransaction
 import com.naman.rupeeflow.data.local.RupeeFlowDatabase
 import com.naman.rupeeflow.data.local.entity.*
 import com.naman.rupeeflow.domain.ledger.LedgerCalculator
+import com.naman.rupeeflow.domain.matching.MerchantNormalizer
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
@@ -221,6 +222,9 @@ class BackupRestoreRepository(
                 put("transactionStatus", t.transactionStatus.name)
                 put("source", t.source.name)
                 put("merchantName", t.merchantName ?: "")
+                put("merchantNormalized", t.merchantNormalized ?: "")
+                put("rawMerchant", t.rawMerchant ?: "")
+                put("sourcePackage", t.sourcePackage ?: "")
                 put("referenceNumber", t.referenceNumber ?: "")
                 put("groupId", t.groupId ?: -1L)
                 if (t.expenseGroupId != null) put("expenseGroupId", t.expenseGroupId)
@@ -304,6 +308,9 @@ class BackupRestoreRepository(
                 put("detectedBank", pt.detectedBank ?: "")
                 put("detectedAccount", pt.detectedAccount ?: "")
                 put("detectedMerchant", pt.detectedMerchant ?: "")
+                put("rawMerchant", pt.rawMerchant ?: "")
+                put("merchantNormalized", pt.merchantNormalized ?: "")
+                put("sourcePackage", pt.sourcePackage ?: "")
                 put("referenceNumber", pt.referenceNumber ?: "")
                 put("rawContent", pt.rawContent)
                 put("timestamp", pt.timestamp)
@@ -854,6 +861,9 @@ class BackupRestoreRepository(
                                 TransactionSource.valueOf(obj.getString("source"))
                             }.getOrDefault(TransactionSource.MANUAL),
                             merchantName = obj.optString("merchantName").takeIf { it.isNotBlank() },
+                            merchantNormalized = obj.optString("merchantNormalized").takeIf { it.isNotBlank() } ?: obj.optString("merchantName").takeIf { it.isNotBlank() }?.let { MerchantNormalizer.normalize(it).takeIf { n -> n.isNotBlank() } },
+                            rawMerchant = obj.optString("rawMerchant").takeIf { it.isNotBlank() } ?: obj.optString("merchantName").takeIf { it.isNotBlank() },
+                            sourcePackage = obj.optString("sourcePackage").takeIf { it.isNotBlank() },
                             referenceNumber = obj.optString("referenceNumber").takeIf { it.isNotBlank() },
                             groupId = gId,
                             expenseGroupId = egId,
@@ -983,6 +993,9 @@ class BackupRestoreRepository(
                             detectedBank = obj.optString("detectedBank").takeIf { it.isNotBlank() },
                             detectedAccount = obj.optString("detectedAccount").takeIf { it.isNotBlank() },
                             detectedMerchant = obj.optString("detectedMerchant").takeIf { it.isNotBlank() },
+                            rawMerchant = obj.optString("rawMerchant").takeIf { it.isNotBlank() } ?: obj.optString("detectedMerchant").takeIf { it.isNotBlank() },
+                            merchantNormalized = obj.optString("merchantNormalized").takeIf { it.isNotBlank() } ?: obj.optString("detectedMerchant").takeIf { it.isNotBlank() }?.let { MerchantNormalizer.normalize(it).takeIf { n -> n.isNotBlank() } },
+                            sourcePackage = obj.optString("sourcePackage").takeIf { it.isNotBlank() },
                             referenceNumber = obj.optString("referenceNumber").takeIf { it.isNotBlank() },
                             rawContent = obj.getString("rawContent"),
                             timestamp = obj.getLong("timestamp"),

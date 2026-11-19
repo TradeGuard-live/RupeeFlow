@@ -16,6 +16,19 @@ data class LearnedMerchantPreference(
 )
 
 interface MerchantPreferenceRepository {
+    suspend fun recordMerchantCategory(
+        rawMerchant: String?,
+        categoryId: Long
+    )
+
+    suspend fun getSuggestedCategory(
+        rawMerchant: String?
+    ): Long?
+
+    suspend fun clearMerchantCategory(
+        rawMerchant: String?
+    )
+
     suspend fun recordUserDecision(
         rawMerchant: String?,
         categoryId: Long,
@@ -39,6 +52,53 @@ interface MerchantPreferenceRepository {
 class MerchantPreferenceRepositoryImpl(
     private val inputUsageDao: InputUsageDao
 ) : MerchantPreferenceRepository {
+
+    override suspend fun recordMerchantCategory(
+        rawMerchant: String?,
+        categoryId: Long
+    ) {
+        val norm = MerchantNormalizer.normalize(rawMerchant)
+        if (norm.isBlank() || categoryId <= 0L) return
+
+        val fieldType = "MERCHANT_CATEGORY:$norm"
+        val optionId = categoryId.toString()
+        val timestamp = System.currentTimeMillis()
+
+        val existing = inputUsageDao.getUsage(fieldType, optionId)
+        val newCount = (existing?.usageCount ?: 0L) + 1L
+        inputUsageDao.insertOrUpdate(
+            InputUsageEntity(
+                id = existing?.id ?: 0L,
+                fieldType = fieldType,
+                optionId = optionId,
+                usageCount = newCount,
+                lastUsedAt = timestamp,
+                preferenceScore = 1.0
+            )
+        )
+    }
+
+    override suspend fun getSuggestedCategory(rawMerchant: String?): Long? {
+        val norm = MerchantNormalizer.normalize(rawMerchant)
+        if (norm.isBlank()) return null
+
+        val fieldType = "MERCHANT_CATEGORY:$norm"
+        val usages = inputUsageDao.getUsagesForFieldList(fieldType)
+        val best = usages.filter { it.preferenceScore >= 0.0 }
+            .maxWithOrNull(compareBy<InputUsageEntity> { it.lastUsedAt }.thenBy { it.usageCount })
+
+        return best?.optionId?.toLongOrNull()
+    }
+
+    override suspend fun clearMerchantCategory(rawMerchant: String?) {
+        val norm = MerchantNormalizer.normalize(rawMerchant)
+        if (norm.isBlank()) return
+        val fieldType = "MERCHANT_CATEGORY:$norm"
+        val usages = inputUsageDao.getUsagesForFieldList(fieldType)
+        for (u in usages) {
+            inputUsageDao.deleteUsage(fieldType, u.optionId)
+        }
+    }
 
     private fun buildFieldType(normalizedMerchant: String): String {
         return "MERCHANT_MATCH:$normalizedMerchant"
@@ -145,7 +205,7 @@ class MerchantPreferenceRepositoryImpl(
     override suspend fun clearAllLearnedPreferences() {
         val all = inputUsageDao.getAllUsageList()
         for (item in all) {
-            if (item.fieldType.startsWith("MERCHANT_MATCH:")) {
+            if (item.fieldType.startsWith("MERCHANT_MATCH:") || item.fieldType.startsWith("MERCHANT_CATEGORY:")) {
                 inputUsageDao.deleteUsage(item.fieldType, item.optionId)
             }
         }

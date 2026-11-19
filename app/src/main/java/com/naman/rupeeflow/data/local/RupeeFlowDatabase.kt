@@ -32,7 +32,7 @@ import java.io.File
         SavingsGoalEntity::class,
         SavingsEntryEntity::class
     ],
-    version = 11, // Upgraded to version 11: Savings Goals and Dated Daily Savings History
+    version = 12, // Upgraded to version 12: Independent Merchant Identity, Storage and Category Learning
     exportSchema = true // Schema export enabled
 )
 @TypeConverters(Converters::class)
@@ -719,6 +719,68 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 11 to 12: Independent Merchant Identity, Storage and Category Learning
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `merchantNormalized` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `rawMerchant` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `sourcePackage` TEXT DEFAULT NULL")
+
+                db.execSQL("ALTER TABLE `pending_transactions` ADD COLUMN `rawMerchant` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `pending_transactions` ADD COLUMN `merchantNormalized` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `pending_transactions` ADD COLUMN `sourcePackage` TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_10_12 = object : Migration(10, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_10_11.migrate(db)
+                MIGRATION_11_12.migrate(db)
+            }
+        }
+
+        val MIGRATION_9_12 = object : Migration(9, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_9_11.migrate(db)
+                MIGRATION_11_12.migrate(db)
+            }
+        }
+
+        val MIGRATION_8_12 = object : Migration(8, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_8_11.migrate(db)
+                MIGRATION_11_12.migrate(db)
+            }
+        }
+
+        val MIGRATION_7_12 = object : Migration(7, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_7_11.migrate(db)
+                MIGRATION_11_12.migrate(db)
+            }
+        }
+
+        val MIGRATION_6_12 = object : Migration(6, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_6_11.migrate(db)
+                MIGRATION_11_12.migrate(db)
+            }
+        }
+
+        val MIGRATION_5_12 = object : Migration(5, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_5_11.migrate(db)
+                MIGRATION_11_12.migrate(db)
+            }
+        }
+
+        val MIGRATION_1_12 = object : Migration(1, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_1_11.migrate(db)
+                MIGRATION_11_12.migrate(db)
+            }
+        }
+
         // Automatic safe pre-migration backup procedure
         fun createPreMigrationBackup(context: Context) {
             try {
@@ -751,7 +813,8 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                         MIGRATION_7_8, MIGRATION_6_8, MIGRATION_5_8, MIGRATION_1_8,
                         MIGRATION_8_9, MIGRATION_7_9, MIGRATION_6_9, MIGRATION_5_9, MIGRATION_1_9,
                         MIGRATION_9_10, MIGRATION_8_10, MIGRATION_7_10, MIGRATION_6_10, MIGRATION_5_10, MIGRATION_1_10,
-                        MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11, MIGRATION_7_11, MIGRATION_6_11, MIGRATION_5_11, MIGRATION_1_11
+                        MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11, MIGRATION_7_11, MIGRATION_6_11, MIGRATION_5_11, MIGRATION_1_11,
+                        MIGRATION_11_12, MIGRATION_10_12, MIGRATION_9_12, MIGRATION_8_12, MIGRATION_7_12, MIGRATION_6_12, MIGRATION_5_12, MIGRATION_1_12
                     )
                     .addCallback(DatabaseCallback(scope))
                     // Destructive migration removed! Data preservation guaranteed.

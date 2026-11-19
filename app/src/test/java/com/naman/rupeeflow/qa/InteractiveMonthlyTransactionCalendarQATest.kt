@@ -83,7 +83,9 @@ class InteractiveMonthlyTransactionCalendarQATest {
     @After
     fun tearDown() {
         database.close()
-        Dispatchers.resetMain()
+        try {
+            Dispatchers.resetMain()
+        } catch (_: Exception) {}
     }
 
     private fun createTransactionsViewModel(
@@ -232,7 +234,7 @@ class InteractiveMonthlyTransactionCalendarQATest {
 
     // 10. Jump to Today Restores Current Month
     @Test
-    fun test10_goToTodayRestoresCurrentMonth() {
+    fun test10_goToTodayRestoresCurrentMonth() = runBlocking {
         val vm = createTransactionsViewModel()
         vm.nextCalendarMonth()
         vm.nextCalendarMonth()

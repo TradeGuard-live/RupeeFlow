@@ -7,8 +7,10 @@ import android.content.Intent
 import com.naman.rupeeflow.MainActivity
 import com.naman.rupeeflow.RupeeFlowApplication
 import com.naman.rupeeflow.data.repository.CategoryRepository
+import com.naman.rupeeflow.data.repository.MerchantPreferenceRepository
 import com.naman.rupeeflow.data.repository.PendingTransactionRepository
 import com.naman.rupeeflow.data.repository.TransactionRepository
+import com.naman.rupeeflow.domain.matching.MerchantNormalizer
 import com.naman.rupeeflow.domain.model.Category
 import com.naman.rupeeflow.domain.model.PaymentMethod
 import com.naman.rupeeflow.domain.model.PendingStatus
@@ -47,6 +49,7 @@ class TransactionNotificationActionReceiver : BroadcastReceiver() {
         val pendingRepo = app.appContainer.pendingTransactionRepository
         val txnRepo = app.appContainer.transactionRepository
         val categoryRepo = app.appContainer.categoryRepository
+        val merchantPrefRepo = app.appContainer.merchantPreferenceRepository
 
         val pendingResult = goAsync()
 
@@ -60,7 +63,8 @@ class TransactionNotificationActionReceiver : BroadcastReceiver() {
                             notificationId = notificationId,
                             pendingRepo = pendingRepo,
                             txnRepo = txnRepo,
-                            categoryRepo = categoryRepo
+                            categoryRepo = categoryRepo,
+                            merchantPrefRepo = merchantPrefRepo
                         )
                     }
                     ACTION_IGNORE -> {
@@ -94,7 +98,8 @@ class TransactionNotificationActionReceiver : BroadcastReceiver() {
         notificationId: Int,
         pendingRepo: PendingTransactionRepository,
         txnRepo: TransactionRepository,
-        categoryRepo: CategoryRepository
+        categoryRepo: CategoryRepository,
+        merchantPrefRepo: MerchantPreferenceRepository
     ) {
         val pending = pendingRepo.getById(pendingId)
         if (pending == null) {
@@ -115,9 +120,14 @@ class TransactionNotificationActionReceiver : BroadcastReceiver() {
             return
         }
 
-        // Resolve category
+        // Resolve category: Check learned merchant preference first
         val categories = categoryRepo.getAllCategoriesList()
-        val categoryId = resolveCategoryId(pending, categories)
+        val learnedCatId = merchantPrefRepo.getSuggestedCategory(pending.detectedMerchant)
+        val categoryId = if (learnedCatId != null && categories.any { it.id == learnedCatId }) {
+            learnedCatId
+        } else {
+            resolveCategoryId(pending, categories)
+        }
 
         val title = when {
             !pending.detectedMerchant.isNullOrBlank() -> pending.detectedMerchant
@@ -140,6 +150,9 @@ class TransactionNotificationActionReceiver : BroadcastReceiver() {
             transactionType = pending.detectedType,
             transactionStatus = TransactionStatus.ACTIVE,
             merchantName = pending.detectedMerchant,
+            merchantNormalized = pending.merchantNormalized ?: pending.detectedMerchant?.let { MerchantNormalizer.normalize(it).takeIf { n -> n.isNotBlank() } },
+            rawMerchant = pending.rawMerchant ?: pending.detectedMerchant,
+            sourcePackage = pending.sourcePackage,
             accountSource = pending.detectedAccount,
             referenceNumber = pending.referenceNumber,
             source = pending.source,
@@ -155,6 +168,9 @@ class TransactionNotificationActionReceiver : BroadcastReceiver() {
         )
 
         txnRepo.saveTransaction(txn)
+        if (!pending.detectedMerchant.isNullOrBlank()) {
+            merchantPrefRepo.recordMerchantCategory(pending.detectedMerchant, categoryId)
+        }
         pendingRepo.resolvePendingTransaction(pendingId)
         cancelNotification(context, notificationId)
     }

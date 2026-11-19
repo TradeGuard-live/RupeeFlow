@@ -28,6 +28,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.naman.rupeeflow.domain.ledger.LedgerCalculator
+import com.naman.rupeeflow.domain.matching.MerchantNormalizer
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
@@ -151,8 +152,8 @@ fun EditTransactionDialog(
     var attachedLocation by remember { mutableStateOf<TransactionLocation?>(transaction.location) }
     var merchantSuggestion by remember { mutableStateOf<TransactionLocation?>(null) }
 
-    LaunchedEffect(merchantName, title) {
-        val candidate = merchantName.trim().ifBlank { title.trim() }
+    LaunchedEffect(merchantName) {
+        val candidate = merchantName.trim()
         if (candidate.isNotBlank() && attachedLocation == null && onSearchMerchantLocation != null) {
             merchantSuggestion = onSearchMerchantLocation(candidate)
         }
@@ -836,7 +837,7 @@ fun EditTransactionDialog(
             location = attachedLocation,
             onLocationChanged = { attachedLocation = it },
             merchantSuggestion = merchantSuggestion,
-            merchantName = merchantName.ifBlank { title },
+            merchantName = merchantName.trim().takeIf { it.isNotBlank() },
             onApplyMerchantSuggestion = {
                 attachedLocation = merchantSuggestion?.copy(locationSource = LocationSource.HISTORICAL_LOCATION_SUGGESTION)
                 merchantSuggestion = null
@@ -961,6 +962,7 @@ fun EditTransactionDialog(
                     }
                 }
 
+                val cleanMerchant = merchantName.trim().takeIf { it.isNotBlank() }
                 // Preserve transaction.id and transaction.createdAt; update updatedAt
                 val updatedTransaction = transaction.copy(
                     title = finalTitle.trim(),
@@ -976,7 +978,10 @@ fun EditTransactionDialog(
                     participants = participants,
                     splitMethod = splitMethod,
                     transactionType = selectedType,
-                    merchantName = merchantName.trim().takeIf { it.isNotBlank() },
+                    merchantName = cleanMerchant,
+                    merchantNormalized = cleanMerchant?.let { MerchantNormalizer.normalize(it).takeIf { n -> n.isNotBlank() } },
+                    rawMerchant = transaction.rawMerchant ?: cleanMerchant,
+                    sourcePackage = transaction.sourcePackage,
                     referenceNumber = referenceNumber.trim().takeIf { it.isNotBlank() },
                     groupId = selectedGroupFilterId,
                     expenseGroupId = selectedExpenseGroupId,

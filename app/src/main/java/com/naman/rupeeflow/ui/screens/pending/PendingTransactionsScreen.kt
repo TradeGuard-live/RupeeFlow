@@ -64,6 +64,16 @@ fun PendingTransactionsScreen(
     var matchDetected by remember { mutableStateOf<PendingTransaction?>(null) }
     var matchCandidates by remember { mutableStateOf<List<HistoricalCandidateMatch>>(emptyList()) }
     var selectedMatchDraft by remember { mutableStateOf<HistoricalCandidateMatch?>(null) }
+    var learnedCategoryForSelected by remember { mutableStateOf<Category?>(null) }
+
+    LaunchedEffect(selectedDetectedForAdd) {
+        val current = selectedDetectedForAdd
+        if (current != null && !current.detectedMerchant.isNullOrBlank()) {
+            learnedCategoryForSelected = viewModel.getSuggestedCategoryForMerchant(current.detectedMerchant)
+        } else {
+            learnedCategoryForSelected = null
+        }
+    }
 
     val handleStartAddExpense: (PendingTransaction) -> Unit = { item ->
         coroutineScope.launch {
@@ -648,6 +658,14 @@ fun PendingTransactionsScreen(
 
     // Detail Inspection Modal
     selectedDetectedForDetail?.let { item ->
+        var detailLearnedCategory by remember(item.detectedMerchant) { mutableStateOf<Category?>(null) }
+        LaunchedEffect(item.detectedMerchant) {
+            val merchant = item.detectedMerchant
+            detailLearnedCategory = if (!merchant.isNullOrBlank()) {
+                viewModel.getSuggestedCategoryForMerchant(merchant)
+            } else null
+        }
+
         AlertDialog(
             onDismissRequest = { selectedDetectedForDetail = null },
             title = {
@@ -714,6 +732,16 @@ fun PendingTransactionsScreen(
                         ) {
                             Text("Merchant / Entity:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
                             Text(item.detectedMerchant, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
+                        }
+
+                        if (detailLearnedCategory != null) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Suggested Category:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                                Text(detailLearnedCategory!!.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = AppTheme.colors.primaryAccent)
+                            }
                         }
                     }
                     if (!item.detectedBank.isNullOrBlank()) {
@@ -1028,15 +1056,18 @@ fun PendingTransactionsScreen(
                 selectedMatchDraft = null
             },
             initialAmountPaise = item.detectedAmountPaise,
-            initialTitle = selectedMatchDraft?.suggestedTitle ?: (item.detectedMerchant ?: if (!item.phoneNumber.isNullOrBlank()) "Payment to ${item.phoneNumber}" else item.detectedBank),
-            initialCategory = selectedMatchDraft?.suggestedCategory,
+            initialTitle = selectedMatchDraft?.suggestedTitle ?: (item.detectedMerchant ?: if (!item.phoneNumber.isNullOrBlank()) "Payment to ${item.phoneNumber}" else "Expense"),
+            initialMerchant = item.detectedMerchant,
+            initialCategory = selectedMatchDraft?.suggestedCategory ?: learnedCategoryForSelected,
             initialType = item.detectedType,
             initialPaymentMethod = if (item.detectedType == TransactionType.UPI_LITE_TOPUP) PaymentMethod.UPI_LITE else (selectedMatchDraft?.suggestedPaymentMethod ?: PaymentMethod.UPI),
             initialPendingId = item.id,
+            initialSource = item.source,
+            initialSourcePackage = item.sourcePackage,
             initialLocation = item.location,
             onSearchMerchantLocation = { merchant -> viewModel.getMerchantLatestLocation(merchant) },
-            suggestedFromPrevious = selectedMatchDraft != null,
-            originalDetectedMerchant = item.detectedMerchant ?: item.detectedBank,
+            suggestedFromPrevious = selectedMatchDraft != null || learnedCategoryForSelected != null,
+            originalDetectedMerchant = item.detectedMerchant,
             onSave = { newTxn ->
                 viewModel.saveTransaction(newTxn, item.id)
                 selectedDetectedForAdd = null

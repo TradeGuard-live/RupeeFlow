@@ -118,20 +118,32 @@ class PendingTransactionsViewModel(
     ) {
         viewModelScope.launch {
             try {
-                val merchant = detected.detectedMerchant ?: detected.detectedBank
-                merchantPreferenceRepository?.recordUserDecision(
-                    rawMerchant = merchant,
-                    categoryId = candidate.categoryId,
-                    title = candidate.title,
-                    accepted = accepted
-                )
+                val merchant = detected.detectedMerchant
+                if (!merchant.isNullOrBlank()) {
+                    merchantPreferenceRepository?.recordUserDecision(
+                        rawMerchant = merchant,
+                        categoryId = candidate.categoryId,
+                        title = candidate.title,
+                        accepted = accepted
+                    )
+                }
             } catch (_: Exception) {}
         }
+    }
+
+    suspend fun getSuggestedCategoryForMerchant(merchant: String?): Category? {
+        if (merchant.isNullOrBlank()) return null
+        val catId = merchantPreferenceRepository?.getSuggestedCategory(merchant) ?: return null
+        return _uiState.value.categories.firstOrNull { it.id == catId }
     }
 
     fun saveTransaction(txn: Transaction, pendingId: Long? = null) {
         viewModelScope.launch {
             transactionRepository.saveTransaction(txn)
+            val merchantToLearn = txn.merchantName ?: txn.rawMerchant
+            if (!merchantToLearn.isNullOrBlank()) {
+                merchantPreferenceRepository?.recordMerchantCategory(merchantToLearn, txn.categoryId)
+            }
             if (txn.hasLocation) {
                 com.naman.rupeeflow.location.LocationDiagnostics.logApprovalPreservedLocation(txn.id, pendingId)
             }

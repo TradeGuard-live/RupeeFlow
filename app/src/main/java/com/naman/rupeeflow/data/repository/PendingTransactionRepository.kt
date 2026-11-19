@@ -3,6 +3,7 @@ package com.naman.rupeeflow.data.repository
 import com.naman.rupeeflow.data.local.dao.PendingTransactionDao
 import com.naman.rupeeflow.data.local.dao.TransactionDao
 import com.naman.rupeeflow.data.local.entity.PendingTransactionEntity
+import com.naman.rupeeflow.domain.matching.MerchantNormalizer
 import com.naman.rupeeflow.domain.model.PendingStatus
 import com.naman.rupeeflow.domain.model.PendingTransaction
 import kotlinx.coroutines.flow.Flow
@@ -181,6 +182,9 @@ class PendingTransactionRepositoryImpl(
         detectedBank = detectedBank,
         detectedAccount = detectedAccount,
         detectedMerchant = detectedMerchant,
+        rawMerchant = rawMerchant ?: detectedMerchant,
+        merchantNormalized = merchantNormalized ?: detectedMerchant?.let { MerchantNormalizer.normalize(it).takeIf { n -> n.isNotBlank() } },
+        sourcePackage = sourcePackage,
         phoneNumber = phoneNumber,
         upiId = upiId,
         referenceNumber = referenceNumber,
@@ -204,6 +208,9 @@ class PendingTransactionRepositoryImpl(
         detectedBank = detectedBank,
         detectedAccount = detectedAccount,
         detectedMerchant = detectedMerchant,
+        rawMerchant = rawMerchant ?: detectedMerchant,
+        merchantNormalized = merchantNormalized ?: detectedMerchant?.let { MerchantNormalizer.normalize(it).takeIf { n -> n.isNotBlank() } },
+        sourcePackage = sourcePackage,
         phoneNumber = phoneNumber,
         upiId = upiId,
         referenceNumber = referenceNumber,
