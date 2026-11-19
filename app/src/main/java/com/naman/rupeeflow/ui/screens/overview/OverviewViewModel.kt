@@ -265,4 +265,16 @@ class OverviewViewModel(
             pendingTransactionRepository.ignorePendingTransaction(id)
         }
     }
+
+    val upiSettlementManager = com.naman.rupeeflow.upi.UpiSettlementManager(
+        settlementRepository = settlementRepository
+    )
+
+    fun updateFriend(friend: Friend) {
+        viewModelScope.launch {
+            try {
+                friendRepository.updateFriend(friend)
+            } catch (_: Exception) {}
+        }
+    }
 }

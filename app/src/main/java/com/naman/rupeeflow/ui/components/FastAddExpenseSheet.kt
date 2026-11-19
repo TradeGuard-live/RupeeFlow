@@ -11,9 +11,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -54,6 +56,7 @@ fun FastAddExpenseSheet(
     onDismiss: () -> Unit,
     onSave: (Transaction) -> Unit,
     onSaveSettlement: ((Settlement) -> Unit)? = null,
+    onPayWithUpi: ((Friend, Long) -> Unit)? = null,
     initialAmountPaise: Long? = null,
     initialTitle: String? = null,
     initialMerchant: String? = null,
@@ -464,7 +467,68 @@ fun FastAddExpenseSheet(
                         shape = RoundedCornerShape(16.dp)
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // Recipient UPI ID info when user is paying friend
+                    if (!isFriendPayingMe && selectedSettlementFriend != null && !selectedSettlementFriend!!.upiId.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = AppTheme.colors.surfaceSecondary,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.AccountBalanceWallet,
+                                    contentDescription = null,
+                                    tint = AppTheme.colors.primaryAccent,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Recipient UPI: ${selectedSettlementFriend!!.upiId}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AppTheme.colors.textPrimary
+                                )
+                            }
+                        }
+                    }
+
+                    // Direct UPI Payment Button
+                    if (!isFriendPayingMe && selectedSettlementFriend != null && onPayWithUpi != null) {
+                        Button(
+                            onClick = {
+                                val targetFriend = selectedSettlementFriend ?: return@Button
+                                if (amountPaise <= 0L) return@Button
+                                onPayWithUpi(targetFriend, amountPaise)
+                                onDismiss()
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 50.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = EmeraldMint,
+                                contentColor = Color.White
+                            ),
+                            enabled = amountPaise > 0L && selectedSettlementFriend != null
+                        ) {
+                            Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Pay with UPI",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
 
                     // Save Settlement Button
                     Button(

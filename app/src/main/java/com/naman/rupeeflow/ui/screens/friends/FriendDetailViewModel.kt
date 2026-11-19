@@ -224,4 +224,8 @@ class FriendDetailViewModel(
             onComplete()
         }
     }
+
+    val upiSettlementManager = com.naman.rupeeflow.upi.UpiSettlementManager(
+        settlementRepository = settlementRepository
+    )
 }

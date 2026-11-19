@@ -291,6 +291,10 @@ class FriendsViewModel(
         }
     }
 
+    val upiSettlementManager = com.naman.rupeeflow.upi.UpiSettlementManager(
+        settlementRepository = settlementRepository
+    )
+
     private data class RawLedgerData(
         val friends: List<Friend>,
         val transactions: List<Transaction>,

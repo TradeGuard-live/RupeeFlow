@@ -475,7 +475,7 @@ fun UpiSettlementDialog(
                                     contentColor = Color.White
                                 )
                             ) {
-                                Text("Review & Pay", fontWeight = FontWeight.Bold)
+                                Text("Pay with UPI", fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -601,7 +601,7 @@ fun UpiSettlementDialog(
                                 if (isProcessingLaunch) {
                                     CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                                 } else {
-                                    Text("Open UPI App", fontWeight = FontWeight.Bold)
+                                    Text("Pay with UPI", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -726,3 +726,4 @@ fun UpiSettlementDialog(
         }
     }
 }
+

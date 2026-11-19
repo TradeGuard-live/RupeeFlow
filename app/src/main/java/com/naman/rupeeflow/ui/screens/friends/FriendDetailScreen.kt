@@ -48,6 +48,8 @@ fun FriendDetailScreen(
     val friend = state.friend
 
     var showSettleDialog by remember { mutableStateOf(false) }
+    var showUpiSettlementDialog by remember { mutableStateOf(false) }
+    var upiTargetAmountPaise by remember { mutableStateOf(0L) }
     var reversingSettlementId by remember { mutableStateOf<Long?>(null) }
     var unreversingSettlementId by remember { mutableStateOf<Long?>(null) }
     var selectedSettlementForDetail by remember { mutableStateOf<Settlement?>(null) }
@@ -274,32 +276,64 @@ fun FriendDetailScreen(
                 )
             }
 
-            // Settle Up Action Button
+            // Settle Up Action Buttons
             item {
-                Button(
-                    onClick = { showSettleDialog = true },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 52.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = when (friend.status) {
-                            FriendBalanceStatus.THEY_OWE_ME -> AppTheme.colors.incomeGreen
-                            FriendBalanceStatus.I_OWE_THEM -> CoralRed
-                            FriendBalanceStatus.SETTLED -> AppTheme.colors.primaryAccent
-                        },
-                        contentColor = Color.White
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Default.Payment, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Settle Up",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
+                    Button(
+                        onClick = { showSettleDialog = true },
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 52.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = when (friend.status) {
+                                FriendBalanceStatus.THEY_OWE_ME -> AppTheme.colors.incomeGreen
+                                FriendBalanceStatus.I_OWE_THEM -> CoralRed
+                                FriendBalanceStatus.SETTLED -> AppTheme.colors.primaryAccent
+                            },
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Icon(Icons.Default.Payment, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Settle Up",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+
+                    if (friend.status == FriendBalanceStatus.I_OWE_THEM) {
+                        Button(
+                            onClick = {
+                                upiTargetAmountPaise = abs(friend.netBalancePaise)
+                                showUpiSettlementDialog = true
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 52.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = EmeraldMint,
+                                contentColor = Color.White
+                            )
+                        ) {
+                            Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Pay with UPI",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
             }
 
@@ -650,6 +684,29 @@ fun FriendDetailScreen(
             onDismiss = { showSettleDialog = false },
             onConfirm = { settlement ->
                 viewModel.recordSettlement(settlement)
+            },
+            onPayWithUpi = { targetFriend, amountPaise ->
+                upiTargetAmountPaise = amountPaise
+                showSettleDialog = false
+                showUpiSettlementDialog = true
+            }
+        )
+    }
+
+    // Direct UPI Settlement Dialog
+    if (showUpiSettlementDialog && friend != null) {
+        com.naman.rupeeflow.ui.screens.splitpro.UpiSettlementDialog(
+            initialFriend = friend,
+            outstandingDebtPaise = if (upiTargetAmountPaise > 0L) upiTargetAmountPaise else abs(friend.netBalancePaise),
+            upiSettlementManager = viewModel.upiSettlementManager,
+            onFriendUpdated = { updated -> viewModel.updateFriend(updated) },
+            onDismiss = {
+                showUpiSettlementDialog = false
+                upiTargetAmountPaise = 0L
+            },
+            onSettlementCompleted = {
+                showUpiSettlementDialog = false
+                upiTargetAmountPaise = 0L
             }
         )
     }

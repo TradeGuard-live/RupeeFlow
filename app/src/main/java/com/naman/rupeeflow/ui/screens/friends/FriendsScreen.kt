@@ -54,6 +54,9 @@ fun FriendsScreen(
     var editingFriend by remember { mutableStateOf<Friend?>(null) }
     var deletingFriend by remember { mutableStateOf<Friend?>(null) }
     var settlingFriend by remember { mutableStateOf<Friend?>(null) }
+    var showUpiDialog by remember { mutableStateOf(false) }
+    var upiTargetFriend by remember { mutableStateOf<Friend?>(null) }
+    var upiTargetAmountPaise by remember { mutableStateOf(0L) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -541,6 +544,33 @@ fun FriendsScreen(
             onDismiss = { settlingFriend = null },
             onConfirm = { settlement ->
                 viewModel.recordSettlement(settlement)
+            },
+            onPayWithUpi = { targetFriend, amountPaise ->
+                settlingFriend = null
+                upiTargetFriend = targetFriend
+                upiTargetAmountPaise = amountPaise
+                showUpiDialog = true
+            }
+        )
+    }
+
+    // Direct UPI Settlement Dialog
+    val targetFriendForUpi = upiTargetFriend
+    if (showUpiDialog && targetFriendForUpi != null) {
+        com.naman.rupeeflow.ui.screens.splitpro.UpiSettlementDialog(
+            initialFriend = targetFriendForUpi,
+            outstandingDebtPaise = if (upiTargetAmountPaise > 0L) upiTargetAmountPaise else kotlin.math.abs(targetFriendForUpi.netBalancePaise),
+            upiSettlementManager = viewModel.upiSettlementManager,
+            onFriendUpdated = { updated -> viewModel.updateFriend(updated) },
+            onDismiss = {
+                showUpiDialog = false
+                upiTargetFriend = null
+                upiTargetAmountPaise = 0L
+            },
+            onSettlementCompleted = {
+                showUpiDialog = false
+                upiTargetFriend = null
+                upiTargetAmountPaise = 0L
             }
         )
     }

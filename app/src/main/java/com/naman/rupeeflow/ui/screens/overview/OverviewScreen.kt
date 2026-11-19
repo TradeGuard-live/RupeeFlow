@@ -56,6 +56,9 @@ fun OverviewScreen(
     var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
     var settlingFriend by remember { mutableStateOf<Friend?>(null) }
+    var showUpiDialog by remember { mutableStateOf(false) }
+    var upiTargetFriend by remember { mutableStateOf<Friend?>(null) }
+    var upiTargetAmountPaise by remember { mutableStateOf(0L) }
 
     val todayDateStr = remember {
         val sdf = SimpleDateFormat("EEEE, dd MMMM", Locale.getDefault())
@@ -751,6 +754,12 @@ fun OverviewScreen(
             expenseGroups = state.expenseGroups,
             onCreateExpenseGroup = { viewModel.createExpenseGroup(it) },
             onDismiss = { showFastAddSheet = false },
+            onPayWithUpi = { targetFriend, amountPaise ->
+                upiTargetFriend = targetFriend
+                upiTargetAmountPaise = amountPaise
+                showFastAddSheet = false
+                showUpiDialog = true
+            },
             onSave = { newTxn -> viewModel.saveTransaction(newTxn) },
             onSaveSettlement = { settlement -> viewModel.recordSettlement(settlement) },
             initialType = fastAddInitialType
@@ -796,7 +805,34 @@ fun OverviewScreen(
         SettleUpDialog(
             friend = friend,
             onDismiss = { settlingFriend = null },
-            onConfirm = { settlement -> viewModel.recordSettlement(settlement) }
+            onConfirm = { settlement -> viewModel.recordSettlement(settlement) },
+            onPayWithUpi = { targetFriend, amountPaise ->
+                settlingFriend = null
+                upiTargetFriend = targetFriend
+                upiTargetAmountPaise = amountPaise
+                showUpiDialog = true
+            }
+        )
+    }
+
+    // Direct UPI Settlement Dialog
+    val targetFriendForUpi = upiTargetFriend
+    if (showUpiDialog && targetFriendForUpi != null) {
+        com.naman.rupeeflow.ui.screens.splitpro.UpiSettlementDialog(
+            initialFriend = targetFriendForUpi,
+            outstandingDebtPaise = if (upiTargetAmountPaise > 0L) upiTargetAmountPaise else kotlin.math.abs(targetFriendForUpi.netBalancePaise),
+            upiSettlementManager = viewModel.upiSettlementManager,
+            onFriendUpdated = { updated -> viewModel.updateFriend(updated) },
+            onDismiss = {
+                showUpiDialog = false
+                upiTargetFriend = null
+                upiTargetAmountPaise = 0L
+            },
+            onSettlementCompleted = {
+                showUpiDialog = false
+                upiTargetFriend = null
+                upiTargetAmountPaise = 0L
+            }
         )
     }
 }

@@ -243,7 +243,7 @@ fun SplitProScreen(
                     ) {
                         Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(3.dp))
-                        Text("Pay UPI", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                        Text("Pay with UPI", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
 
                     OutlinedButton(
@@ -569,6 +569,11 @@ fun SplitProScreen(
             onDismiss = {
                 showAddExpenseDialog = false
                 selectedGroupForExpense = null
+            },
+            onPayWithUpi = { targetFriend, amountPaise ->
+                showAddExpenseDialog = false
+                selectedGroupForExpense = null
+                showUpiSettlementDialog = true
             },
             onSave = { newTxn ->
                 viewModel.saveGroupExpense(newTxn)

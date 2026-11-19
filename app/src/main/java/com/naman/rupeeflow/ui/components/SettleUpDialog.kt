@@ -6,7 +6,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,7 +31,8 @@ import kotlin.math.abs
 fun SettleUpDialog(
     friend: Friend,
     onDismiss: () -> Unit,
-    onConfirm: (Settlement) -> Unit
+    onConfirm: (Settlement) -> Unit,
+    onPayWithUpi: ((Friend, Long) -> Unit)? = null
 ) {
     // Default direction based on who owes whom
     val friendOwesMe = friend.status == FriendBalanceStatus.THEY_OWE_ME
@@ -159,7 +162,68 @@ fun SettleUpDialog(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Recipient UPI ID info when user is paying friend
+                if (!isFriendPayingMe && !friend.upiId.isNullOrBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = AppTheme.colors.surfaceSecondary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.AccountBalanceWallet,
+                                contentDescription = null,
+                                tint = AppTheme.colors.primaryAccent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Recipient UPI: ${friend.upiId}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AppTheme.colors.textPrimary
+                            )
+                        }
+                    }
+                }
+
+                // Direct UPI Payment Button
+                if (!isFriendPayingMe && onPayWithUpi != null) {
+                    Button(
+                        onClick = {
+                            if (amountPaise > 0L) {
+                                onPayWithUpi(friend, amountPaise)
+                                onDismiss()
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = EmeraldMint,
+                            contentColor = Color.White
+                        ),
+                        enabled = amountPaise > 0L
+                    ) {
+                        Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Pay with UPI",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
 
                 // Submit Button
                 Button(

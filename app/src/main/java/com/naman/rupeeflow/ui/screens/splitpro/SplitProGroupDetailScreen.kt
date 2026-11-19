@@ -794,6 +794,12 @@ fun SplitProGroupDetailScreen(
             initialExpenseGroupId = groupId,
             lockToExpenseGroup = true,
             onDismiss = { showAddExpenseDialog = false },
+            onPayWithUpi = { targetFriend, amountPaise ->
+                upiTargetFriend = targetFriend
+                upiTargetAmountPaise = amountPaise
+                showAddExpenseDialog = false
+                showUpiSettlementDialog = true
+            },
             onSave = { newTxn ->
                 viewModel.saveGroupExpense(newTxn) {
                     scope.launch {
@@ -847,9 +853,10 @@ fun SplitProGroupDetailScreen(
     }
 
     // Direct UPI Settlement Dialog
-    if (showUpiSettlementDialog && upiTargetFriend != null && group != null) {
+    val targetGroupFriend = upiTargetFriend
+    if (showUpiSettlementDialog && targetGroupFriend != null && group != null) {
         UpiSettlementDialog(
-            initialFriend = upiTargetFriend,
+            initialFriend = targetGroupFriend,
             group = group,
             outstandingDebtPaise = upiTargetAmountPaise,
             upiSettlementManager = viewModel.upiSettlementManager,

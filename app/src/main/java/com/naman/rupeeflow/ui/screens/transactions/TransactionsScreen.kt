@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.naman.rupeeflow.domain.model.Friend
 import com.naman.rupeeflow.domain.model.PaymentMethod
 import com.naman.rupeeflow.domain.model.Transaction
 import com.naman.rupeeflow.domain.util.CurrencyUtils
@@ -49,6 +50,9 @@ fun TransactionsScreen(
     var showVoiceAssistant by remember { mutableStateOf(false) }
     var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
     var editingTransaction by remember { mutableStateOf<Transaction?>(null) }
+    var showUpiDialog by remember { mutableStateOf(false) }
+    var upiTargetFriend by remember { mutableStateOf<Friend?>(null) }
+    var upiTargetAmountPaise by remember { mutableStateOf(0L) }
 
     Scaffold(
         containerColor = AppTheme.colors.background,
@@ -410,8 +414,36 @@ fun TransactionsScreen(
                 showFastAddSheet = false
                 fastAddInitialDateMillis = null
             },
+            onPayWithUpi = { targetFriend, amountPaise ->
+                upiTargetFriend = targetFriend
+                upiTargetAmountPaise = amountPaise
+                showFastAddSheet = false
+                fastAddInitialDateMillis = null
+                showUpiDialog = true
+            },
             onSave = { newTxn -> viewModel.saveTransaction(newTxn) },
             onSaveSettlement = { settlement -> viewModel.recordSettlement(settlement) }
+        )
+    }
+
+    // Direct UPI Settlement Dialog
+    val targetFriendForUpi = upiTargetFriend
+    if (showUpiDialog && targetFriendForUpi != null) {
+        com.naman.rupeeflow.ui.screens.splitpro.UpiSettlementDialog(
+            initialFriend = targetFriendForUpi,
+            outstandingDebtPaise = if (upiTargetAmountPaise > 0L) upiTargetAmountPaise else kotlin.math.abs(targetFriendForUpi.netBalancePaise),
+            upiSettlementManager = viewModel.upiSettlementManager,
+            onFriendUpdated = { updated -> viewModel.updateFriend(updated) },
+            onDismiss = {
+                showUpiDialog = false
+                upiTargetFriend = null
+                upiTargetAmountPaise = 0L
+            },
+            onSettlementCompleted = {
+                showUpiDialog = false
+                upiTargetFriend = null
+                upiTargetAmountPaise = 0L
+            }
         )
     }
 

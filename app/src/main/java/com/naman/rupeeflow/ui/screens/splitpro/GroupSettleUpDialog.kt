@@ -280,6 +280,28 @@ fun GroupSettleUpDialog(
 
                 // Direct UPI Pay button when You are paying a Friend
                 if (payerId == null && receiverId != null && onPayWithUpi != null) {
+                    val receiverFriend = friendsMap[receiverId]
+                    if (!receiverFriend?.upiId.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = AppTheme.colors.surfaceSecondary,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = AppTheme.colors.primaryAccent, modifier = Modifier.size(15.dp))
+                                Text(
+                                    text = "Recipient UPI: ${receiverFriend.upiId}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AppTheme.colors.textPrimary
+                                )
+                            }
+                        }
+                    }
+
                     Button(
                         onClick = {
                             if (isValid) {
@@ -293,13 +315,13 @@ fun GroupSettleUpDialog(
                             .height(48.dp),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = AppTheme.colors.primaryAccent,
+                            containerColor = EmeraldMint,
                             contentColor = Color.White
                         )
                     ) {
                         Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Pay with UPI App", fontWeight = FontWeight.Bold)
+                        Text("Pay with UPI", fontWeight = FontWeight.Bold)
                     }
                 }
 
