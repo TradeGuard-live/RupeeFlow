@@ -597,6 +597,33 @@ fun UpiSettlementDialog(
                             }
                         }
 
+                        // BHIM compatibility notice
+                        if (selectedTargetPackage == UpiIntentBuilder.BHIM_PACKAGE ||
+                            selectedTargetPackage?.contains("npci") == true) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFFFF3E0), RoundedCornerShape(12.dp))
+                                    .padding(12.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.Top) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = Color(0xFFE65100),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "BHIM enforces strict NPCI security rules. If BHIM shows an error, " +
+                                            "open BHIM manually and use \"Send\" or \"Scan QR\" with the UPI ID shown above.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFFE65100)
+                                    )
+                                }
+                            }
+                        }
+
                         // Security Advisory
                         Box(
                             modifier = Modifier

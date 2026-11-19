@@ -33,19 +33,27 @@ object UpiIntentBuilder {
     const val CRED_PACKAGE = "com.cred.club"
 
     /**
-     * Constructs a compliant UPI payment URI string with standard RFC 3986 encoding.
-     * For peer-to-peer (P2P) friend settlements:
-     * 1. 'pa' retains literal '@' (e.g., 'user@bank') and normalized to lowercase.
-     *    Encoding '@' as '%40' causes BHIM (NPCI) and MobiKwik VPA regex validation to fail with an error.
-     * 2. 'pn' is sanitized to alphanumeric characters and spaces. For BHIM, a concise name is used.
-     * 3. 'am' is formatted with exactly two decimal places (e.g., '500.00').
-     * 4. 'cu' is set to 'INR'.
-     * 5. 'tn' (transaction note) is omitted for BHIM (NPCI official app).
-     *    BHIM strictly enforces NPCI anti-phishing guidelines on third-party app intents.
-     *    Passing 'tn' in an un-signed P2P intent causes BHIM to reject the intent with:
-     *    "This type of request is not supported".
-     * 6. 'tr' is omitted for P2P personal payments because BHIM and MobiKwik treat 'tr' as a merchant
-     *    order reference and fail with an error when 'tr' is supplied for a personal VPA.
+     * Constructs a maximally-compatible UPI payment URI string for P2P friend settlements.
+     *
+     * Design rationale — "BHIM-safe by default":
+     * NPCI mandates that P2P intent-based transactions from unsigned third-party apps
+     * must be handled cautiously.  BHIM (the official NPCI PSP app) enforces the strictest
+     * subset of the UPI Linking Specification.  To guarantee that the same URI works when
+     * the user selects BHIM explicitly, picks it from the system chooser (targetPackage=null),
+     * or uses any other PSP app, every P2P URI follows these rules:
+     *
+     * 1. 'pa'  — retains literal '@'; lowercase-normalized.
+     * 2. 'pn'  — alphanumeric + spaces only; URI-encoded with %20 (not '+').
+     * 3. 'am'  — exactly two decimal places (e.g. '500.00').
+     * 4. 'cu'  — always 'INR'.
+     * 5. 'tn'  — ALWAYS OMITTED for P2P settlements.
+     *            BHIM rejects unsigned intents carrying 'tn' with
+     *            "This type of request is not supported".
+     *            Other apps (GPay, PhonePe, Paytm, MobiKwik, CRED) work
+     *            correctly without 'tn'.
+     * 6. 'tr'  — omitted unless explicitly provided for merchant flows.
+     *            BHIM and MobiKwik treat 'tr' as a merchant-only field.
+     * 7. 'mam' — never included (project requirement).
      */
     fun buildUpiUri(
         receiverUpiId: String,
@@ -70,14 +78,9 @@ object UpiIntentBuilder {
             .ifBlank { "Friend" }
 
         val cleanUpi = receiverUpiId.trim().lowercase()
-        val isBhim = targetPackage == BHIM_PACKAGE || targetPackage?.contains("npci") == true
 
-        // For BHIM (NPCI app), concise alphanumeric name avoids deep-link query parser rejections
-        val pnValue = if (isBhim) {
-            cleanPn.split(" ").firstOrNull()?.take(25)?.ifBlank { "Friend" } ?: "Friend"
-        } else {
-            Uri.encode(cleanPn)
-        }
+        // URI-encode the payee name for all apps (safe for BHIM too)
+        val pnValue = Uri.encode(cleanPn)
 
         val sb = StringBuilder("upi://pay?")
             .append("pa=").append(cleanUpi)
@@ -85,22 +88,18 @@ object UpiIntentBuilder {
             .append("&am=").append(formattedAmount)
             .append("&cu=INR")
 
-        // Crucial for BHIM (NPCI) compatibility:
-        // BHIM strictly enforces NPCI anti-phishing guidelines on external intents.
-        // If 'tn' (transaction note) is passed in an un-signed P2P intent, BHIM flags it
-        // as an unauthorized automated payload and rejects it with "this type of request is not supported".
-        // Therefore, for BHIM, 'tn' must be omitted completely.
-        // For other UPI applications (e.g., MobiKwik, GPay, PhonePe), clean sanitized 'tn' can be safely included.
-        if (!isBhim) {
-            val cleanTn = note.trim()
-                .replace(Regex("""[^a-zA-Z0-9 ]"""), " ")
-                .replace(Regex("""\s+"""), " ")
-                .trim()
-                .take(50)
-            if (cleanTn.isNotBlank()) {
-                sb.append("&tn=").append(Uri.encode(cleanTn))
-            }
-        }
+        // 'tn' (transaction note) is ALWAYS OMITTED for P2P settlements.
+        //
+        // BHIM (NPCI) strictly enforces anti-phishing guidelines on external intents.
+        // Passing 'tn' in an unsigned P2P intent causes BHIM to reject the request with:
+        //   "This type of request is not supported"
+        //
+        // Previously, 'tn' was only stripped when targetPackage matched BHIM.
+        // This failed when the user opened BHIM via the system chooser (targetPackage=null)
+        // or when the BHIM package name didn't match the detection heuristic.
+        // By omitting 'tn' universally, the URI is safe regardless of which app opens it.
+        // All other major UPI apps (GPay, PhonePe, Paytm, MobiKwik, CRED) work correctly
+        // without 'tn' — they display their own default note or none.
 
         // Only append tr if explicitly provided and non-blank (e.g., for verified merchant endpoints)
         if (!transactionRef.isNullOrBlank()) {
@@ -117,6 +116,12 @@ object UpiIntentBuilder {
 
     /**
      * Builds an ACTION_VIEW Intent targeting standard UPI handler applications.
+     *
+     * No explicit Intent categories are added.  The Android framework automatically
+     * adds CATEGORY_DEFAULT during implicit-intent resolution.  Explicitly adding
+     * CATEGORY_DEFAULT caused BHIM (NPCI) to reject the intent in certain device
+     * configurations — removing it matches the standard pattern used by popular
+     * UPI integration libraries (EasyUpiPayment, upi_pay, etc.).
      */
     fun buildUpiIntent(
         receiverUpiId: String,
@@ -134,10 +139,7 @@ object UpiIntentBuilder {
             transactionRef = transactionRef,
             targetPackage = targetPackage
         )
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            data = Uri.parse(uriString)
-            addCategory(Intent.CATEGORY_DEFAULT)
-        }
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uriString))
         if (!targetPackage.isNullOrBlank()) {
             intent.setPackage(targetPackage.trim())
         }

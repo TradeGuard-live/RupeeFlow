@@ -665,24 +665,43 @@ class SplitProDirectUpiSettlementQATest {
         assertFalse(uriStr.contains("pa=priya%40axisbank"))
     }
 
-    // 33. BHIM and MobiKwik spaces encoded with %20 not plus sign
+    // 33. P2P URI omits 'tn' for all apps (BHIM-safe by default)
     @Test
-    fun test33_bhimAndMobiKwikSpacesEncodedWithPercent20() {
-        val uriStr = UpiIntentBuilder.buildUpiUri(
+    fun test33_p2pUriOmitsTnForAllApps() {
+        // Without targetPackage (generic/system chooser)
+        val uriGeneric = UpiIntentBuilder.buildUpiUri(
             receiverUpiId = "user@upi",
             receiverName = "John Doe",
             amountPaise = 10000L,
             note = "Friday Dinner Settlement"
         )
-        assertTrue(uriStr.contains("pn=John%20Doe"))
-        assertTrue(uriStr.contains("tn=Friday%20Dinner%20Settlement"))
-        assertFalse(uriStr.contains("John+Doe"))
-        assertFalse(uriStr.contains("Friday+Dinner+Settlement"))
+        assertFalse("P2P URI must NEVER contain tn to stay BHIM-safe", uriGeneric.contains("tn="))
+        assertTrue(uriGeneric.contains("pn=John%20Doe"))
+
+        // With explicit BHIM targetPackage
+        val uriBhim = UpiIntentBuilder.buildUpiUri(
+            receiverUpiId = "user@upi",
+            receiverName = "John Doe",
+            amountPaise = 10000L,
+            note = "Friday Dinner Settlement",
+            targetPackage = UpiIntentBuilder.BHIM_PACKAGE
+        )
+        assertFalse("BHIM URI must not contain tn", uriBhim.contains("tn="))
+
+        // With Google Pay targetPackage
+        val uriGpay = UpiIntentBuilder.buildUpiUri(
+            receiverUpiId = "user@upi",
+            receiverName = "John Doe",
+            amountPaise = 10000L,
+            note = "Friday Dinner Settlement",
+            targetPackage = UpiIntentBuilder.GOOGLE_PAY_PACKAGE
+        )
+        assertFalse("GPay P2P URI must also omit tn for consistency", uriGpay.contains("tn="))
     }
 
-    // 34. BHIM and MobiKwik special characters sanitized
+    // 34. Special characters sanitized from payee name
     @Test
-    fun test34_bhimAndMobiKwikSpecialCharsSanitized() {
+    fun test34_specialCharsSanitizedFromPayeeName() {
         val uriStr = UpiIntentBuilder.buildUpiUri(
             receiverUpiId = "user@upi",
             receiverName = "John & Jane (Roommates)",
@@ -690,12 +709,9 @@ class SplitProDirectUpiSettlementQATest {
             note = "Split Pro: Goa Trip #1!"
         )
         val query = uriStr.substringAfter("?")
-        // Colons, ampersands, hashes, brackets stripped from query parameters
-        assertFalse(query.contains(":"))
-        assertFalse(query.contains("#"))
-        assertFalse(query.contains("!"))
-        assertTrue(query.contains("pn=John%20Jane%20Roommates"))
-        assertTrue(query.contains("tn=Split%20Pro%20Goa%20Trip%201"))
+        // No tn in P2P URI
+        assertFalse("P2P URI must not contain tn", query.contains("tn="))
+        assertTrue(query.contains("pn=John%20Jane%20Roommates") || query.contains("pn=John%20%20Jane%20%20Roommates"))
     }
 
     // 35. initiateSettlement produces P2P compliant intent without tr
@@ -718,9 +734,9 @@ class SplitProDirectUpiSettlementQATest {
         assertFalse("Intent URI data must not contain tr for personal settlements", dataUri.contains("tr="))
     }
 
-    // 36. BHIM target omits transaction note and uses concise payee name to avoid "request not supported"
+    // 36. BHIM target produces maximally-compatible URI (no tn, no tr, URI-encoded pn)
     @Test
-    fun test36_bhimTargetOmitsTransactionNoteAndUsesConciseName() {
+    fun test36_bhimTargetProducesMaximallyCompatibleUri() {
         val uriStr = UpiIntentBuilder.buildUpiUri(
             receiverUpiId = "friend@upi",
             receiverName = "Rahul Sharma",
@@ -733,13 +749,13 @@ class SplitProDirectUpiSettlementQATest {
         assertTrue("BHIM URI must contain pa with literal @", uriStr.contains("pa=friend@upi"))
         assertTrue("BHIM URI must contain am", uriStr.contains("am=250.00"))
         assertTrue("BHIM URI must contain cu=INR", uriStr.contains("cu=INR"))
-        assertTrue("BHIM URI must contain concise pn", uriStr.contains("pn=Rahul"))
-        assertFalse("BHIM URI must not contain encoded spaces in pn", uriStr.contains("pn=Rahul%20Sharma"))
+        // pn is now URI-encoded full name for all apps (unified approach)
+        assertTrue("BHIM URI must contain URI-encoded pn", uriStr.contains("pn=Rahul%20Sharma"))
     }
 
-    // 37. BHIM Intent sets explicit package and CATEGORY_DEFAULT
+    // 37. BHIM Intent sets explicit package, no explicit categories (matches standard UPI library pattern)
     @Test
-    fun test37_bhimIntentExplicitPackageAndCategory() {
+    fun test37_bhimIntentExplicitPackageNoExplicitCategories() {
         val intent = UpiIntentBuilder.buildUpiIntent(
             receiverUpiId = "friend@upi",
             receiverName = "Rahul Sharma",
@@ -748,13 +764,15 @@ class SplitProDirectUpiSettlementQATest {
             targetPackage = UpiIntentBuilder.BHIM_PACKAGE
         )
         assertEquals(UpiIntentBuilder.BHIM_PACKAGE, intent.`package`)
-        assertTrue(intent.categories?.contains(Intent.CATEGORY_DEFAULT) == true)
+        // No explicit categories — Android adds CATEGORY_DEFAULT automatically during resolution.
+        // Explicitly adding CATEGORY_DEFAULT caused BHIM to reject intents on certain devices.
+        assertTrue(intent.categories == null || intent.categories.isEmpty())
         val dataUri = intent.dataString ?: ""
         assertFalse(dataUri.contains("tn="))
-        assertTrue(dataUri.contains("pn=Rahul"))
+        assertTrue(dataUri.contains("pn=Rahul%20Sharma"))
     }
 
-    // 38. initiateSettlement with BHIM target produces compliant BHIM intent
+    // 38. initiateSettlement with BHIM target produces maximally-compatible BHIM intent
     @Test
     fun test38_initiateSettlementWithBhimTarget() = runBlocking {
         val friendId = friendRepository.addFriend(Friend(name = "Kunal Verma", upiId = "kunal@okhdfcbank"))
@@ -771,10 +789,52 @@ class SplitProDirectUpiSettlementQATest {
         val dataUri = intent.dataString ?: ""
         assertTrue(dataUri.startsWith("upi://pay?"))
         assertTrue(dataUri.contains("pa=kunal@okhdfcbank"))
-        assertTrue(dataUri.contains("pn=Kunal"))
+        assertTrue(dataUri.contains("pn=Kunal%20Verma"))
         assertTrue(dataUri.contains("am=750.00"))
         assertTrue(dataUri.contains("cu=INR"))
         assertFalse("BHIM intent must not contain tn", dataUri.contains("tn="))
         assertFalse("BHIM intent must not contain tr", dataUri.contains("tr="))
+    }
+
+    // 39. Generic/null targetPackage URI is also BHIM-safe (no tn, no tr)
+    @Test
+    fun test39_genericUriIsBhimSafe() {
+        val uriStr = UpiIntentBuilder.buildUpiUri(
+            receiverUpiId = "friend@okhdfcbank",
+            receiverName = "Test Friend",
+            amountPaise = 50000L,
+            note = "Settlement from RupeeFlow",
+            targetPackage = null
+        )
+        assertFalse("Generic URI must not contain tn (BHIM could open from system chooser)", uriStr.contains("tn="))
+        assertFalse("Generic URI must not contain tr for P2P", uriStr.contains("tr="))
+        assertTrue(uriStr.contains("pa=friend@okhdfcbank"))
+        assertTrue(uriStr.contains("am=500.00"))
+        assertTrue(uriStr.contains("cu=INR"))
+    }
+
+    // 40. All UPI intents have no explicit categories (standard library pattern)
+    @Test
+    fun test40_allUpiIntentsHaveNoExplicitCategories() {
+        // Generic intent (no target package)
+        val genericIntent = UpiIntentBuilder.buildUpiIntent(
+            receiverUpiId = "friend@upi",
+            receiverName = "Friend",
+            amountPaise = 10000L,
+            note = "Test"
+        )
+        assertTrue("Generic intent should have no explicit categories",
+            genericIntent.categories == null || genericIntent.categories.isEmpty())
+
+        // GPay-targeted intent
+        val gpayIntent = UpiIntentBuilder.buildUpiIntent(
+            receiverUpiId = "friend@upi",
+            receiverName = "Friend",
+            amountPaise = 10000L,
+            note = "Test",
+            targetPackage = UpiIntentBuilder.GOOGLE_PAY_PACKAGE
+        )
+        assertTrue("GPay intent should have no explicit categories",
+            gpayIntent.categories == null || gpayIntent.categories.isEmpty())
     }
 }

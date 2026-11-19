@@ -82,7 +82,11 @@ class InteractiveMonthlyTransactionCalendarQATest {
 
     @After
     fun tearDown() {
-        database.close()
+        try {
+            if (::database.isInitialized) {
+                database.close()
+            }
+        } catch (_: Exception) {}
         try {
             Dispatchers.resetMain()
         } catch (_: Exception) {}
