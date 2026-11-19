@@ -41,7 +41,8 @@ fun GroupSettleUpDialog(
     initialReceiverId: Long? = null,
     initialAmountPaise: Long? = null,
     onDismiss: () -> Unit,
-    onConfirmSettlement: (Settlement) -> Unit
+    onConfirmSettlement: (Settlement) -> Unit,
+    onPayWithUpi: ((friendId: Long, amountPaise: Long) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -276,6 +277,31 @@ fun GroupSettleUpDialog(
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
+
+                // Direct UPI Pay button when You are paying a Friend
+                if (payerId == null && receiverId != null && onPayWithUpi != null) {
+                    Button(
+                        onClick = {
+                            if (isValid) {
+                                onPayWithUpi(receiverId!!, amountPaise)
+                                onDismiss()
+                            }
+                        },
+                        enabled = isValid,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AppTheme.colors.primaryAccent,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Pay with UPI App", fontWeight = FontWeight.Bold)
+                    }
+                }
 
                 // Action Buttons
                 Row(

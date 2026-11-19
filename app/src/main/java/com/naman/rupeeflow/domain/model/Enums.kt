@@ -259,3 +259,53 @@ enum class SavingsEntryType {
         }
 }
 
+enum class FriendUpiVerificationStatus {
+    UNVERIFIED,
+    USER_CONFIRMED,
+    APP_CONFIRMED;
+
+    val displayName: String
+        get() = when (this) {
+            UNVERIFIED -> "Unverified"
+            USER_CONFIRMED -> "Confirmed by You"
+            APP_CONFIRMED -> "Confirmed via UPI App"
+        }
+}
+
+enum class SettlementPaymentStatus {
+    CREATED,
+    INITIATED,
+    PENDING_VERIFICATION,
+    SUCCESS,
+    FAILED,
+    CANCELLED,
+    UNKNOWN;
+
+    val displayName: String
+        get() = when (this) {
+            CREATED -> "Created"
+            INITIATED -> "Initiated"
+            PENDING_VERIFICATION -> "Pending Verification"
+            SUCCESS -> "Success"
+            FAILED -> "Failed"
+            CANCELLED -> "Cancelled"
+            UNKNOWN -> "Unknown"
+        }
+}
+
+enum class SettlementVerificationStatus {
+    UNVERIFIED,
+    MANUAL_UNVERIFIED,
+    AUTOMATIC_VERIFIED,
+    PENDING;
+
+    val displayName: String
+        get() = when (this) {
+            UNVERIFIED -> "Unverified"
+            MANUAL_UNVERIFIED -> "Manually Confirmed (Unverified)"
+            AUTOMATIC_VERIFIED -> "Bank/UPI Verified"
+            PENDING -> "Verification Pending"
+        }
+}
+
+

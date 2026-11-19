@@ -87,7 +87,11 @@ class FriendRepositoryImpl(
         notes = notes,
         profileImagePath = profileImagePath,
         createdAt = createdAt,
-        isArchived = isArchived
+        isArchived = isArchived,
+        upiId = upiId,
+        upiVerifiedName = upiVerifiedName,
+        upiVerificationStatus = upiVerificationStatus,
+        upiLastUpdated = upiLastUpdated
     )
 
     private fun Friend.toEntity() = FriendEntity(
@@ -98,6 +102,10 @@ class FriendRepositoryImpl(
         notes = notes,
         profileImagePath = profileImagePath,
         createdAt = createdAt,
-        isArchived = isArchived
+        isArchived = isArchived,
+        upiId = upiId,
+        upiVerifiedName = upiVerifiedName,
+        upiVerificationStatus = upiVerificationStatus,
+        upiLastUpdated = upiLastUpdated
     )
 }

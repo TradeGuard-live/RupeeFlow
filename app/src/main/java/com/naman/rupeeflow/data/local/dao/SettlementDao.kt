@@ -27,6 +27,12 @@ interface SettlementDao {
     @Query("SELECT * FROM settlements WHERE id = :id")
     suspend fun getSettlementById(id: Long): SettlementEntity?
 
+    @Query("SELECT * FROM settlements WHERE upiTransactionRef = :txnRef LIMIT 1")
+    suspend fun getSettlementByUpiTransactionRef(txnRef: String): SettlementEntity?
+
+    @Query("SELECT * FROM settlements WHERE referenceNumber = :refNum LIMIT 1")
+    suspend fun getSettlementByReferenceNumber(refNum: String): SettlementEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSettlement(settlement: SettlementEntity): Long
 

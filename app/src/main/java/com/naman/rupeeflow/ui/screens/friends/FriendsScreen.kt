@@ -423,8 +423,8 @@ fun FriendsScreen(
     if (showAddFriendDialog) {
         AddFriendDialog(
             onDismiss = { showAddFriendDialog = false },
-            onAdd = { name, phone, email, notes, profileImagePath ->
-                viewModel.addFriend(name, phone, email, notes, profileImagePath)
+            onAdd = { name, phone, email, notes, profileImagePath, upiId ->
+                viewModel.addFriend(name, phone, email, notes, profileImagePath, upiId)
                 showAddFriendDialog = false
             }
         )
@@ -549,13 +549,15 @@ fun FriendsScreen(
 @Composable
 fun AddFriendDialog(
     onDismiss: () -> Unit,
-    onAdd: (name: String, phone: String?, email: String?, notes: String?, profileImagePath: String?) -> Unit
+    onAdd: (name: String, phone: String?, email: String?, notes: String?, profileImagePath: String?, upiId: String?) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
+    var upiId by remember { mutableStateOf("") }
+    var upiError by remember { mutableStateOf<String?>(null) }
     var notes by remember { mutableStateOf("") }
     var profileImagePath by remember { mutableStateOf<String?>(null) }
 
@@ -693,12 +695,49 @@ fun AddFriendDialog(
                     shape = RoundedCornerShape(14.dp)
                 )
 
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = upiId,
+                    onValueChange = {
+                        upiId = it
+                        val trimmed = it.trim()
+                        upiError = if (trimmed.isNotBlank() && !com.naman.rupeeflow.upi.UpiValidator.isValidUpiId(trimmed)) {
+                            "Invalid UPI ID format (e.g. name@bank)"
+                        } else null
+                    },
+                    label = { Text("UPI ID / VPA (Optional)", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("e.g. friend@okhdfcbank", color = AppTheme.colors.textTertiary) },
+                    isError = upiError != null,
+                    supportingText = {
+                        if (upiError != null) {
+                            Text(upiError ?: "", color = CoralRed)
+                        } else {
+                            Text(
+                                "Format validation checks syntax only; does not verify ownership.",
+                                color = AppTheme.colors.textTertiary,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppTheme.colors.textPrimary),
+                    colors = rupeeFlowTextFieldColors(),
+                    shape = RoundedCornerShape(14.dp)
+                )
+
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Button(
                     onClick = {
+                        val trimmedUpi = upiId.trim()
+                        if (trimmedUpi.isNotBlank() && !com.naman.rupeeflow.upi.UpiValidator.isValidUpiId(trimmedUpi)) {
+                            upiError = "Invalid UPI ID format (e.g. name@bank)"
+                            return@Button
+                        }
                         if (name.isNotBlank()) {
-                            onAdd(name, phone, email, notes, profileImagePath)
+                            onAdd(name, phone, email, notes, profileImagePath, trimmedUpi.takeIf { it.isNotBlank() })
                         }
                     },
                     modifier = Modifier
@@ -709,7 +748,7 @@ fun AddFriendDialog(
                         containerColor = AppTheme.colors.primaryAccent,
                         contentColor = Color.White
                     ),
-                    enabled = name.isNotBlank()
+                    enabled = name.isNotBlank() && upiError == null
                 ) {
                     Text(
                         text = "Add Friend",

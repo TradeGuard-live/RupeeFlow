@@ -17,6 +17,8 @@ interface SettlementRepository {
     fun getSettlementsForGroup(groupId: Long): Flow<List<Settlement>> = kotlinx.coroutines.flow.flowOf(emptyList())
     suspend fun getSettlementsForGroupList(groupId: Long): List<Settlement> = emptyList()
     suspend fun getSettlementById(id: Long): Settlement?
+    suspend fun getSettlementByUpiTransactionRef(txnRef: String): Settlement? = null
+    suspend fun getSettlementByReferenceNumber(refNum: String): Settlement? = null
     suspend fun recordSettlement(settlement: Settlement): Long
     // Edit existing settlement with ledger recalculation
     suspend fun updateSettlement(settlement: Settlement)
@@ -59,12 +61,31 @@ class SettlementRepositoryImpl(
         return settlementDao.getSettlementById(id)?.toDomain()
     }
 
+    override suspend fun getSettlementByUpiTransactionRef(txnRef: String): Settlement? {
+        return settlementDao.getSettlementByUpiTransactionRef(txnRef)?.toDomain()
+    }
+
+    override suspend fun getSettlementByReferenceNumber(refNum: String): Settlement? {
+        return settlementDao.getSettlementByReferenceNumber(refNum)?.toDomain()
+    }
+
     override suspend fun recordSettlement(settlement: Settlement): Long {
         require(settlement.amountPaise > 0L) { "Settlement amount must be greater than zero" }
         require(settlement.payerId != settlement.receiverId) { "Payer and receiver cannot be the same" }
         if (settlement.groupId == null) {
             val hasMe = (settlement.payerId == null) != (settlement.receiverId == null)
             require(hasMe) { "Exactly one side of a settlement must be Me" }
+        }
+
+        // Prevent duplicate settlement records by reference number or UPI transaction ref
+        val ref = settlement.upiTransactionRef?.takeIf { it.isNotBlank() }
+            ?: settlement.referenceNumber?.takeIf { it.isNotBlank() }
+        if (ref != null) {
+            val existingByRef = settlementDao.getSettlementByUpiTransactionRef(ref)
+                ?: settlementDao.getSettlementByReferenceNumber(ref)
+            if (existingByRef != null) {
+                return existingByRef.id
+            }
         }
 
         val friendIds = listOfNotNull(settlement.payerId, settlement.receiverId)
@@ -145,7 +166,13 @@ class SettlementRepositoryImpl(
         groupId = groupId,
         proofImagePath = proofImagePath,
         isReversed = isReversed,
-        createdAt = createdAt
+        createdAt = createdAt,
+        upiPaymentStatus = upiPaymentStatus,
+        upiVerificationStatus = upiVerificationStatus,
+        upiTransactionRef = upiTransactionRef,
+        upiResponseRaw = upiResponseRaw,
+        upiPayerVpa = upiPayerVpa,
+        upiReceiverVpa = upiReceiverVpa
     )
 
     private fun Settlement.toEntity() = SettlementEntity(
@@ -160,6 +187,12 @@ class SettlementRepositoryImpl(
         groupId = groupId,
         proofImagePath = proofImagePath,
         isReversed = isReversed,
-        createdAt = createdAt
+        createdAt = createdAt,
+        upiPaymentStatus = upiPaymentStatus,
+        upiVerificationStatus = upiVerificationStatus,
+        upiTransactionRef = upiTransactionRef,
+        upiResponseRaw = upiResponseRaw,
+        upiPayerVpa = upiPayerVpa,
+        upiReceiverVpa = upiReceiverVpa
     )
 }

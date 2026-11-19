@@ -173,7 +173,7 @@ object LedgerCalculator {
                      it.transactionType == TransactionType.REFUND ||
                      it.transactionType == TransactionType.UPI_LITE_REFUND)
         }
-        val groupSettlements = settlements.filter { (it.groupId == null || it.groupId == groupId) && !it.isReversed }
+        val groupSettlements = settlements.filter { (it.groupId == null || it.groupId == groupId) && !it.isReversed && it.affectsLedger }
 
         val friendsLookup = (allFriends + members).associateBy { it.id }
         val memberNames = mutableMapOf<Long?, String>()
@@ -376,7 +376,7 @@ object LedgerCalculator {
             it.transactionStatus == TransactionStatus.ACTIVE &&
                     (it.transactionType == TransactionType.EXPENSE || it.transactionType == TransactionType.REFUND)
         }
-        val validSettlements = settlements.filter { !it.isReversed }
+        val validSettlements = settlements.filter { !it.isReversed && it.affectsLedger }
 
         val theyOweMe = mutableMapOf<Long, Long>()
         val iOweThem = mutableMapOf<Long, Long>()
@@ -521,7 +521,7 @@ object LedgerCalculator {
 
         // Filter settlements to members of this group
         val groupSettlements = settlements.filter { s ->
-            (s.payerId in groupMemberIds) || (s.receiverId in groupMemberIds)
+            ((s.payerId in groupMemberIds) || (s.receiverId in groupMemberIds)) && !s.isReversed && s.affectsLedger
         }
 
         // Filter friends to group members
@@ -603,7 +603,7 @@ object LedgerCalculator {
             it.transactionStatus == TransactionStatus.ACTIVE &&
                     (it.transactionType == TransactionType.EXPENSE || it.transactionType == TransactionType.REFUND)
         }
-        val validSettlements = settlements.filter { !it.isReversed }
+        val validSettlements = settlements.filter { !it.isReversed && it.affectsLedger }
 
         // Group 1: Transactions where ME paid and Friend participated (Friend owes ME)
         val friendOwesMeExpenses = mutableListOf<UnsettledExpenseEntry>()

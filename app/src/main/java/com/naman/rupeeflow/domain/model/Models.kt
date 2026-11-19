@@ -9,6 +9,10 @@ data class Friend(
     val profileImagePath: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val isArchived: Boolean = false,
+    val upiId: String? = null,
+    val upiVerifiedName: String? = null,
+    val upiVerificationStatus: FriendUpiVerificationStatus = FriendUpiVerificationStatus.UNVERIFIED,
+    val upiLastUpdated: Long? = null,
     // Dynamically computed ledger metrics
     val totalTheyOweMePaise: Long = 0,
     val totalIOweThemPaise: Long = 0,
@@ -247,8 +251,19 @@ data class Settlement(
     val groupId: Long? = null,
     val proofImagePath: String? = null,
     val isReversed: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis()
-)
+    val createdAt: Long = System.currentTimeMillis(),
+    val upiPaymentStatus: SettlementPaymentStatus = SettlementPaymentStatus.SUCCESS,
+    val upiVerificationStatus: SettlementVerificationStatus = SettlementVerificationStatus.MANUAL_UNVERIFIED,
+    val upiTransactionRef: String? = null,
+    val upiResponseRaw: String? = null,
+    val upiPayerVpa: String? = null,
+    val upiReceiverVpa: String? = null
+) {
+    val affectsLedger: Boolean
+        get() = (upiPaymentStatus == SettlementPaymentStatus.SUCCESS) &&
+                (upiVerificationStatus == SettlementVerificationStatus.AUTOMATIC_VERIFIED ||
+                 upiVerificationStatus == SettlementVerificationStatus.MANUAL_UNVERIFIED)
+}
 
 // Production hardening: robust default parameters for testability and non-SMS sources
 data class PendingTransaction(

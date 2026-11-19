@@ -32,7 +32,7 @@ import java.io.File
         SavingsGoalEntity::class,
         SavingsEntryEntity::class
     ],
-    version = 12, // Upgraded to version 12: Independent Merchant Identity, Storage and Category Learning
+    version = 13, // Upgraded to version 13: Split Pro Direct UPI Settlement Integration
     exportSchema = true // Schema export enabled
 )
 @TypeConverters(Converters::class)
@@ -781,6 +781,81 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 12 to 13: Split Pro Direct UPI Settlement Integration
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Friend UPI profile fields
+                db.execSQL("ALTER TABLE `friends` ADD COLUMN `upiId` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `friends` ADD COLUMN `upiVerifiedName` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `friends` ADD COLUMN `upiVerificationStatus` TEXT NOT NULL DEFAULT 'UNVERIFIED'")
+                db.execSQL("ALTER TABLE `friends` ADD COLUMN `upiLastUpdated` INTEGER DEFAULT NULL")
+
+                // Settlement UPI payment state machine fields
+                db.execSQL("ALTER TABLE `settlements` ADD COLUMN `upiPaymentStatus` TEXT NOT NULL DEFAULT 'SUCCESS'")
+                db.execSQL("ALTER TABLE `settlements` ADD COLUMN `upiVerificationStatus` TEXT NOT NULL DEFAULT 'MANUAL_UNVERIFIED'")
+                db.execSQL("ALTER TABLE `settlements` ADD COLUMN `upiTransactionRef` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `settlements` ADD COLUMN `upiResponseRaw` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `settlements` ADD COLUMN `upiPayerVpa` TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE `settlements` ADD COLUMN `upiReceiverVpa` TEXT DEFAULT NULL")
+            }
+        }
+
+        val MIGRATION_11_13 = object : Migration(11, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_11_12.migrate(db)
+                MIGRATION_12_13.migrate(db)
+            }
+        }
+
+        val MIGRATION_10_13 = object : Migration(10, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_10_12.migrate(db)
+                MIGRATION_12_13.migrate(db)
+            }
+        }
+
+        val MIGRATION_9_13 = object : Migration(9, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_9_12.migrate(db)
+                MIGRATION_12_13.migrate(db)
+            }
+        }
+
+        val MIGRATION_8_13 = object : Migration(8, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_8_12.migrate(db)
+                MIGRATION_12_13.migrate(db)
+            }
+        }
+
+        val MIGRATION_7_13 = object : Migration(7, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_7_12.migrate(db)
+                MIGRATION_12_13.migrate(db)
+            }
+        }
+
+        val MIGRATION_6_13 = object : Migration(6, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_6_12.migrate(db)
+                MIGRATION_12_13.migrate(db)
+            }
+        }
+
+        val MIGRATION_5_13 = object : Migration(5, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_5_12.migrate(db)
+                MIGRATION_12_13.migrate(db)
+            }
+        }
+
+        val MIGRATION_1_13 = object : Migration(1, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_1_12.migrate(db)
+                MIGRATION_12_13.migrate(db)
+            }
+        }
+
         // Automatic safe pre-migration backup procedure
         fun createPreMigrationBackup(context: Context) {
             try {
@@ -814,7 +889,8 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                         MIGRATION_8_9, MIGRATION_7_9, MIGRATION_6_9, MIGRATION_5_9, MIGRATION_1_9,
                         MIGRATION_9_10, MIGRATION_8_10, MIGRATION_7_10, MIGRATION_6_10, MIGRATION_5_10, MIGRATION_1_10,
                         MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11, MIGRATION_7_11, MIGRATION_6_11, MIGRATION_5_11, MIGRATION_1_11,
-                        MIGRATION_11_12, MIGRATION_10_12, MIGRATION_9_12, MIGRATION_8_12, MIGRATION_7_12, MIGRATION_6_12, MIGRATION_5_12, MIGRATION_1_12
+                        MIGRATION_11_12, MIGRATION_10_12, MIGRATION_9_12, MIGRATION_8_12, MIGRATION_7_12, MIGRATION_6_12, MIGRATION_5_12, MIGRATION_1_12,
+                        MIGRATION_12_13, MIGRATION_11_13, MIGRATION_10_13, MIGRATION_9_13, MIGRATION_8_13, MIGRATION_7_13, MIGRATION_6_13, MIGRATION_5_13, MIGRATION_1_13
                     )
                     .addCallback(DatabaseCallback(scope))
                     // Destructive migration removed! Data preservation guaranteed.

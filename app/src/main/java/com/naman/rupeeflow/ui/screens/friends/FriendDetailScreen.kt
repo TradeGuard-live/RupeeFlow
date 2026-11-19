@@ -221,6 +221,25 @@ fun FriendDetailScreen(
                                     color = AppTheme.colors.textMuted
                                 )
                             }
+                            if (!friend.upiId.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "UPI: ${friend.upiId}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = AppTheme.colors.primaryAccent,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    if (friend.upiVerifiedName != null) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "(${friend.upiVerifiedName})",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = EmeraldMint
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }

@@ -80,4 +80,25 @@ class Converters {
     @TypeConverter
     fun toSavingsEntryType(value: String): SavingsEntryType =
         runCatching { SavingsEntryType.valueOf(value) }.getOrDefault(SavingsEntryType.DEPOSIT)
+
+    @TypeConverter
+    fun fromFriendUpiVerificationStatus(value: FriendUpiVerificationStatus): String = value.name
+
+    @TypeConverter
+    fun toFriendUpiVerificationStatus(value: String): FriendUpiVerificationStatus =
+        runCatching { FriendUpiVerificationStatus.valueOf(value) }.getOrDefault(FriendUpiVerificationStatus.UNVERIFIED)
+
+    @TypeConverter
+    fun fromSettlementPaymentStatus(value: SettlementPaymentStatus): String = value.name
+
+    @TypeConverter
+    fun toSettlementPaymentStatus(value: String): SettlementPaymentStatus =
+        runCatching { SettlementPaymentStatus.valueOf(value) }.getOrDefault(SettlementPaymentStatus.SUCCESS)
+
+    @TypeConverter
+    fun fromSettlementVerificationStatus(value: SettlementVerificationStatus): String = value.name
+
+    @TypeConverter
+    fun toSettlementVerificationStatus(value: String): SettlementVerificationStatus =
+        runCatching { SettlementVerificationStatus.valueOf(value) }.getOrDefault(SettlementVerificationStatus.MANUAL_UNVERIFIED)
 }

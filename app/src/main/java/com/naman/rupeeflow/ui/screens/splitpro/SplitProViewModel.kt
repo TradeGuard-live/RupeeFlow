@@ -480,5 +480,18 @@ class SplitProViewModel(
     fun getGroupSettlements(groupId: Long): Flow<List<Settlement>> {
         return settlementRepository.getSettlementsForGroup(groupId)
     }
+
+    val upiSettlementManager = com.naman.rupeeflow.upi.UpiSettlementManager(
+        settlementRepository = settlementRepository,
+        groupActivityRepository = groupActivityRepository
+    )
+
+    fun updateFriend(friend: Friend) {
+        viewModelScope.launch {
+            try {
+                friendRepository.updateFriend(friend)
+            } catch (_: Exception) { }
+        }
+    }
 }
 

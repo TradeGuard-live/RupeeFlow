@@ -178,6 +178,14 @@ fun SettlementDetailDialog(
                     )
                 }
 
+                if (settlement.paymentMethod == com.naman.rupeeflow.domain.model.PaymentMethod.UPI) {
+                    DetailRow(
+                        icon = Icons.Default.CheckCircle,
+                        label = "Verification Status",
+                        value = settlement.upiVerificationStatus.displayName
+                    )
+                }
+
                 if (!settlement.notes.isNullOrBlank()) {
                     DetailRow(
                         icon = Icons.Default.Notes,

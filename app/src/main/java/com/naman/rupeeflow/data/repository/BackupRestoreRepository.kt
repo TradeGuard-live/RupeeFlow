@@ -165,6 +165,10 @@ class BackupRestoreRepository(
                 put("profileImagePath", portableImage ?: "")
                 put("createdAt", f.createdAt)
                 put("isArchived", f.isArchived)
+                put("upiId", f.upiId ?: "")
+                put("upiVerifiedName", f.upiVerifiedName ?: "")
+                put("upiVerificationStatus", f.upiVerificationStatus.name)
+                if (f.upiLastUpdated != null) put("upiLastUpdated", f.upiLastUpdated)
             }
             friendArray.put(obj)
         }
@@ -276,6 +280,12 @@ class BackupRestoreRepository(
                 }
                 put("isReversed", s.isReversed)
                 put("createdAt", s.createdAt)
+                put("upiPaymentStatus", s.upiPaymentStatus.name)
+                put("upiVerificationStatus", s.upiVerificationStatus.name)
+                put("upiTransactionRef", s.upiTransactionRef ?: "")
+                put("upiResponseRaw", s.upiResponseRaw ?: "")
+                put("upiPayerVpa", s.upiPayerVpa ?: "")
+                put("upiReceiverVpa", s.upiReceiverVpa ?: "")
             }
             setArray.put(obj)
         }
@@ -734,7 +744,13 @@ class BackupRestoreRepository(
                             notes = obj.optString("notes").takeIf { it.isNotBlank() },
                             profileImagePath = profilePath,
                             createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
-                            isArchived = obj.optBoolean("isArchived", false)
+                            isArchived = obj.optBoolean("isArchived", false),
+                            upiId = obj.optString("upiId").takeIf { it.isNotBlank() },
+                            upiVerifiedName = obj.optString("upiVerifiedName").takeIf { it.isNotBlank() },
+                            upiVerificationStatus = runCatching {
+                                FriendUpiVerificationStatus.valueOf(obj.getString("upiVerificationStatus"))
+                            }.getOrDefault(FriendUpiVerificationStatus.UNVERIFIED),
+                            upiLastUpdated = obj.optLong("upiLastUpdated", -1L).takeIf { it > 0 }
                         )
                         database.friendDao().insertFriend(friendEntity)
                     }
@@ -927,7 +943,17 @@ class BackupRestoreRepository(
                             groupId = gId,
                             proofImagePath = proofPath,
                             isReversed = obj.optBoolean("isReversed", false),
-                            createdAt = obj.optLong("createdAt", System.currentTimeMillis())
+                            createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
+                            upiPaymentStatus = runCatching {
+                                SettlementPaymentStatus.valueOf(obj.getString("upiPaymentStatus"))
+                            }.getOrDefault(SettlementPaymentStatus.SUCCESS),
+                            upiVerificationStatus = runCatching {
+                                SettlementVerificationStatus.valueOf(obj.getString("upiVerificationStatus"))
+                            }.getOrDefault(SettlementVerificationStatus.MANUAL_UNVERIFIED),
+                            upiTransactionRef = obj.optString("upiTransactionRef").takeIf { it.isNotBlank() },
+                            upiResponseRaw = obj.optString("upiResponseRaw").takeIf { it.isNotBlank() },
+                            upiPayerVpa = obj.optString("upiPayerVpa").takeIf { it.isNotBlank() },
+                            upiReceiverVpa = obj.optString("upiReceiverVpa").takeIf { it.isNotBlank() }
                         )
                         database.settlementDao().insertSettlement(settlement)
                     }

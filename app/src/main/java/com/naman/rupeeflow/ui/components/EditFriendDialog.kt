@@ -53,6 +53,8 @@ fun EditFriendDialog(
     var name by remember { mutableStateOf(friend.name) }
     var phone by remember { mutableStateOf(friend.phoneNumber ?: "") }
     var email by remember { mutableStateOf(friend.email ?: "") }
+    var upiId by remember { mutableStateOf(friend.upiId ?: "") }
+    var upiVerifiedName by remember { mutableStateOf(friend.upiVerifiedName ?: "") }
     var notes by remember { mutableStateOf(friend.notes ?: "") }
     var profileImagePath by remember { mutableStateOf(friend.profileImagePath) }
     var isSaving by remember { mutableStateOf(false) }
@@ -61,6 +63,7 @@ fun EditFriendDialog(
     var nameError by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
+    var upiError by remember { mutableStateOf<String?>(null) }
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
@@ -121,6 +124,19 @@ fun EditFriendDialog(
             }
         } else {
             emailError = null
+        }
+
+        // 4. UPI ID validation (optional field, but if present must match standard VPA format)
+        val trimmedUpi = upiId.trim()
+        if (trimmedUpi.isNotBlank()) {
+            if (!com.naman.rupeeflow.upi.UpiValidator.isValidUpiId(trimmedUpi)) {
+                upiError = "Please enter a valid UPI ID (e.g. username@bank)"
+                isValid = false
+            } else {
+                upiError = null
+            }
+        } else {
+            upiError = null
         }
 
         return isValid
@@ -300,6 +316,46 @@ fun EditFriendDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
+                // UPI ID / VPA Field
+                OutlinedTextField(
+                    value = upiId,
+                    onValueChange = {
+                        upiId = it
+                        if (upiError != null) validate()
+                    },
+                    label = { Text("UPI ID / VPA (Optional)", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("e.g. friend@okhdfcbank", color = AppTheme.colors.textTertiary) },
+                    isError = upiError != null,
+                    supportingText = {
+                        if (upiError != null) {
+                            Text(upiError ?: "", color = CoralRed)
+                        } else {
+                            Text(
+                                "Format validation checks syntax only; does not verify account ownership.",
+                                color = AppTheme.colors.textTertiary,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(color = AppTheme.colors.textPrimary),
+                    colors = rupeeFlowTextFieldColors(),
+                    shape = RoundedCornerShape(14.dp)
+                )
+
+                if (friend.upiVerifiedName != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Confirmed Recipient: ${friend.upiVerifiedName}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = EmeraldMint,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 // Notes Field
                 OutlinedTextField(
                     value = notes,
@@ -339,12 +395,18 @@ fun EditFriendDialog(
                         onClick = {
                             if (validate()) {
                                 isSaving = true
+                                val cleanUpi = upiId.trim().takeIf { it.isNotBlank() }
+                                val upiChanged = cleanUpi != friend.upiId
                                 val updated = friend.copy(
                                     name = name.trim(),
                                     phoneNumber = phone.trim().takeIf { it.isNotBlank() },
                                     email = email.trim().takeIf { it.isNotBlank() },
                                     notes = notes.trim().takeIf { it.isNotBlank() },
-                                    profileImagePath = profileImagePath
+                                    profileImagePath = profileImagePath,
+                                    upiId = cleanUpi,
+                                    upiVerifiedName = upiVerifiedName.trim().takeIf { it.isNotBlank() },
+                                    upiVerificationStatus = if (cleanUpi == null) com.naman.rupeeflow.domain.model.FriendUpiVerificationStatus.UNVERIFIED else friend.upiVerificationStatus,
+                                    upiLastUpdated = if (upiChanged) System.currentTimeMillis() else friend.upiLastUpdated
                                 )
                                 onSave(updated)
                             }

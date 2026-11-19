@@ -173,14 +173,24 @@ class FriendsViewModel(
         }
     }
 
-    fun addFriend(name: String, phone: String?, email: String?, notes: String?, profileImagePath: String? = null) {
+    fun addFriend(
+        name: String,
+        phone: String?,
+        email: String?,
+        notes: String?,
+        profileImagePath: String? = null,
+        upiId: String? = null
+    ) {
         viewModelScope.launch {
+            val cleanUpi = upiId?.trim()?.takeIf { it.isNotBlank() }
             val friend = Friend(
                 name = name.trim(),
                 phoneNumber = phone?.trim()?.takeIf { it.isNotBlank() },
                 email = email?.trim()?.takeIf { it.isNotBlank() },
                 notes = notes?.trim()?.takeIf { it.isNotBlank() },
-                profileImagePath = profileImagePath
+                profileImagePath = profileImagePath,
+                upiId = cleanUpi,
+                upiLastUpdated = if (cleanUpi != null) System.currentTimeMillis() else null
             )
             val newFriendId = friendRepository.addFriend(friend)
 

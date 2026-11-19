@@ -66,6 +66,9 @@ fun SplitProGroupDetailScreen(
     var showAddExpenseDialog by remember { mutableStateOf(false) }
     var showEditGroupDialog by remember { mutableStateOf(false) }
     var showSettleUpDialog by remember { mutableStateOf(false) }
+    var showUpiSettlementDialog by remember { mutableStateOf(false) }
+    var upiTargetFriend by remember { mutableStateOf<Friend?>(null) }
+    var upiTargetAmountPaise by remember { mutableStateOf(0L) }
     var settleUpPayerId by remember { mutableStateOf<Long?>(null) }
     var settleUpReceiverId by remember { mutableStateOf<Long?>(null) }
     var settleUpAmountPaise by remember { mutableStateOf<Long?>(null) }
@@ -834,6 +837,30 @@ fun SplitProGroupDetailScreen(
             onConfirmSettlement = { settlement ->
                 viewModel.recordGroupSettlement(settlement)
                 showSettleUpDialog = false
+            },
+            onPayWithUpi = { friendId, amountPaise ->
+                upiTargetFriend = state.friends.firstOrNull { it.id == friendId }
+                upiTargetAmountPaise = amountPaise
+                showUpiSettlementDialog = true
+            }
+        )
+    }
+
+    // Direct UPI Settlement Dialog
+    if (showUpiSettlementDialog && upiTargetFriend != null && group != null) {
+        UpiSettlementDialog(
+            initialFriend = upiTargetFriend,
+            group = group,
+            outstandingDebtPaise = upiTargetAmountPaise,
+            upiSettlementManager = viewModel.upiSettlementManager,
+            onFriendUpdated = { updated -> viewModel.updateFriend(updated) },
+            onDismiss = {
+                showUpiSettlementDialog = false
+                upiTargetFriend = null
+            },
+            onSettlementCompleted = {
+                showUpiSettlementDialog = false
+                upiTargetFriend = null
             }
         )
     }

@@ -29,7 +29,11 @@ data class FriendEntity(
     val notes: String? = null,
     val profileImagePath: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
-    val isArchived: Boolean = false
+    val isArchived: Boolean = false,
+    val upiId: String? = null,
+    val upiVerifiedName: String? = null,
+    val upiVerificationStatus: FriendUpiVerificationStatus = FriendUpiVerificationStatus.UNVERIFIED,
+    val upiLastUpdated: Long? = null
 )
 
 @Entity(
@@ -173,7 +177,13 @@ data class SettlementEntity(
     val groupId: Long? = null,
     val proofImagePath: String? = null,
     val isReversed: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val upiPaymentStatus: SettlementPaymentStatus = SettlementPaymentStatus.SUCCESS,
+    val upiVerificationStatus: SettlementVerificationStatus = SettlementVerificationStatus.MANUAL_UNVERIFIED,
+    val upiTransactionRef: String? = null,
+    val upiResponseRaw: String? = null,
+    val upiPayerVpa: String? = null,
+    val upiReceiverVpa: String? = null
 )
 
 // Group Activity entity for tracking timeline events inside Split Pro groups

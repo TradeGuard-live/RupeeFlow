@@ -41,6 +41,7 @@ fun SplitProScreen(
 
     var showCreateGroupDialog by remember { mutableStateOf(false) }
     var showAddExpenseDialog by remember { mutableStateOf(false) }
+    var showUpiSettlementDialog by remember { mutableStateOf(false) }
     var selectedGroupForExpense by remember { mutableStateOf<ExpenseGroup?>(null) }
 
     Scaffold(
@@ -186,7 +187,9 @@ fun SplitProScreen(
                             Text(CurrencyUtils.formatPaiseToRupees(state.totalGroupExpensesPaise), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = AppTheme.colors.textPrimary)
                         }
                         Divider(modifier = Modifier.height(28.dp).width(1.dp), color = AppTheme.colors.divider)
-                        Column {
+                        Column(
+                            modifier = Modifier.clickable { showUpiSettlementDialog = true }
+                        ) {
                             Text("Settlements Due", style = MaterialTheme.typography.labelSmall, color = AppTheme.colors.textSecondary)
                             Text("${state.upcomingSettlementsCount}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = AmberGold)
                         }
@@ -194,19 +197,20 @@ fun SplitProScreen(
                 }
             }
 
-            // 2. Action Buttons Row: Create Group, Add Expense, View All Groups
+            // 2. Action Buttons Row: Create Group, Add Expense, Pay with UPI, View Archive
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     FilledTonalButton(
                         onClick = { showCreateGroupDialog = true },
                         modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(Icons.Default.GroupAdd, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(Icons.Default.GroupAdd, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text("Create", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
 
@@ -218,25 +222,42 @@ fun SplitProScreen(
                             }
                         },
                         modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                         shape = RoundedCornerShape(12.dp),
                         enabled = state.groups.isNotEmpty()
                     ) {
-                        Icon(Icons.Default.AddCard, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(Icons.Default.AddCard, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text("Expense", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    }
+
+                    FilledTonalButton(
+                        onClick = { showUpiSettlementDialog = true },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = EmeraldMint.copy(alpha = 0.18f),
+                            contentColor = EmeraldMint
+                        )
+                    ) {
+                        Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(15.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Pay UPI", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
 
                     OutlinedButton(
                         onClick = { viewModel.setShowArchived(!state.showArchived) },
                         modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(
                             imageVector = if (state.showArchived) Icons.Default.VisibilityOff else Icons.Default.Archive,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text(if (state.showArchived) "Active" else "Archive", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                     }
                 }
@@ -553,6 +574,19 @@ fun SplitProScreen(
                 viewModel.saveGroupExpense(newTxn)
                 showAddExpenseDialog = false
                 selectedGroupForExpense = null
+            }
+        )
+    }
+
+    // Direct UPI Settlement Dialog
+    if (showUpiSettlementDialog) {
+        UpiSettlementDialog(
+            availableFriends = state.friends,
+            upiSettlementManager = viewModel.upiSettlementManager,
+            onFriendUpdated = { updated -> viewModel.updateFriend(updated) },
+            onDismiss = { showUpiSettlementDialog = false },
+            onSettlementCompleted = {
+                showUpiSettlementDialog = false
             }
         )
     }
