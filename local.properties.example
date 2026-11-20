@@ -1,0 +1,15 @@
+## RupeeFlow Local Properties Template
+## Copy this file to 'local.properties' and fill in your local Android SDK and signing configuration.
+## WARNING: Never commit 'local.properties' or keystore files to version control.
+
+# Local Android SDK Directory Path
+sdk.dir=/path/to/Android/Sdk
+
+# Release Keystore Signing Configuration (Optional for debug, required for release builds)
+# These may also be supplied via environment variables:
+# KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD
+release.keystore=/path/to/release.keystore
+release.keystore.password=YourKeystorePasswordHere
+release.key.alias=YourKeyAliasHere
+release.key.password=YourKeyPasswordHere
+

@@ -27,6 +27,25 @@ object RupeeFlowWidgetManager {
     private val scope = CoroutineScope(Dispatchers.IO)
 
     /**
+     * Checks if biometric lock is enabled and the session is currently locked.
+     * When locked, widget displays redacted placeholders instead of confidential financial figures.
+     */
+    suspend fun isAppLocked(context: Context): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val app = context.applicationContext as? RupeeFlowApplication ?: return@withContext false
+            val userPrefs = app.appContainer.userPreferencesRepository.userPreferencesFlow.firstOrNull()
+            if (userPrefs?.biometricLockEnabled == true) {
+                val lockState = app.appContainer.appLockManager.lockState.value
+                lockState != com.naman.rupeeflow.security.AppLockState.UNLOCKED
+            } else {
+                false
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
      * Safely loads the financial summary from Room database without blocking the UI thread.
      * Returns a zeroed-out summary on missing data, errors, or lock state.
      */
@@ -58,16 +77,17 @@ object RupeeFlowWidgetManager {
      */
     fun updateAllWidgets(context: Context) {
         scope.launch {
-            val summary = getFinancialSummary(context)
+            val locked = isAppLocked(context)
+            val summary = if (locked) FinancialSummary() else getFinancialSummary(context)
             withContext(Dispatchers.Main) {
-                updateMoneySnapshotWidgets(context, summary)
+                updateMoneySnapshotWidgets(context, summary, locked)
                 updateQuickAddWidgets(context)
-                updateSpendingSummaryWidgets(context, summary)
+                updateSpendingSummaryWidgets(context, summary, locked)
             }
         }
     }
 
-    fun updateMoneySnapshotWidgets(context: Context, summary: FinancialSummary) {
+    fun updateMoneySnapshotWidgets(context: Context, summary: FinancialSummary, isLocked: Boolean = false) {
         val appWidgetManager = AppWidgetManager.getInstance(context) ?: return
         val componentName = ComponentName(context, MoneySnapshotWidgetProvider::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
@@ -80,12 +100,21 @@ object RupeeFlowWidgetManager {
 
         for (widgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_money_snapshot)
-            views.setTextViewText(R.id.widget_month_label, currentMonthLabel)
-            views.setTextViewText(R.id.widget_spent_amount, CurrencyUtils.formatPaiseToRupees(summary.totalExpenseThisMonthPaise))
-            views.setTextViewText(R.id.widget_income_amount, CurrencyUtils.formatPaiseToRupees(summary.totalIncomeThisMonthPaise))
-            views.setTextViewText(R.id.widget_savings_amount, CurrencyUtils.formatPaiseToRupees(savings))
-            views.setTextViewText(R.id.widget_owed_to_me_amount, CurrencyUtils.formatPaiseToRupees(summary.totalOwedToMePaise))
-            views.setTextViewText(R.id.widget_i_owe_amount, CurrencyUtils.formatPaiseToRupees(summary.totalIOwePaise))
+            if (isLocked) {
+                views.setTextViewText(R.id.widget_month_label, "RupeeFlow • Locked")
+                views.setTextViewText(R.id.widget_spent_amount, "••••••")
+                views.setTextViewText(R.id.widget_income_amount, "••••••")
+                views.setTextViewText(R.id.widget_savings_amount, "••••••")
+                views.setTextViewText(R.id.widget_owed_to_me_amount, "••••••")
+                views.setTextViewText(R.id.widget_i_owe_amount, "••••••")
+            } else {
+                views.setTextViewText(R.id.widget_month_label, currentMonthLabel)
+                views.setTextViewText(R.id.widget_spent_amount, CurrencyUtils.formatPaiseToRupees(summary.totalExpenseThisMonthPaise))
+                views.setTextViewText(R.id.widget_income_amount, CurrencyUtils.formatPaiseToRupees(summary.totalIncomeThisMonthPaise))
+                views.setTextViewText(R.id.widget_savings_amount, CurrencyUtils.formatPaiseToRupees(savings))
+                views.setTextViewText(R.id.widget_owed_to_me_amount, CurrencyUtils.formatPaiseToRupees(summary.totalOwedToMePaise))
+                views.setTextViewText(R.id.widget_i_owe_amount, CurrencyUtils.formatPaiseToRupees(summary.totalIOwePaise))
+            }
 
             val pendingIntent = getLaunchAppPendingIntent(context, "overview")
             views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
@@ -108,7 +137,7 @@ object RupeeFlowWidgetManager {
         }
     }
 
-    fun updateSpendingSummaryWidgets(context: Context, summary: FinancialSummary) {
+    fun updateSpendingSummaryWidgets(context: Context, summary: FinancialSummary, isLocked: Boolean = false) {
         val appWidgetManager = AppWidgetManager.getInstance(context) ?: return
         val componentName = ComponentName(context, SpendingSummaryWidgetProvider::class.java)
         val appWidgetIds = appWidgetManager.getAppWidgetIds(componentName)
@@ -121,16 +150,23 @@ object RupeeFlowWidgetManager {
 
         for (widgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_spending_summary)
-            views.setTextViewText(R.id.widget_summary_month, currentMonthLabel)
-            views.setTextViewText(R.id.widget_summary_total, CurrencyUtils.formatPaiseToRupees(summary.totalExpenseThisMonthPaise))
-            views.setTextViewText(R.id.widget_summary_daily_avg, CurrencyUtils.formatPaiseToRupees(dailyAvg))
-
-            val note = if (summary.totalExpenseThisMonthPaise > 0L) {
-                "Average ${CurrencyUtils.formatPaiseToRupees(dailyAvg)}/day"
+            if (isLocked) {
+                views.setTextViewText(R.id.widget_summary_month, "RupeeFlow • Locked")
+                views.setTextViewText(R.id.widget_summary_total, "••••••")
+                views.setTextViewText(R.id.widget_summary_daily_avg, "••••••")
+                views.setTextViewText(R.id.widget_summary_note, "Tap to unlock in RupeeFlow")
             } else {
-                "No expenses yet this month"
+                views.setTextViewText(R.id.widget_summary_month, currentMonthLabel)
+                views.setTextViewText(R.id.widget_summary_total, CurrencyUtils.formatPaiseToRupees(summary.totalExpenseThisMonthPaise))
+                views.setTextViewText(R.id.widget_summary_daily_avg, CurrencyUtils.formatPaiseToRupees(dailyAvg))
+
+                val note = if (summary.totalExpenseThisMonthPaise > 0L) {
+                    "Average ${CurrencyUtils.formatPaiseToRupees(dailyAvg)}/day"
+                } else {
+                    "No expenses yet this month"
+                }
+                views.setTextViewText(R.id.widget_summary_note, note)
             }
-            views.setTextViewText(R.id.widget_summary_note, note)
 
             val pendingIntent = getLaunchAppPendingIntent(context, "overview")
             views.setOnClickPendingIntent(R.id.widget_summary_root, pendingIntent)

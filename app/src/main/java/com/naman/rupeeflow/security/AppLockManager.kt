@@ -112,6 +112,7 @@ class AppLockManager(
                 Log.d(TAG, "Relocking application on return from background")
                 isSessionUnlocked = false
                 _lockState.value = AppLockState.LOCKED
+                com.naman.rupeeflow.widget.RupeeFlowWidgetManager.updateAllWidgets(activity)
             }
         }
     }
@@ -128,6 +129,10 @@ class AppLockManager(
             appWentToBackground = true
             lastBackgroundTime = System.currentTimeMillis()
             Log.d(TAG, "Application genuinely entered background at $lastBackgroundTime")
+            if (_isBiometricEnabled.value) {
+                // Instantly redact widget values on home screen when app backgrounds
+                com.naman.rupeeflow.widget.RupeeFlowWidgetManager.updateAllWidgets(activity)
+            }
         }
     }
 

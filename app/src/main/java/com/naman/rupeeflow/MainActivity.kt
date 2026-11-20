@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.view.WindowManager
 import androidx.navigation.compose.rememberNavController
 import com.naman.rupeeflow.security.AppLockState
 import com.naman.rupeeflow.ui.AppViewModelProvider
@@ -26,6 +27,7 @@ import com.naman.rupeeflow.ui.screens.lock.AppLockScreen
 import com.naman.rupeeflow.ui.screens.lock.AppLockViewModel
 import com.naman.rupeeflow.ui.theme.AppTheme
 import com.naman.rupeeflow.ui.theme.RupeeFlowTheme
+import com.naman.rupeeflow.widget.RupeeFlowWidgetManager
 
 class MainActivity : FragmentActivity() {
 
@@ -54,6 +56,21 @@ class MainActivity : FragmentActivity() {
             val lockState by appLockViewModel.lockState.collectAsStateWithLifecycle()
             val isBiometricEnabled by appLockViewModel.isBiometricEnabled.collectAsStateWithLifecycle()
             val navController = rememberNavController()
+
+            // Security Hardening: Apply FLAG_SECURE to prevent task switcher snapshot leaks
+            // and unauthorized screen captures whenever biometric lock is enabled or locked
+            LaunchedEffect(isBiometricEnabled, lockState) {
+                if (isBiometricEnabled || lockState == AppLockState.LOCKED) {
+                    window.setFlags(
+                        WindowManager.LayoutParams.FLAG_SECURE,
+                        WindowManager.LayoutParams.FLAG_SECURE
+                    )
+                } else {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                }
+                // Sync home screen widgets with current lock state (redacts when locked)
+                RupeeFlowWidgetManager.updateAllWidgets(this@MainActivity)
+            }
 
             RupeeFlowTheme(themeMode = userPrefs.themeMode) {
                 Surface(
