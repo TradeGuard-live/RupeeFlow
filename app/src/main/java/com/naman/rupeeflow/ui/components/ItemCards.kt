@@ -39,6 +39,7 @@ import com.naman.rupeeflow.ui.theme.*
 fun TransactionItemCard(
     transaction: Transaction,
     modifier: Modifier = Modifier,
+    allocatedAmountPaise: Long? = null,
     onClick: () -> Unit
 ) {
     val isLight = !AppTheme.isDark
@@ -230,9 +231,14 @@ fun TransactionItemCard(
                 verticalArrangement = Arrangement.Center
             ) {
                 if (transaction.isSplit && transaction.transactionType == TransactionType.EXPENSE) {
+                    val displayedPaise = if (allocatedAmountPaise != null && transaction.isSpread && transaction.spreadDurationDays > 1) {
+                        allocatedAmountPaise
+                    } else {
+                        transaction.userExpensePaise
+                    }
                     // Upper: User's split share prominent, larger, and bold with semantic coloring
                     Text(
-                        text = "$amountPrefix${CurrencyUtils.formatPaiseToRupees(transaction.userExpensePaise)}",
+                        text = "$amountPrefix${CurrencyUtils.formatPaiseToRupees(displayedPaise)}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = amountColor,
@@ -242,8 +248,13 @@ fun TransactionItemCard(
                     Spacer(modifier = Modifier.height(2.dp))
 
                     // Lower: Total transaction amount smaller, secondary text
+                    val totalLabel = if (allocatedAmountPaise != null && transaction.isSpread && transaction.spreadDurationDays > 1) {
+                        "Your share: ${CurrencyUtils.formatPaiseToRupees(transaction.userExpensePaise)} (Total: ${CurrencyUtils.formatPaiseToRupees(transaction.amountPaise)})"
+                    } else {
+                        "Total amount: ${CurrencyUtils.formatPaiseToRupees(transaction.amountPaise)}"
+                    }
                     Text(
-                        text = "Total amount: ${CurrencyUtils.formatPaiseToRupees(transaction.amountPaise)}",
+                        text = totalLabel,
                         style = MaterialTheme.typography.labelSmall,
                         color = AppTheme.colors.textSecondary,
                         fontSize = 11.sp,
@@ -259,6 +270,25 @@ fun TransactionItemCard(
                             fontSize = 10.sp
                         )
                     }
+                } else if (allocatedAmountPaise != null && transaction.isSpread && transaction.spreadDurationDays > 1) {
+                    // Spread transaction in Calendar view: show day's allocation prominent, total secondary
+                    Text(
+                        text = "$amountPrefix${CurrencyUtils.formatPaiseToRupees(allocatedAmountPaise)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = amountColor,
+                        textDecoration = if (transaction.isIgnored) TextDecoration.LineThrough else null
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Text(
+                        text = "Total: ${CurrencyUtils.formatPaiseToRupees(transaction.amountPaise)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AppTheme.colors.textSecondary,
+                        fontSize = 11.sp,
+                        textDecoration = if (transaction.isIgnored) TextDecoration.LineThrough else null
+                    )
                 } else {
                     // For non-split transactions, income, refunds, transfers:
                     // Total amount displayed prominently with no misleading split share

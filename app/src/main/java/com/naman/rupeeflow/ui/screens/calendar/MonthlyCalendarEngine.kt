@@ -160,10 +160,42 @@ object MonthlyCalendarEngine {
                 continue
             }
 
-            cal.timeInMillis = txn.transactionDate
-            if (cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) == month) {
-                val day = cal.get(Calendar.DAY_OF_MONTH)
-                dayMap.getOrPut(day) { mutableListOf() }.add(txn)
+            if (txn.isSpread && (txn.allocations.isNotEmpty() || txn.spreadDurationDays > 1)) {
+                // Spread expense: index on each allocation date falling in this month for calendar view
+                val effectiveAllocations = if (txn.allocations.isNotEmpty()) {
+                    txn.allocations
+                } else {
+                    val calc = com.naman.rupeeflow.domain.util.ExpenseAllocationCalculator.calculateAllocations(
+                        amountPaise = txn.amountPaise,
+                        durationDays = txn.spreadDurationDays,
+                        startDateMillis = txn.spreadStartDate ?: txn.transactionDate,
+                        timeZone = timeZone
+                    )
+                    calc.map {
+                        com.naman.rupeeflow.domain.model.ExpenseAllocation(
+                            id = 0L,
+                            transactionId = txn.id,
+                            allocationDate = it.allocationDate,
+                            amountPaise = it.amountPaise
+                        )
+                    }
+                }
+                for (allocation in effectiveAllocations) {
+                    cal.timeInMillis = allocation.allocationDate
+                    if (cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) == month) {
+                        val day = cal.get(Calendar.DAY_OF_MONTH)
+                        val list = dayMap.getOrPut(day) { mutableListOf() }
+                        if (!list.any { it.id == txn.id }) {
+                            list.add(txn)
+                        }
+                    }
+                }
+            } else {
+                cal.timeInMillis = txn.transactionDate
+                if (cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) == month) {
+                    val day = cal.get(Calendar.DAY_OF_MONTH)
+                    dayMap.getOrPut(day) { mutableListOf() }.add(txn)
+                }
             }
         }
 
@@ -198,7 +230,11 @@ object MonthlyCalendarEngine {
                 val activeTxn = if (txn.isIgnored) txn.copy(transactionStatus = TransactionStatus.ACTIVE) else txn
                 when (txn.transactionType) {
                     TransactionType.EXPENSE, TransactionType.UPI_LITE_PAYMENT -> {
-                        val share = PersonalFinancialAggregator.calculatePersonalExpense(activeTxn)
+                        val share = if (activeTxn.isSpread && (activeTxn.allocations.isNotEmpty() || activeTxn.spreadDurationDays > 1)) {
+                            calculateDaySpreadExpense(activeTxn, dayStart, dayEndExclusive, timeZone)
+                        } else {
+                            PersonalFinancialAggregator.calculatePersonalExpense(activeTxn)
+                        }
                         expenseTotal = SafeMath.safeAdd(expenseTotal, share)
                     }
                     TransactionType.INCOME -> {
@@ -234,6 +270,50 @@ object MonthlyCalendarEngine {
         }
 
         return result
+    }
+
+    /**
+     * Calculates the personal expense allocated to a specific day period for a spread transaction in the calendar.
+     * Guarantees deterministic paise distribution without floating-point math.
+     */
+    fun calculateDaySpreadExpense(
+        transaction: Transaction,
+        dayStartMillis: Long,
+        dayEndMillisExclusive: Long,
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): Long {
+        val totalPersonal = PersonalFinancialAggregator.calculatePersonalExpense(transaction)
+        if (totalPersonal <= 0L) return 0L
+
+        return if (transaction.isSplit && transaction.amountPaise > 0L) {
+            val personalAllocations = com.naman.rupeeflow.domain.util.ExpenseAllocationCalculator.calculateAllocations(
+                amountPaise = totalPersonal,
+                durationDays = transaction.spreadDurationDays,
+                startDateMillis = transaction.spreadStartDate ?: transaction.transactionDate,
+                timeZone = timeZone
+            )
+            personalAllocations.filter {
+                (it.allocationDate in dayStartMillis until dayEndMillisExclusive) ||
+                isSameDay(it.allocationDate, dayStartMillis, timeZone)
+            }.sumOf { it.amountPaise }
+        } else {
+            val allocations = if (transaction.allocations.isNotEmpty()) {
+                transaction.allocations.map {
+                    com.naman.rupeeflow.domain.util.ExpenseAllocationCalculator.CalculatedAllocation(it.allocationDate, it.amountPaise)
+                }
+            } else {
+                com.naman.rupeeflow.domain.util.ExpenseAllocationCalculator.calculateAllocations(
+                    amountPaise = transaction.amountPaise,
+                    durationDays = transaction.spreadDurationDays,
+                    startDateMillis = transaction.spreadStartDate ?: transaction.transactionDate,
+                    timeZone = timeZone
+                )
+            }
+            allocations.filter {
+                (it.allocationDate in dayStartMillis until dayEndMillisExclusive) ||
+                isSameDay(it.allocationDate, dayStartMillis, timeZone)
+            }.sumOf { it.amountPaise }
+        }
     }
 
     fun computeMonthGrid(

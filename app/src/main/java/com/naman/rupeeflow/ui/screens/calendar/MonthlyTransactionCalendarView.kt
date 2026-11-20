@@ -371,8 +371,17 @@ fun MonthlyTransactionCalendarView(
                 items = transactions,
                 key = { "cal_txn_${it.id}" }
             ) { txn ->
+                val dayAllocatedPaise = if (txn.isSpread && (txn.allocations.isNotEmpty() || txn.spreadDurationDays > 1) && selectedDaySummary != null) {
+                    MonthlyCalendarEngine.calculateDaySpreadExpense(
+                        transaction = txn,
+                        dayStartMillis = selectedDaySummary.dateMillis,
+                        dayEndMillisExclusive = selectedDaySummary.dateMillis + 86_400_000L
+                    )
+                } else null
+
                 TransactionItemCard(
                     transaction = txn,
+                    allocatedAmountPaise = dayAllocatedPaise,
                     onClick = { onTransactionClick(txn) }
                 )
             }

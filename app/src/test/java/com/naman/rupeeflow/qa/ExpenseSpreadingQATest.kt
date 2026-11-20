@@ -705,7 +705,7 @@ class ExpenseSpreadingQATest {
     // ------------------------------------------------------------------------
     @Test
     fun test17_MonthlyCalendarSummaries_DayWiseAllocationInMonthlyCalendarEngine() = runBlocking {
-        // Milk ₹60 over 5 days (Nov 19 to Nov 23)
+        // Milk ₹60 over 5 days (Nov 19 to Nov 23) -> ₹12/day in calendar section
         val startDate = makeCalendarTimestamp(2026, Calendar.NOVEMBER, 19, 10)
         val spread = Transaction(
             id = 0L,
@@ -731,12 +731,74 @@ class ExpenseSpreadingQATest {
 
         // Nov 18 should have 0
         assertEquals(0L, calendarSummaries[18]?.totalExpensePaise ?: 0L)
-        // Nov 19 (transaction date) has the full ₹60 expense
-        assertEquals(6000L, calendarSummaries[19]?.totalExpensePaise ?: 0L)
-        // Other days unaffected
-        for (day in 20..24) {
-            assertEquals(0L, calendarSummaries[day]?.totalExpensePaise ?: 0L)
+        // Nov 19 to 23 should each have ₹12 (1200 paise) allocated in calendar section
+        for (day in 19..23) {
+            val daySummary = calendarSummaries[day]
+            assertNotNull("Day $day must have summary", daySummary)
+            assertEquals("Day $day must allocate 1200 paise in calendar", 1200L, daySummary!!.totalExpensePaise)
+            assertEquals("Day $day must include the spread transaction in calendar", 1, daySummary.transactionCount)
+            assertEquals("Milk", daySummary.transactions[0].title)
         }
+        // Nov 24 should have 0
+        assertEquals(0L, calendarSummaries[24]?.totalExpensePaise ?: 0L)
+    }
+
+    // ------------------------------------------------------------------------
+    // Scenario 17B: Calendar Section vs Analytics/Reports Isolation
+    // Verifies spread expense impacts calendar section but NOT analytics/reports
+    // ------------------------------------------------------------------------
+    @Test
+    fun test17B_CalendarImpactVsAnalyticsIsolation_CrossMonthSpread() = runBlocking {
+        // ₹90 over 3 days (Oct 30, Oct 31, Nov 1) -> ₹30/day (3000 paise/day)
+        val oct30 = makeCalendarTimestamp(2026, Calendar.OCTOBER, 30, 10)
+        val spreadTxn = Transaction(
+            id = 0L,
+            title = "Gym Supplement",
+            amountPaise = 9000L,
+            categoryId = 1L,
+            transactionDate = oct30,
+            paymentMethod = PaymentMethod.UPI,
+            transactionType = TransactionType.EXPENSE,
+            isSpread = true,
+            spreadDurationDays = 3,
+            spreadStartDate = oct30
+        )
+        val id = transactionRepository.saveTransaction(spreadTxn)
+        val loaded = transactionRepository.getTransactionById(id)!!
+
+        // 1. CALENDAR SECTION:
+        // October calendar grid: Oct 30 = ₹30, Oct 31 = ₹30, Month Total = ₹60 (6000 paise)
+        val octGrid = MonthlyCalendarEngine.computeMonthGrid(
+            year = 2026,
+            month = Calendar.OCTOBER,
+            transactions = listOf(loaded),
+            timeZone = defaultTz
+        )
+        assertEquals(6000L, octGrid.totalMonthExpensePaise)
+        assertEquals(3000L, octGrid.cells.first { it.isCurrentMonth && it.dayOfMonth == 30 }.summary?.totalExpensePaise)
+        assertEquals(3000L, octGrid.cells.first { it.isCurrentMonth && it.dayOfMonth == 31 }.summary?.totalExpensePaise)
+
+        // November calendar grid: Nov 1 = ₹30, Month Total = ₹30 (3000 paise)
+        val novGrid = MonthlyCalendarEngine.computeMonthGrid(
+            year = 2026,
+            month = Calendar.NOVEMBER,
+            transactions = listOf(loaded),
+            timeZone = defaultTz
+        )
+        assertEquals(3000L, novGrid.totalMonthExpensePaise)
+        assertEquals(3000L, novGrid.cells.first { it.isCurrentMonth && it.dayOfMonth == 1 }.summary?.totalExpensePaise)
+
+        // 2. ANALYTICS & REPORTS (Not affected by spreading; 100% on transaction date Oct 30):
+        val octStart = makeCalendarTimestamp(2026, Calendar.OCTOBER, 1, 0)
+        val octEnd = makeCalendarTimestamp(2026, Calendar.NOVEMBER, 1, 0)
+        val novStart = makeCalendarTimestamp(2026, Calendar.NOVEMBER, 1, 0)
+        val novEnd = makeCalendarTimestamp(2026, Calendar.DECEMBER, 1, 0)
+
+        val octAnalytics = PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(loaded, octStart, octEnd)
+        val novAnalytics = PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(loaded, novStart, novEnd)
+
+        assertEquals("Analytics October must receive full ₹90 on transaction date", 9000L, octAnalytics)
+        assertEquals("Analytics November must NOT be affected by spreading", 0L, novAnalytics)
     }
 
     // ------------------------------------------------------------------------
