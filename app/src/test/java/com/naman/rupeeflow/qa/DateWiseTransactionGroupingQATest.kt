@@ -33,7 +33,6 @@ import java.util.Locale
 import java.util.TimeZone
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
 class DateWiseTransactionGroupingQATest {
 
     private lateinit var database: RupeeFlowDatabase

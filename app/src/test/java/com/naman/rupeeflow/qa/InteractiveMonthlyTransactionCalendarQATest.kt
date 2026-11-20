@@ -31,7 +31,6 @@ import java.util.Locale
 import java.util.TimeZone
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [33])
 class InteractiveMonthlyTransactionCalendarQATest {
 
     private lateinit var database: RupeeFlowDatabase
@@ -89,7 +88,7 @@ class InteractiveMonthlyTransactionCalendarQATest {
         } catch (_: Exception) {}
         try {
             Dispatchers.resetMain()
-        } catch (_: Exception) {}
+        } catch (_: Throwable) {}
     }
 
     private fun createTransactionsViewModel(

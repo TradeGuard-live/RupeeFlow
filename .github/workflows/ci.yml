@@ -39,6 +39,30 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Cache Robolectric Android-All JARs
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: ${{ runner.os }}-robolectric-14-10818077-i7
+          restore-keys: |
+            ${{ runner.os }}-robolectric-
+
+      - name: Pre-fetch Robolectric Android SDK Dependencies
+        run: |
+          ROBO_DIR="$HOME/.m2/repository/org/robolectric/android-all-instrumented/14-robolectric-10818077-i7"
+          if [ ! -f "$ROBO_DIR/android-all-instrumented-14-robolectric-10818077-i7.jar" ]; then
+            echo "Pre-fetching Robolectric SDK 34 instrumented JAR to prevent CI network fetch failures..."
+            mkdir -p "$ROBO_DIR"
+            curl -L --retry 5 --retry-delay 3 --retry-connrefused \
+              -o "$ROBO_DIR/android-all-instrumented-14-robolectric-10818077-i7.jar" \
+              https://repo1.maven.org/maven2/org/robolectric/android-all-instrumented/14-robolectric-10818077-i7/android-all-instrumented-14-robolectric-10818077-i7.jar
+            curl -L --retry 5 --retry-delay 3 --retry-connrefused \
+              -o "$ROBO_DIR/android-all-instrumented-14-robolectric-10818077-i7.pom" \
+              https://repo1.maven.org/maven2/org/robolectric/android-all-instrumented/14-robolectric-10818077-i7/android-all-instrumented-14-robolectric-10818077-i7.pom
+          else
+            echo "Robolectric SDK 34 instrumented JAR already present in cache."
+          fi
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
