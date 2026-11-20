@@ -32,6 +32,7 @@ import com.naman.rupeeflow.domain.matching.MerchantNormalizer
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
+import com.naman.rupeeflow.domain.util.ExpenseAllocationCalculator
 import com.naman.rupeeflow.ui.theme.*
 import java.util.Calendar
 import kotlin.math.abs
@@ -147,8 +148,14 @@ fun EditTransactionDialog(
     // 14. Merchant
     var merchantName by remember { mutableStateOf(transaction.merchantName ?: "") }
 
-    // 15. Reference number
-    var referenceNumber by remember { mutableStateOf(transaction.referenceNumber ?: "") }
+    // 15. Reference number & UPI Reference Number
+    var referenceNumber by remember { mutableStateOf(transaction.referenceNumber ?: transaction.upiReferenceNumber ?: "") }
+    var upiReferenceNumber by remember { mutableStateOf(transaction.upiReferenceNumber ?: transaction.referenceNumber ?: "") }
+
+    // 16. Expense Spreading across days
+    var isSpreadExpense by rememberSaveable { mutableStateOf(transaction.isSpread) }
+    var spreadStartDateMillis by rememberSaveable { mutableStateOf(transaction.spreadStartDate ?: transaction.transactionDate) }
+    var spreadDurationDays by rememberSaveable { mutableIntStateOf(if (transaction.spreadDurationDays > 1) transaction.spreadDurationDays else 5) }
 
     // Location state & merchant memory
     var attachedLocation by remember { mutableStateOf<TransactionLocation?>(transaction.location) }
@@ -191,7 +198,8 @@ fun EditTransactionDialog(
         title, description, amountText, selectedCategory, selectedType,
         selectedDateTimeMillis, selectedPaymentMethod, accountSource,
         selectedPayerId, isSplitEnabled, isMeIncluded, selectedFriendIds,
-        splitMethod, merchantName, referenceNumber, attachedLocation
+        splitMethod, merchantName, referenceNumber, upiReferenceNumber, attachedLocation,
+        isSpreadExpense, spreadDurationDays, spreadStartDateMillis
     ) {
         title != transaction.title ||
                 description != transaction.description ||
@@ -205,7 +213,10 @@ fun EditTransactionDialog(
                 isSplitEnabled != initialHasParticipants ||
                 merchantName != (transaction.merchantName ?: "") ||
                 referenceNumber != (transaction.referenceNumber ?: "") ||
-                attachedLocation != transaction.location
+                upiReferenceNumber != (transaction.upiReferenceNumber ?: "") ||
+                attachedLocation != transaction.location ||
+                isSpreadExpense != transaction.isSpread ||
+                (isSpreadExpense && (spreadDurationDays != transaction.spreadDurationDays || spreadStartDateMillis != (transaction.spreadStartDate ?: transaction.transactionDate)))
     }
 
     ModalBottomSheet(
@@ -461,6 +472,29 @@ fun EditTransactionDialog(
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Expense Duration Spreading Section (Only for Expenses)
+            if (selectedType == TransactionType.EXPENSE) {
+                ExpenseSpreadingSection(
+                    isSpreadEnabled = isSpreadExpense,
+                    onSpreadEnabledChange = { enabled ->
+                        isSpreadExpense = enabled
+                        if (enabled && spreadStartDateMillis == 0L) {
+                            spreadStartDateMillis = selectedDateTimeMillis
+                        }
+                    },
+                    startDateMillis = spreadStartDateMillis,
+                    onStartDateChange = { newStart ->
+                        spreadStartDateMillis = newStart
+                        selectedDateTimeMillis = newStart
+                    },
+                    durationDays = spreadDurationDays,
+                    onDurationDaysChange = { spreadDurationDays = it },
+                    amountPaise = amountPaise
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
             // 7. Payment Method Selector Row
             Text(
                 text = "Payment Method",
@@ -506,10 +540,13 @@ fun EditTransactionDialog(
                 )
 
                 OutlinedTextField(
-                    value = referenceNumber,
-                    onValueChange = { referenceNumber = it },
-                    label = { Text("Reference / UTR", color = AppTheme.colors.textSecondary) },
-                    placeholder = { Text("e.g. UPI Ref", color = AppTheme.colors.textMuted) },
+                    value = upiReferenceNumber,
+                    onValueChange = {
+                        upiReferenceNumber = it
+                        referenceNumber = it
+                    },
+                    label = { Text("UPI Reference / UTR", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("e.g. 12-digit UTR ref no.", color = AppTheme.colors.textMuted) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     colors = rupeeFlowTextFieldColors(),
@@ -980,6 +1017,28 @@ fun EditTransactionDialog(
                 }
 
                 val cleanMerchant = merchantName.trim().takeIf { it.isNotBlank() }
+                val cleanRef = referenceNumber.trim().takeIf { it.isNotBlank() } ?: upiReferenceNumber.trim().takeIf { it.isNotBlank() }
+                val cleanUpiRef = upiReferenceNumber.trim().takeIf { it.isNotBlank() } ?: referenceNumber.trim().takeIf { it.isNotBlank() }
+
+                val isSpreadActive = selectedType == TransactionType.EXPENSE && isSpreadExpense && spreadDurationDays > 1
+                val spreadStart = if (isSpreadActive) ExpenseAllocationCalculator.normalizeToStartOfDay(spreadStartDateMillis) else null
+                val spreadEnd = if (isSpreadActive) ExpenseAllocationCalculator.calculateEndDate(spreadStart!!, spreadDurationDays) else null
+                val domainAllocations = if (isSpreadActive) {
+                    val calculated = ExpenseAllocationCalculator.calculateAllocations(
+                        amountPaise = amountPaise,
+                        durationDays = spreadDurationDays,
+                        startDateMillis = spreadStart!!
+                    )
+                    calculated.map {
+                        ExpenseAllocation(
+                            id = 0L,
+                            transactionId = transaction.id,
+                            allocationDate = it.allocationDate,
+                            amountPaise = it.amountPaise
+                        )
+                    }
+                } else emptyList()
+
                 // Preserve transaction.id and transaction.createdAt; update updatedAt
                 val updatedTransaction = transaction.copy(
                     title = finalTitle.trim(),
@@ -999,7 +1058,8 @@ fun EditTransactionDialog(
                     merchantNormalized = cleanMerchant?.let { MerchantNormalizer.normalize(it).takeIf { n -> n.isNotBlank() } },
                     rawMerchant = transaction.rawMerchant ?: cleanMerchant,
                     sourcePackage = transaction.sourcePackage,
-                    referenceNumber = referenceNumber.trim().takeIf { it.isNotBlank() },
+                    referenceNumber = cleanRef,
+                    upiReferenceNumber = cleanUpiRef,
                     groupId = selectedGroupFilterId,
                     expenseGroupId = selectedExpenseGroupId,
                     expenseGroupName = selectedExpenseGroupName,
@@ -1011,6 +1071,11 @@ fun EditTransactionDialog(
                     locationSource = attachedLocation?.locationSource,
                     locationLabel = attachedLocation?.locationLabel,
                     googleMapsUrl = attachedLocation?.googleMapsUrl,
+                    isSpread = isSpreadActive,
+                    spreadDurationDays = if (isSpreadActive) spreadDurationDays else 1,
+                    spreadStartDate = spreadStart,
+                    spreadEndDate = spreadEnd,
+                    allocations = domainAllocations,
                     updatedAt = System.currentTimeMillis()
                 )
 

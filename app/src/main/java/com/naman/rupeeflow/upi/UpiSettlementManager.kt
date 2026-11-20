@@ -65,6 +65,12 @@ class UpiSettlementManager(
             targetPackage = targetPackage
         )
 
+        UpiDiagnostics.logIntentBuilt(
+            action = intent.action ?: "android.intent.action.VIEW",
+            targetPackage = targetPackage,
+            uriString = intent.dataString
+        )
+
         return Pair(settlementId, intent)
     }
 
@@ -107,7 +113,9 @@ class UpiSettlementManager(
             return existing
         }
 
+        val returnedKeys = UpiResponseParser.extractResponseKeys(data)
         val parsed = UpiResponseParser.parseActivityResult(resultCode, data)
+        UpiDiagnostics.logActivityResult(resultCode, returnedKeys, parsed.paymentStatus.name)
 
         var finalPaymentStatus = parsed.paymentStatus
         var finalVerificationStatus = parsed.verificationStatus
@@ -136,6 +144,12 @@ class UpiSettlementManager(
         )
 
         settlementRepository.updateSettlement(updated)
+
+        UpiDiagnostics.logLedgerSafety(
+            settlementId = updated.id,
+            affectsLedger = updated.affectsLedger,
+            reason = "Payment status is ${updated.upiPaymentStatus}, verification is ${updated.upiVerificationStatus}"
+        )
 
         // Record group activity if settlement is verified and has groupId
         if (updated.affectsLedger && updated.groupId != null && groupActivityRepository != null) {

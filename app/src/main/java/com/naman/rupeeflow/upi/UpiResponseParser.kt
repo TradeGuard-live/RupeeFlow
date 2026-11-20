@@ -18,6 +18,18 @@ data class UpiParsedResponse(
 object UpiResponseParser {
 
     /**
+     * Extracts keys present in the UPI activity result response without sensitive values.
+     */
+    fun extractResponseKeys(data: Intent?): Set<String> {
+        val raw = extractRawResponse(data) ?: return emptySet()
+        val pairs = raw.split('&')
+        return pairs.mapNotNull { pair ->
+            val parts = pair.split('=', limit = 2)
+            if (parts.isNotEmpty() && parts[0].isNotBlank()) parts[0].trim().lowercase() else null
+        }.toSet()
+    }
+
+    /**
      * Parses the response from a completed UPI activity callback.
      */
     fun parseActivityResult(resultCode: Int, data: Intent?): UpiParsedResponse {

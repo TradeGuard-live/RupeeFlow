@@ -120,9 +120,9 @@ class PendingTransactionRepositoryImpl(
     ): Boolean {
         // 1. Strict unique bank reference number check
         if (!refNumber.isNullOrBlank()) {
-            val existingPending = pendingDao.findByReference(refNumber)
+            val existingPending = pendingDao.findByUpiReference(refNumber) ?: pendingDao.findByReference(refNumber)
             if (existingPending != null) return true
-            val existingConfirmed = transactionDao?.findByReferenceNumber(refNumber)
+            val existingConfirmed = transactionDao?.findByUpiReferenceNumber(refNumber) ?: transactionDao?.findByReferenceNumber(refNumber)
             if (existingConfirmed != null) return true
         }
 
@@ -138,20 +138,26 @@ class PendingTransactionRepositoryImpl(
             // Exact raw text match (e.g. duplicate SMS or notification broadcast delivered twice)
             if (rawContent != null && item.rawContent.trim().equals(rawContent.trim(), ignoreCase = true)) return true
 
+            val itemRef = item.upiReferenceNumber ?: item.referenceNumber
+            // If reference numbers are both present and differ, they are distinct transactions!
+            if (!refNumber.isNullOrBlank() && !itemRef.isNullOrBlank() && !refNumber.equals(itemRef, ignoreCase = true)) {
+                continue
+            }
+
             // If both transactions have merchants and they differ, they are distinct legitimate purchases!
             if (!merchant.isNullOrBlank() && !item.detectedMerchant.isNullOrBlank() &&
                 !merchant.equals(item.detectedMerchant, ignoreCase = true)) {
                 continue
             }
 
-            // Same merchant & amount within window
-            val merchantsMatch = !merchant.isNullOrBlank() && merchant.equals(item.detectedMerchant, ignoreCase = true)
-            if (merchantsMatch) return true
-
-            // Same bank & account last 4 within window
-            val accountsMatch = !accountLast4.isNullOrBlank() && accountLast4 == item.detectedAccount
-            val banksMatch = !bank.isNullOrBlank() && bank.equals(item.detectedBank, ignoreCase = true)
-            if (accountsMatch && banksMatch) return true
+            // Same merchant within immediate 5-second broadcast deduplication window
+            if (kotlin.math.abs(item.timestamp - timestamp) < 5_000L) {
+                val merchantsMatch = !merchant.isNullOrBlank() && merchant.equals(item.detectedMerchant, ignoreCase = true)
+                if (merchantsMatch) return true
+                val accountsMatch = !accountLast4.isNullOrBlank() && accountLast4 == item.detectedAccount
+                val banksMatch = !bank.isNullOrBlank() && bank.equals(item.detectedBank, ignoreCase = true)
+                if (accountsMatch && banksMatch) return true
+            }
         }
 
         // Check against confirmed transactions
@@ -162,13 +168,18 @@ class PendingTransactionRepositoryImpl(
                 endMillis = timestamp + window
             )
             for (item in recentConfirmed) {
-                // If both have merchants and they differ, distinct legitimate purchase!
+                val itemRef = item.upiReferenceNumber ?: item.referenceNumber
+                if (!refNumber.isNullOrBlank() && !itemRef.isNullOrBlank() && !refNumber.equals(itemRef, ignoreCase = true)) {
+                    continue
+                }
                 if (!merchant.isNullOrBlank() && !item.merchantName.isNullOrBlank() &&
                     !merchant.equals(item.merchantName, ignoreCase = true)) {
                     continue
                 }
-                if (!merchant.isNullOrBlank() && merchant.equals(item.merchantName, ignoreCase = true)) return true
-                if (!accountLast4.isNullOrBlank() && item.accountSource?.endsWith(accountLast4) == true) return true
+                if (kotlin.math.abs(item.transactionDate - timestamp) < 5_000L) {
+                    if (!merchant.isNullOrBlank() && merchant.equals(item.merchantName, ignoreCase = true)) return true
+                    if (!accountLast4.isNullOrBlank() && item.accountSource?.endsWith(accountLast4) == true) return true
+                }
             }
         }
 
@@ -188,6 +199,7 @@ class PendingTransactionRepositoryImpl(
         phoneNumber = phoneNumber,
         upiId = upiId,
         referenceNumber = referenceNumber,
+        upiReferenceNumber = upiReferenceNumber ?: referenceNumber,
         rawContent = rawContent,
         timestamp = timestamp,
         status = status,
@@ -214,6 +226,7 @@ class PendingTransactionRepositoryImpl(
         phoneNumber = phoneNumber,
         upiId = upiId,
         referenceNumber = referenceNumber,
+        upiReferenceNumber = upiReferenceNumber ?: referenceNumber,
         rawContent = rawContent,
         timestamp = timestamp,
         status = status,

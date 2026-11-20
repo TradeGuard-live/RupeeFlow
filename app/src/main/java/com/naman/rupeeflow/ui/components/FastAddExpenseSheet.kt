@@ -60,6 +60,7 @@ fun FastAddExpenseSheet(
     initialAmountPaise: Long? = null,
     initialTitle: String? = null,
     initialMerchant: String? = null,
+    initialUpiReferenceNumber: String? = null,
     initialType: TransactionType? = null,
     initialPaymentMethod: PaymentMethod? = null,
     initialPendingId: Long? = null,
@@ -94,6 +95,14 @@ fun FastAddExpenseSheet(
     var merchantName by rememberSaveable {
         mutableStateOf(initialMerchant ?: originalDetectedMerchant ?: "")
     }
+    var upiReferenceNumber by rememberSaveable {
+        mutableStateOf(initialUpiReferenceNumber ?: "")
+    }
+    var isSpreadExpense by rememberSaveable { mutableStateOf(false) }
+    var spreadStartDateMillis by rememberSaveable {
+        mutableStateOf(initialDateMillis ?: System.currentTimeMillis())
+    }
+    var spreadDurationDays by rememberSaveable { mutableStateOf(5) }
     var description by rememberSaveable { mutableStateOf("") }
     var amountText by rememberSaveable {
         mutableStateOf(
@@ -627,6 +636,20 @@ fun FastAddExpenseSheet(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
+                // Dedicated UPI Reference Number / UTR Field
+                OutlinedTextField(
+                    value = upiReferenceNumber,
+                    onValueChange = { upiReferenceNumber = it },
+                    label = { Text("UPI Reference Number / UTR (Optional)", color = AppTheme.colors.textSecondary) },
+                    placeholder = { Text("e.g. 12-digit UTR ref no.", color = AppTheme.colors.textMuted) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = rupeeFlowTextFieldColors(),
+                    shape = RoundedCornerShape(16.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 // Description / Notes Field
                 OutlinedTextField(
                     value = description,
@@ -732,6 +755,29 @@ fun FastAddExpenseSheet(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                // Expense Duration Spreading Section (Only for Expenses)
+                if (selectedEntryType == SheetEntryType.EXPENSE) {
+                    ExpenseSpreadingSection(
+                        isSpreadEnabled = isSpreadExpense,
+                        onSpreadEnabledChange = { enabled ->
+                            isSpreadExpense = enabled
+                            if (enabled) {
+                                spreadStartDateMillis = selectedDateTimeMillis
+                            }
+                        },
+                        startDateMillis = spreadStartDateMillis,
+                        onStartDateChange = { newStart ->
+                            spreadStartDateMillis = newStart
+                            selectedDateTimeMillis = newStart
+                        },
+                        durationDays = spreadDurationDays,
+                        onDurationDaysChange = { spreadDurationDays = it },
+                        amountPaise = amountPaise
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
 
                 // Payment Method
                 Text(
@@ -1214,6 +1260,25 @@ fun FastAddExpenseSheet(
                         }
 
                         val effectiveMerchant = merchantName.trim().takeIf { it.isNotBlank() }
+                        val cleanUpiRef = upiReferenceNumber.trim().ifBlank { null } ?: initialUpiReferenceNumber?.trim()?.ifBlank { null }
+
+                        val isSpreadActive = isSpreadExpense && spreadDurationDays > 1 && selectedEntryType == SheetEntryType.EXPENSE
+                        val domainAllocations = if (isSpreadActive) {
+                            val calculated = com.naman.rupeeflow.domain.util.ExpenseAllocationCalculator.calculateAllocations(
+                                amountPaise = amountPaise,
+                                durationDays = spreadDurationDays,
+                                startDateMillis = spreadStartDateMillis
+                            )
+                            calculated.map {
+                                ExpenseAllocation(
+                                    id = 0L,
+                                    transactionId = 0L,
+                                    allocationDate = it.allocationDate,
+                                    amountPaise = it.amountPaise
+                                )
+                            }
+                        } else emptyList()
+
                         val newTxn = Transaction(
                             title = finalTitle,
                             description = description.trim(),
@@ -1233,6 +1298,8 @@ fun FastAddExpenseSheet(
                             merchantNormalized = effectiveMerchant?.let { MerchantNormalizer.normalize(it).takeIf { n -> n.isNotBlank() } },
                             rawMerchant = originalDetectedMerchant ?: effectiveMerchant,
                             sourcePackage = initialSourcePackage,
+                            referenceNumber = cleanUpiRef,
+                            upiReferenceNumber = cleanUpiRef,
                             groupId = selectedGroupFilterId,
                             expenseGroupId = selectedExpenseGroup?.id ?: initialExpenseGroupId,
                             expenseGroupName = selectedExpenseGroup?.name ?: initialGroup?.name,
@@ -1243,7 +1310,12 @@ fun FastAddExpenseSheet(
                             locationCapturedAt = attachedLocation?.locationCapturedAt,
                             locationSource = attachedLocation?.locationSource,
                             locationLabel = attachedLocation?.locationLabel,
-                            googleMapsUrl = attachedLocation?.googleMapsUrl
+                            googleMapsUrl = attachedLocation?.googleMapsUrl,
+                            isSpread = isSpreadActive,
+                            spreadDurationDays = if (isSpreadActive) spreadDurationDays else 1,
+                            spreadStartDate = if (isSpreadActive) spreadStartDateMillis else null,
+                            spreadEndDate = if (isSpreadActive) com.naman.rupeeflow.domain.util.ExpenseAllocationCalculator.calculateEndDate(spreadStartDateMillis, spreadDurationDays) else null,
+                            allocations = domainAllocations
                         )
                         onSave(newTxn)
                         if (initialPendingId != null) {

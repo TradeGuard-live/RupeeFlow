@@ -136,7 +136,8 @@ class UpiAppNotificationParser : BankMessageParser {
         if (amountPaise <= 0L) return null
 
         val recipientInfo = PaymentRecipientExtractor.extract(trimmed)
-        val refNumber = recipientInfo.referenceNumber ?: ReferenceExtractor.extract(trimmed)
+        val upiRef = ReferenceExtractor.extractUpiReference(trimmed)
+        val refNumber = upiRef ?: recipientInfo.referenceNumber ?: ReferenceExtractor.extract(trimmed)
 
         var accountLast4: String? = null
         val acMatcher = ACCOUNT_PATTERN.matcher(trimmed)
@@ -158,6 +159,7 @@ class UpiAppNotificationParser : BankMessageParser {
                 phoneNumber = recipientInfo.phoneNumber,
                 upiId = recipientInfo.upiId,
                 referenceNumber = refNumber,
+                upiReferenceNumber = upiRef,
                 timestamp = timestamp,
                 rawSender = sender,
                 rawBody = SmsParser.sanitizeRawContent(trimmed)
@@ -175,6 +177,7 @@ class UpiAppNotificationParser : BankMessageParser {
                 phoneNumber = recipientInfo.phoneNumber,
                 upiId = recipientInfo.upiId,
                 referenceNumber = refNumber,
+                upiReferenceNumber = upiRef,
                 paymentMethod = PaymentMethod.UPI_LITE,
                 timestamp = timestamp,
                 rawSender = sender,
@@ -193,6 +196,7 @@ class UpiAppNotificationParser : BankMessageParser {
                 phoneNumber = recipientInfo.phoneNumber,
                 upiId = recipientInfo.upiId,
                 referenceNumber = refNumber,
+                upiReferenceNumber = upiRef,
                 paymentMethod = PaymentMethod.UPI_LITE,
                 timestamp = timestamp,
                 rawSender = sender,
@@ -226,6 +230,7 @@ class UpiAppNotificationParser : BankMessageParser {
             phoneNumber = recipientInfo.phoneNumber,
             upiId = recipientInfo.upiId,
             referenceNumber = refNumber,
+            upiReferenceNumber = upiRef,
             paymentMethod = PaymentMethod.UPI,
             timestamp = timestamp,
             rawSender = sender,

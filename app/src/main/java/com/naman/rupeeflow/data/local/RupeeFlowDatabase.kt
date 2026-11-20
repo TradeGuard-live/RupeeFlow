@@ -30,9 +30,10 @@ import java.io.File
         InputUsageEntity::class,
         GroupActivityEntity::class,
         SavingsGoalEntity::class,
-        SavingsEntryEntity::class
+        SavingsEntryEntity::class,
+        ExpenseAllocationEntity::class
     ],
-    version = 13, // Upgraded to version 13: Split Pro Direct UPI Settlement Integration
+    version = 15, // Upgraded to version 15: Expense Spreading / Daily Expense Allocation
     exportSchema = true // Schema export enabled
 )
 @TypeConverters(Converters::class)
@@ -50,6 +51,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
     abstract fun groupActivityDao(): GroupActivityDao
     abstract fun savingsGoalDao(): SavingsGoalDao
     abstract fun savingsEntryDao(): SavingsEntryDao
+    abstract fun expenseAllocationDao(): ExpenseAllocationDao
 
     companion object {
         @Volatile
@@ -856,6 +858,179 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
+        // Migration from version 13 to 14: Merchant Name & UPI Reference Number Auto-Extraction
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add upiReferenceNumber to transactions
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `upiReferenceNumber` TEXT DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_upiReferenceNumber` ON `transactions` (`upiReferenceNumber`)")
+
+                // Add upiReferenceNumber to pending_transactions
+                db.execSQL("ALTER TABLE `pending_transactions` ADD COLUMN `upiReferenceNumber` TEXT DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_pending_transactions_upiReferenceNumber` ON `pending_transactions` (`upiReferenceNumber`)")
+            }
+        }
+
+        val MIGRATION_12_14 = object : Migration(12, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_12_13.migrate(db)
+                MIGRATION_13_14.migrate(db)
+            }
+        }
+
+        val MIGRATION_11_14 = object : Migration(11, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_11_13.migrate(db)
+                MIGRATION_13_14.migrate(db)
+            }
+        }
+
+        val MIGRATION_10_14 = object : Migration(10, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_10_13.migrate(db)
+                MIGRATION_13_14.migrate(db)
+            }
+        }
+
+        val MIGRATION_9_14 = object : Migration(9, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_9_13.migrate(db)
+                MIGRATION_13_14.migrate(db)
+            }
+        }
+
+        val MIGRATION_8_14 = object : Migration(8, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_8_13.migrate(db)
+                MIGRATION_13_14.migrate(db)
+            }
+        }
+
+        val MIGRATION_7_14 = object : Migration(7, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_7_13.migrate(db)
+                MIGRATION_13_14.migrate(db)
+            }
+        }
+
+        val MIGRATION_6_14 = object : Migration(6, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_6_13.migrate(db)
+                MIGRATION_13_14.migrate(db)
+            }
+        }
+
+        val MIGRATION_5_14 = object : Migration(5, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_5_13.migrate(db)
+                MIGRATION_13_14.migrate(db)
+            }
+        }
+
+        val MIGRATION_1_14 = object : Migration(1, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_1_13.migrate(db)
+                MIGRATION_13_14.migrate(db)
+            }
+        }
+
+        // Migration from version 14 to 15: Expense Spreading & Daily Expense Allocation
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Add expense spreading columns to transactions table
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `isSpread` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `spreadDurationDays` INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `spreadStartDate` INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE `transactions` ADD COLUMN `spreadEndDate` INTEGER DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_isSpread` ON `transactions` (`isSpread`)")
+
+                // Create expense_allocations table
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `expense_allocations` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `transactionId` INTEGER NOT NULL,
+                        `allocationDate` INTEGER NOT NULL,
+                        `amountPaise` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        FOREIGN KEY(`transactionId`) REFERENCES `transactions`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expense_allocations_transactionId` ON `expense_allocations` (`transactionId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_expense_allocations_allocationDate` ON `expense_allocations` (`allocationDate`)")
+            }
+        }
+
+        val MIGRATION_13_15 = object : Migration(13, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_13_14.migrate(db)
+                MIGRATION_14_15.migrate(db)
+            }
+        }
+
+        val MIGRATION_12_15 = object : Migration(12, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_12_14.migrate(db)
+                MIGRATION_14_15.migrate(db)
+            }
+        }
+
+        val MIGRATION_11_15 = object : Migration(11, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_11_14.migrate(db)
+                MIGRATION_14_15.migrate(db)
+            }
+        }
+
+        val MIGRATION_10_15 = object : Migration(10, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_10_14.migrate(db)
+                MIGRATION_14_15.migrate(db)
+            }
+        }
+
+        val MIGRATION_9_15 = object : Migration(9, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_9_14.migrate(db)
+                MIGRATION_14_15.migrate(db)
+            }
+        }
+
+        val MIGRATION_8_15 = object : Migration(8, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_8_14.migrate(db)
+                MIGRATION_14_15.migrate(db)
+            }
+        }
+
+        val MIGRATION_7_15 = object : Migration(7, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_7_14.migrate(db)
+                MIGRATION_14_15.migrate(db)
+            }
+        }
+
+        val MIGRATION_6_15 = object : Migration(6, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_6_14.migrate(db)
+                MIGRATION_14_15.migrate(db)
+            }
+        }
+
+        val MIGRATION_5_15 = object : Migration(5, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_5_14.migrate(db)
+                MIGRATION_14_15.migrate(db)
+            }
+        }
+
+        val MIGRATION_1_15 = object : Migration(1, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                MIGRATION_1_14.migrate(db)
+                MIGRATION_14_15.migrate(db)
+            }
+        }
+
         // Automatic safe pre-migration backup procedure
         fun createPreMigrationBackup(context: Context) {
             try {
@@ -890,7 +1065,9 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                         MIGRATION_9_10, MIGRATION_8_10, MIGRATION_7_10, MIGRATION_6_10, MIGRATION_5_10, MIGRATION_1_10,
                         MIGRATION_10_11, MIGRATION_9_11, MIGRATION_8_11, MIGRATION_7_11, MIGRATION_6_11, MIGRATION_5_11, MIGRATION_1_11,
                         MIGRATION_11_12, MIGRATION_10_12, MIGRATION_9_12, MIGRATION_8_12, MIGRATION_7_12, MIGRATION_6_12, MIGRATION_5_12, MIGRATION_1_12,
-                        MIGRATION_12_13, MIGRATION_11_13, MIGRATION_10_13, MIGRATION_9_13, MIGRATION_8_13, MIGRATION_7_13, MIGRATION_6_13, MIGRATION_5_13, MIGRATION_1_13
+                        MIGRATION_12_13, MIGRATION_11_13, MIGRATION_10_13, MIGRATION_9_13, MIGRATION_8_13, MIGRATION_7_13, MIGRATION_6_13, MIGRATION_5_13, MIGRATION_1_13,
+                        MIGRATION_13_14, MIGRATION_12_14, MIGRATION_11_14, MIGRATION_10_14, MIGRATION_9_14, MIGRATION_8_14, MIGRATION_7_14, MIGRATION_6_14, MIGRATION_5_14, MIGRATION_1_14,
+                        MIGRATION_14_15, MIGRATION_13_15, MIGRATION_12_15, MIGRATION_11_15, MIGRATION_10_15, MIGRATION_9_15, MIGRATION_8_15, MIGRATION_7_15, MIGRATION_6_15, MIGRATION_5_15, MIGRATION_1_15
                     )
                     .addCallback(DatabaseCallback(scope))
                     // Destructive migration removed! Data preservation guaranteed.

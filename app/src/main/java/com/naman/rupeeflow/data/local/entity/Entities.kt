@@ -70,7 +70,9 @@ data class FriendEntity(
         Index(value = ["groupId"]),
         Index(value = ["expenseGroupId"]),
         Index(value = ["transactionDate"]),
-        Index(value = ["transactionStatus"])
+        Index(value = ["transactionStatus"]),
+        Index(value = ["upiReferenceNumber"]),
+        Index(value = ["isSpread"])
     ]
 )
 data class TransactionEntity(
@@ -93,6 +95,7 @@ data class TransactionEntity(
     val rawMerchant: String? = null,
     val sourcePackage: String? = null,
     val referenceNumber: String? = null,
+    val upiReferenceNumber: String? = null,
     val phoneNumber: String? = null,
     val upiId: String? = null,
     val groupId: Long? = null,
@@ -106,6 +109,35 @@ data class TransactionEntity(
     val locationSource: LocationSource? = null,
     val locationLabel: String? = null,
     val googleMapsUrl: String? = null,
+    val isSpread: Boolean = false,
+    val spreadDurationDays: Int = 1,
+    val spreadStartDate: Long? = null,
+    val spreadEndDate: Long? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "expense_allocations",
+    foreignKeys = [
+        ForeignKey(
+            entity = TransactionEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["transactionId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["transactionId"]),
+        Index(value = ["allocationDate"])
+    ]
+)
+data class ExpenseAllocationEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+    val transactionId: Long,
+    val allocationDate: Long,
+    val amountPaise: Long,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )
@@ -219,7 +251,8 @@ data class GroupActivityEntity(
     indices = [
         Index(value = ["status"]),
         Index(value = ["timestamp"]),
-        Index(value = ["referenceNumber"])
+        Index(value = ["referenceNumber"]),
+        Index(value = ["upiReferenceNumber"])
     ]
 )
 data class PendingTransactionEntity(
@@ -236,6 +269,7 @@ data class PendingTransactionEntity(
     val phoneNumber: String? = null,
     val upiId: String? = null,
     val referenceNumber: String? = null,
+    val upiReferenceNumber: String? = null,
     val rawContent: String,
     val timestamp: Long,
     val status: PendingStatus = PendingStatus.PENDING,

@@ -147,6 +147,68 @@ object UpiIntentBuilder {
     }
 
     /**
+     * Builds a Generic UPI chooser intent (Intent.ACTION_VIEW with no target package).
+     * Android displays the system application chooser showing all installed apps handling upi://pay.
+     */
+    fun buildGenericChooserIntent(
+        receiverUpiId: String,
+        receiverName: String,
+        amountPaise: Long,
+        note: String
+    ): Intent {
+        return buildUpiIntent(
+            receiverUpiId = receiverUpiId,
+            receiverName = receiverName,
+            amountPaise = amountPaise,
+            note = note,
+            transactionRef = null,
+            targetPackage = null
+        )
+    }
+
+    /**
+     * Builds an explicit BHIM intent targeting in.org.npci.upiapp.
+     * Uses the standard minimal P2P URI without 'tn' or 'tr'.
+     */
+    fun buildExplicitBhimIntent(
+        receiverUpiId: String,
+        receiverName: String,
+        amountPaise: Long,
+        note: String
+    ): Intent {
+        return buildUpiIntent(
+            receiverUpiId = receiverUpiId,
+            receiverName = receiverName,
+            amountPaise = amountPaise,
+            note = note,
+            transactionRef = null,
+            targetPackage = BHIM_PACKAGE
+        )
+    }
+
+    /**
+     * Checks if an intent can be resolved by any installed activity.
+     */
+    fun isIntentResolvable(context: Context, intent: Intent): Boolean {
+        return try {
+            intent.resolveActivity(context.packageManager) != null
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Returns the flattened component string of the activity that resolves this intent, or null.
+     */
+    fun getResolvedActivityComponent(context: Context, intent: Intent): String? {
+        return try {
+            intent.resolveActivity(context.packageManager)?.flattenToShortString()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
      * Discovers all installed applications that declare an intent filter handling upi://pay.
      */
     fun getInstalledUpiApps(context: Context): List<UpiAppInfo> {

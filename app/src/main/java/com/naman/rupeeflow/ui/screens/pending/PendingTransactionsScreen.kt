@@ -147,6 +147,7 @@ fun PendingTransactionsScreen(
                 (item.detectedMerchant?.lowercase()?.contains(q) == true) ||
                 (item.detectedBank?.lowercase()?.contains(q) == true) ||
                 (item.referenceNumber?.lowercase()?.contains(q) == true) ||
+                (item.upiReferenceNumber?.lowercase()?.contains(q) == true) ||
                 item.rawContent.lowercase().contains(q) ||
                 CurrencyUtils.formatPaiseToRupees(item.detectedAmountPaise).contains(q)
             }
@@ -753,13 +754,36 @@ fun PendingTransactionsScreen(
                             Text(item.detectedBank, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
                         }
                     }
-                    if (!item.referenceNumber.isNullOrBlank()) {
+                    val upiRef = item.upiReferenceNumber ?: item.referenceNumber
+                    if (!upiRef.isNullOrBlank()) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Reference / UTR:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
-                            Text(item.referenceNumber, style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textPrimary)
+                            Text("UPI Reference Number:", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(upiRef, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, color = AppTheme.colors.textPrimary)
+                                IconButton(
+                                    onClick = {
+                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                        val clip = android.content.ClipData.newPlainText("UPI Reference Number", upiRef)
+                                        clipboard?.setPrimaryClip(clip)
+                                        android.widget.Toast.makeText(context, "UPI Reference Number copied", android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = "Copy UPI Reference Number",
+                                        tint = AppTheme.colors.primaryAccent,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                     if (item.hasLocation) {
@@ -1058,6 +1082,7 @@ fun PendingTransactionsScreen(
             initialAmountPaise = item.detectedAmountPaise,
             initialTitle = selectedMatchDraft?.suggestedTitle ?: (item.detectedMerchant ?: if (!item.phoneNumber.isNullOrBlank()) "Payment to ${item.phoneNumber}" else "Expense"),
             initialMerchant = item.detectedMerchant,
+            initialUpiReferenceNumber = item.upiReferenceNumber ?: item.referenceNumber,
             initialCategory = selectedMatchDraft?.suggestedCategory ?: learnedCategoryForSelected,
             initialType = item.detectedType,
             initialPaymentMethod = if (item.detectedType == TransactionType.UPI_LITE_TOPUP) PaymentMethod.UPI_LITE else (selectedMatchDraft?.suggestedPaymentMethod ?: PaymentMethod.UPI),

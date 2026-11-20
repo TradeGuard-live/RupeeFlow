@@ -13,7 +13,9 @@ import com.naman.rupeeflow.domain.model.ReportDraft
 import com.naman.rupeeflow.domain.model.ReportPeriodType
 import com.naman.rupeeflow.domain.model.Transaction
 import com.naman.rupeeflow.domain.model.TransactionType
+import com.naman.rupeeflow.domain.model.TransactionStatus
 import com.naman.rupeeflow.domain.util.DateTimeUtils
+import com.naman.rupeeflow.domain.util.safeSumOf
 import com.naman.rupeeflow.report.CategoryReportItem
 import com.naman.rupeeflow.report.ExpenseGroupReportItem
 import com.naman.rupeeflow.report.PdfReportGenerator
@@ -394,7 +396,11 @@ class ReportGeneratorViewModel(
 
         // Filter transactions strictly within date range
         val inRange = baseTxns.filter { txn ->
-            txn.transactionDate in startMillis..endMillis
+            if (txn.isSpread && txn.allocations.isNotEmpty()) {
+                txn.allocations.any { it.allocationDate in startMillis..endMillis }
+            } else {
+                txn.transactionDate in startMillis..endMillis
+            }
         }
 
         // Apply report exclusions (never modifies actual database data!)
@@ -402,20 +408,43 @@ class ReportGeneratorViewModel(
             !state.excludedTransactionIds.contains(txn.id) && !txn.isIgnored
         }
 
-        val totalExpensesPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalExpense(included)
-        val totalIncomePaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalIncome(included)
-        val totalRefundsPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalRefund(included)
-        val netSpendingPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalNetSpending(included)
-        val cashSpendingPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalCashSpending(included)
-        val onlineSpendingPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalOnlineSpending(included)
-        val grossBillsPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateGrossBillAmount(included)
+        val totalExpensesPaise = included.safeSumOf {
+            com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(it, startMillis, endMillis + 1)
+        }
+        val totalIncomePaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalIncome(
+            included.filter { it.transactionDate in startMillis..endMillis }
+        )
+        val totalRefundsPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalRefund(
+            included.filter { it.transactionDate in startMillis..endMillis }
+        )
+        val netSpendingPaise = com.naman.rupeeflow.domain.util.SafeMath.safeSubtract(totalExpensesPaise, totalRefundsPaise).coerceAtLeast(0L)
+        val cashSpendingPaise = included
+            .filter { it.paymentMethod == PaymentMethod.CASH }
+            .safeSumOf { com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(it, startMillis, endMillis + 1) }
+        val onlineSpendingPaise = included
+            .filter { it.paymentMethod != PaymentMethod.CASH }
+            .safeSumOf { com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(it, startMillis, endMillis + 1) }
+        val grossBillsPaise = included
+            .filter {
+                it.transactionStatus == TransactionStatus.ACTIVE &&
+                        (it.transactionType == TransactionType.EXPENSE || it.transactionType == TransactionType.UPI_LITE_PAYMENT)
+            }
+            .safeSumOf { txn: Transaction ->
+                if (txn.isSpread && txn.allocations.isNotEmpty()) {
+                    txn.allocations.filter { a -> a.allocationDate in startMillis..endMillis }.safeSumOf { a -> a.amountPaise }
+                } else {
+                    txn.amountPaise
+                }
+            }
 
         // Category breakdown using personal shares
         val categoryBreakdown = included
-            .filter { com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpense(it) > 0L }
+            .filter { com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(it, startMillis, endMillis + 1) > 0L }
             .groupBy { it.category?.name ?: "Other" }
             .map { (catName, txns) ->
-                val sumPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalExpense(txns)
+                val sumPaise = txns.safeSumOf {
+                    com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(it, startMillis, endMillis + 1)
+                }
                 val pct = if (totalExpensesPaise > 0L) (sumPaise.toDouble() / totalExpensesPaise.toDouble()) * 100.0 else 0.0
                 CategoryReportItem(
                     categoryName = catName,
@@ -427,10 +456,12 @@ class ReportGeneratorViewModel(
 
         // Expense group breakdown using personal shares
         val expenseGroupBreakdown = included
-            .filter { it.hasExpenseGroup && com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpense(it) > 0L }
+            .filter { it.hasExpenseGroup && com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(it, startMillis, endMillis + 1) > 0L }
             .groupBy { it.expenseGroupName ?: "Group" }
             .map { (groupName, txns) ->
-                val sumPaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalExpense(txns)
+                val sumPaise = txns.safeSumOf {
+                    com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(it, startMillis, endMillis + 1)
+                }
                 ExpenseGroupReportItem(
                     groupName = groupName,
                     amountPaise = sumPaise,

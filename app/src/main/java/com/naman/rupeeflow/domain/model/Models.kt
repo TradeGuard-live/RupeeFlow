@@ -134,6 +134,15 @@ data class TransactionParticipant(
     val splitMethod: SplitMethod = SplitMethod.EQUAL
 )
 
+data class ExpenseAllocation(
+    val id: Long = 0,
+    val transactionId: Long = 0,
+    val allocationDate: Long, // Midnight millis of the allocation day
+    val amountPaise: Long,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
 data class TransactionLocation(
     val latitude: Double,
     val longitude: Double,
@@ -176,6 +185,7 @@ data class Transaction(
     val rawMerchant: String? = null,
     val sourcePackage: String? = null,
     val referenceNumber: String? = null,
+    val upiReferenceNumber: String? = null,
     val phoneNumber: String? = null,
     val upiId: String? = null,
     val groupId: Long? = null,
@@ -189,9 +199,16 @@ data class Transaction(
     val locationSource: LocationSource? = null,
     val locationLabel: String? = null,
     val googleMapsUrl: String? = null,
+    val isSpread: Boolean = false,
+    val spreadDurationDays: Int = 1,
+    val spreadStartDate: Long? = null,
+    val spreadEndDate: Long? = null,
+    val allocations: List<ExpenseAllocation> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 ) {
+    val isSpreadExpense: Boolean
+        get() = isSpread && spreadDurationDays > 1
     val isIgnored: Boolean
         get() = transactionStatus == TransactionStatus.IGNORED
 
@@ -282,6 +299,7 @@ data class PendingTransaction(
     val phoneNumber: String? = null,
     val upiId: String? = null,
     val referenceNumber: String? = null,
+    val upiReferenceNumber: String? = null,
     val rawContent: String,
     val timestamp: Long = System.currentTimeMillis(),
     val status: PendingStatus = PendingStatus.PENDING,

@@ -55,6 +55,7 @@ class HdfcBankParser : BankMessageParser {
         if (amountPaise <= 0L) return null
 
         val refNumber = ReferenceExtractor.extract(trimmed)
+        val upiRef = ReferenceExtractor.extractUpiReference(trimmed)
 
         // Account number extraction
         var accountLast4: String? = null
@@ -148,6 +149,7 @@ class HdfcBankParser : BankMessageParser {
             phoneNumber = recipient.phoneNumber,
             upiId = recipient.upiId,
             referenceNumber = refNumber,
+            upiReferenceNumber = upiRef,
             paymentMethod = paymentMethod,
             timestamp = timestamp,
             rawSender = sender,

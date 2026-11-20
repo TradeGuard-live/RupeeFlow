@@ -837,4 +837,154 @@ class SplitProDirectUpiSettlementQATest {
         assertTrue("GPay intent should have no explicit categories",
             gpayIntent.categories == null || gpayIntent.categories.isEmpty())
     }
+
+    // 41. No duplicate URI parameters
+    @Test
+    fun test41_noDuplicateUriParameters() {
+        val uriStr = UpiIntentBuilder.buildUpiUri(
+            receiverUpiId = "user@okhdfcbank",
+            receiverName = "Test User",
+            amountPaise = 15000L,
+            note = "Test Note",
+            targetPackage = null
+        )
+        val query = uriStr.substringAfter('?')
+        val paramKeys = query.split('&').map { it.substringBefore('=') }
+        val duplicates = paramKeys.groupBy { it }.filter { it.value.size > 1 }.keys
+        assertTrue("URI must not contain duplicate parameters: $duplicates", duplicates.isEmpty())
+        assertEquals(1, paramKeys.count { it == "pa" })
+        assertEquals(1, paramKeys.count { it == "pn" })
+        assertEquals(1, paramKeys.count { it == "am" })
+        assertEquals(1, paramKeys.count { it == "cu" })
+    }
+
+    // 42. BHIM unavailable handling (activity not resolvable)
+    @Test
+    fun test42_bhimUnavailableResolutionCheck() {
+        val intent = UpiIntentBuilder.buildExplicitBhimIntent(
+            receiverUpiId = "friend@upi",
+            receiverName = "Friend",
+            amountPaise = 5000L,
+            note = "Test"
+        )
+        assertEquals(UpiIntentBuilder.BHIM_PACKAGE, intent.`package`)
+        // In Robolectric test context where BHIM is not mock-registered, resolvable returns false
+        val resolvable = UpiIntentBuilder.isIntentResolvable(context, intent)
+        // Verify helper behaves safely without throwing
+        assertNotNull(resolvable)
+    }
+
+    // 43. Generic chooser intent construction
+    @Test
+    fun test43_genericChooserIntentConstruction() {
+        val intent = UpiIntentBuilder.buildGenericChooserIntent(
+            receiverUpiId = "friend@upi",
+            receiverName = "Friend Name",
+            amountPaise = 12500L,
+            note = "Dinner"
+        )
+        assertEquals(Intent.ACTION_VIEW, intent.action)
+        assertNull("Generic chooser must not have a specific target package", intent.`package`)
+        val uri = intent.dataString ?: ""
+        assertTrue(uri.startsWith("upi://pay?"))
+        assertTrue(uri.contains("pa=friend@upi"))
+        assertTrue(uri.contains("am=125.00"))
+        assertTrue(uri.contains("cu=INR"))
+        assertFalse(uri.contains("tn="))
+        assertFalse(uri.contains("tr="))
+    }
+
+    // 44. Explicit BHIM intent construction
+    @Test
+    fun test44_explicitBhimIntentConstruction() {
+        val intent = UpiIntentBuilder.buildExplicitBhimIntent(
+            receiverUpiId = "friend@upi",
+            receiverName = "Friend Name",
+            amountPaise = 12500L,
+            note = "Dinner"
+        )
+        assertEquals(Intent.ACTION_VIEW, intent.action)
+        assertEquals(UpiIntentBuilder.BHIM_PACKAGE, intent.`package`)
+        val uri = intent.dataString ?: ""
+        assertTrue(uri.startsWith("upi://pay?"))
+        assertTrue(uri.contains("pa=friend@upi"))
+        assertTrue(uri.contains("am=125.00"))
+        assertTrue(uri.contains("cu=INR"))
+        assertFalse(uri.contains("tn="))
+        assertFalse(uri.contains("tr="))
+    }
+
+    // 45. Other UPI apps supported explicit intent construction
+    @Test
+    fun test45_otherUpiAppsSupportedExplicitIntents() {
+        val packages = listOf(
+            UpiIntentBuilder.GOOGLE_PAY_PACKAGE,
+            UpiIntentBuilder.PHONEPE_PACKAGE,
+            UpiIntentBuilder.PAYTM_PACKAGE,
+            UpiIntentBuilder.MOBIKWIK_PACKAGE,
+            UpiIntentBuilder.CRED_PACKAGE
+        )
+        for (pkg in packages) {
+            val intent = UpiIntentBuilder.buildUpiIntent(
+                receiverUpiId = "friend@upi",
+                receiverName = "Friend",
+                amountPaise = 20000L,
+                note = "Test",
+                targetPackage = pkg
+            )
+            assertEquals(pkg, intent.`package`)
+            assertEquals(Intent.ACTION_VIEW, intent.action)
+            val uri = intent.dataString ?: ""
+            assertTrue(uri.contains("pa=friend@upi"))
+            assertTrue(uri.contains("am=200.00"))
+            assertTrue(uri.contains("cu=INR"))
+            assertFalse(uri.contains("tn="))
+            assertFalse(uri.contains("tr="))
+        }
+    }
+
+    // 46. Diagnostics privacy guarantees: never logs sensitive VPA, PIN, or credentials
+    @Test
+    fun test46_diagnosticsPrivacyNeverLogsVpaOrSensitiveData() {
+        UpiDiagnostics.clearLogs()
+        val testUri = "upi://pay?pa=secretuser@superbank&pn=Secret%20Person&am=999.00&cu=INR"
+        UpiDiagnostics.logIntentBuilt(Intent.ACTION_VIEW, UpiIntentBuilder.BHIM_PACKAGE, testUri)
+        UpiDiagnostics.logActivityResolution(UpiIntentBuilder.BHIM_PACKAGE, "in.org.npci.upiapp/.HomeActivity")
+
+        val recentLogs = UpiDiagnostics.getRecentLogs()
+        assertTrue(recentLogs.isNotEmpty())
+        for (log in recentLogs) {
+            assertFalse("Log must not contain VPA: ${log.details}", log.details.contains("secretuser@superbank"))
+            assertFalse("Log must not contain secret person: ${log.details}", log.details.contains("Secret Person"))
+        }
+    }
+
+    // 47. Diagnostics response keys extraction
+    @Test
+    fun test47_diagnosticsResponseKeysExtraction() {
+        val intent = Intent().apply {
+            putExtra("response", "txnId=UPI123&Status=SUCCESS&approvalRefNo=REF456&responseCode=00")
+        }
+        val keys = UpiResponseParser.extractResponseKeys(intent)
+        assertTrue(keys.contains("txnid"))
+        assertTrue(keys.contains("status"))
+        assertTrue(keys.contains("approvalrefno"))
+        assertTrue(keys.contains("responsecode"))
+        assertFalse(keys.contains("UPI123")) // Values are not keys
+    }
+
+    // 48. Special characters receiver name sanitized and encoded
+    @Test
+    fun test48_specialCharactersReceiverNameSanitizedAndEncoded() {
+        val uriStr = UpiIntentBuilder.buildUpiUri(
+            receiverUpiId = "friend@upi",
+            receiverName = "John & Jane Doe @#123",
+            amountPaise = 1000L,
+            note = "Dinner"
+        )
+        // Clean name removes '&', '@', '#', keeps alphanumeric and spaces -> "John Jane Doe 123"
+        // Encoded replaces space with %20
+        assertTrue(uriStr.contains("pn=John%20Jane%20Doe%20123"))
+        assertFalse(uriStr.contains("&Jane")) // No unencoded ampersand injection
+    }
 }

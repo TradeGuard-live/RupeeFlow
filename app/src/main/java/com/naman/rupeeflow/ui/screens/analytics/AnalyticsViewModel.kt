@@ -150,30 +150,30 @@ class AnalyticsViewModel(
         val previousStart = previousRange.startMillis
         val previousEndExclusive = previousRange.endMillisExclusive
 
-        // Active transactions strictly within the current period using half-open interval [start, endExclusive)
-        val currentTxns = allTxns.filter {
-            it.transactionStatus == TransactionStatus.ACTIVE &&
-                    it.transactionDate >= currentStart &&
-                    it.transactionDate < currentEndExclusive
-        }
+        val activeTxns = allTxns.filter { it.transactionStatus == TransactionStatus.ACTIVE }
 
-        // Previous period net spending
-        val prevTxns = allTxns.filter {
-            it.transactionStatus == TransactionStatus.ACTIVE &&
-                    it.transactionDate >= previousStart &&
-                    it.transactionDate < previousEndExclusive
-        }
-        val prevSpent = PersonalFinancialAggregator.calculatePersonalNetSpending(prevTxns)
+        val totalSpent = PersonalFinancialAggregator.calculateTotalPersonalExpenseForPeriod(activeTxns, currentStart, currentEndExclusive)
+        val totalIncome = PersonalFinancialAggregator.calculateTotalPersonalIncome(
+            activeTxns.filter { it.transactionDate >= currentStart && it.transactionDate < currentEndExclusive }
+        )
+        val totalRefund = PersonalFinancialAggregator.calculateTotalPersonalRefund(
+            activeTxns.filter { it.transactionDate >= currentStart && it.transactionDate < currentEndExclusive }
+        )
+        val prevSpent = SafeMath.safeSubtract(
+            PersonalFinancialAggregator.calculateTotalPersonalExpenseForPeriod(activeTxns, previousStart, previousEndExclusive),
+            PersonalFinancialAggregator.calculateTotalPersonalRefund(
+                activeTxns.filter { it.transactionDate >= previousStart && it.transactionDate < previousEndExclusive }
+            )
+        ).coerceAtLeast(0L)
 
-        val totalSpent = PersonalFinancialAggregator.calculateTotalPersonalExpense(currentTxns)
-        val totalIncome = PersonalFinancialAggregator.calculateTotalPersonalIncome(currentTxns)
-        val totalRefund = PersonalFinancialAggregator.calculateTotalPersonalRefund(currentTxns)
-        val cashSpending = PersonalFinancialAggregator.calculatePersonalCashSpending(currentTxns)
-        val onlineSpending = PersonalFinancialAggregator.calculatePersonalOnlineSpending(currentTxns)
-        val categoryMap = PersonalFinancialAggregator.calculatePersonalCategoryTotals(currentTxns)
+        val cashSpending = activeTxns.filter { it.paymentMethod == PaymentMethod.CASH }
+            .safeSumOf { PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(it, currentStart, currentEndExclusive) }
+        val onlineSpending = activeTxns.filter { it.paymentMethod != PaymentMethod.CASH }
+            .safeSumOf { PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(it, currentStart, currentEndExclusive) }
+        val categoryMap = PersonalFinancialAggregator.calculatePersonalCategoryTotalsForPeriod(activeTxns, currentStart, currentEndExclusive)
 
         // Net spending accounting for refunds
-        val netSpending = PersonalFinancialAggregator.calculatePersonalNetSpending(currentTxns)
+        val netSpending = SafeMath.safeSubtract(totalSpent, totalRefund).coerceAtLeast(0L)
         val netSavings = totalIncome - netSpending
         val savingsRate = if (totalIncome > 0L) {
             ((netSavings.toFloat() / totalIncome.toFloat()) * 100f).coerceIn(-100f, 100f)
@@ -196,7 +196,7 @@ class AnalyticsViewModel(
         val (trendPoints, periodInfo) = when (period) {
             "WEEKLY" -> {
                 val trend = PersonalFinancialAggregator.calculatePersonalDailyTotals(
-                    transactions = currentTxns,
+                    transactions = activeTxns,
                     currentStartMillis = currentStart,
                     zoneId = zoneId,
                     locale = locale
@@ -206,7 +206,7 @@ class AnalyticsViewModel(
             "YEARLY" -> {
                 val year = Instant.ofEpochMilli(currentStart).atZone(zoneId).toLocalDate().year
                 val trend = PersonalFinancialAggregator.calculatePersonalMonthlyTotals(
-                    transactions = currentTxns,
+                    transactions = activeTxns,
                     year = year,
                     zoneId = zoneId,
                     locale = locale
@@ -216,7 +216,7 @@ class AnalyticsViewModel(
             else -> { // "MONTHLY"
                 val yearMonth = YearMonth.from(Instant.ofEpochMilli(currentStart).atZone(zoneId))
                 val trend = PersonalFinancialAggregator.calculatePersonalWeeklyTotals(
-                    transactions = currentTxns,
+                    transactions = activeTxns,
                     yearMonth = yearMonth,
                     timeZone = TimeZone.getDefault(),
                     locale = locale

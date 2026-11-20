@@ -716,6 +716,7 @@ class TransactionsViewModel(
                     txn.description.contains(query, ignoreCase = true) ||
                     (txn.merchantName?.contains(query, ignoreCase = true) == true) ||
                     (txn.referenceNumber?.contains(query, ignoreCase = true) == true) ||
+                    (txn.upiReferenceNumber?.contains(query, ignoreCase = true) == true) ||
                     (txn.expenseGroupName?.contains(query, ignoreCase = true) == true)
 
             // Status & Type filter

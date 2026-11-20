@@ -160,10 +160,24 @@ object MonthlyCalendarEngine {
                 continue
             }
 
-            cal.timeInMillis = txn.transactionDate
-            if (cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) == month) {
-                val day = cal.get(Calendar.DAY_OF_MONTH)
-                dayMap.getOrPut(day) { mutableListOf() }.add(txn)
+            if (txn.isSpread && txn.allocations.isNotEmpty()) {
+                // Spread expense: index by each allocation date falling in this month
+                for (allocation in txn.allocations) {
+                    cal.timeInMillis = allocation.allocationDate
+                    if (cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) == month) {
+                        val day = cal.get(Calendar.DAY_OF_MONTH)
+                        val list = dayMap.getOrPut(day) { mutableListOf() }
+                        if (!list.any { it.id == txn.id }) {
+                            list.add(txn)
+                        }
+                    }
+                }
+            } else {
+                cal.timeInMillis = txn.transactionDate
+                if (cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) == month) {
+                    val day = cal.get(Calendar.DAY_OF_MONTH)
+                    dayMap.getOrPut(day) { mutableListOf() }.add(txn)
+                }
             }
         }
 
@@ -181,7 +195,12 @@ object MonthlyCalendarEngine {
 
         for (d in 1..daysInMonth) {
             calDay.set(Calendar.DAY_OF_MONTH, d)
-            val dayMillis = calDay.timeInMillis
+            val dayStart = calDay.timeInMillis
+            val dayEndExclusive = Calendar.getInstance(timeZone, locale).apply {
+                timeInMillis = dayStart
+                add(Calendar.DAY_OF_YEAR, 1)
+            }.timeInMillis
+
             val dayTxns = dayMap[d] ?: emptyList()
 
             var expenseTotal = 0L
@@ -193,7 +212,11 @@ object MonthlyCalendarEngine {
                 val activeTxn = if (txn.isIgnored) txn.copy(transactionStatus = TransactionStatus.ACTIVE) else txn
                 when (txn.transactionType) {
                     TransactionType.EXPENSE, TransactionType.UPI_LITE_PAYMENT -> {
-                        val share = PersonalFinancialAggregator.calculatePersonalExpense(activeTxn)
+                        val share = if (activeTxn.isSpread && activeTxn.allocations.isNotEmpty()) {
+                            PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(activeTxn, dayStart, dayEndExclusive)
+                        } else {
+                            PersonalFinancialAggregator.calculatePersonalExpense(activeTxn)
+                        }
                         expenseTotal = SafeMath.safeAdd(expenseTotal, share)
                     }
                     TransactionType.INCOME -> {
@@ -218,7 +241,7 @@ object MonthlyCalendarEngine {
 
             result[d] = CalendarDaySummary(
                 dayOfMonth = d,
-                dateMillis = dayMillis,
+                dateMillis = dayStart,
                 totalExpensePaise = expenseTotal,
                 totalIncomePaise = incomeTotal,
                 totalRefundPaise = refundTotal,

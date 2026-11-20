@@ -20,6 +20,7 @@ object PaymentRecipientExtractor {
         " dated ", " successful", " done", " to ", " from ",
         " has ", " have ", " had ", " was ", " were ", " is ", " are ", " been ", " will ",
         " your ", " upi ", " ref no", " ref id", " txn id", " transaction id", " utr ",
+        " rrn", " bank ref", " upi ref",
         " available balance", " avl bal", " balance is", " bal is", " a/c", " account"
     )
 
@@ -146,14 +147,9 @@ object PaymentRecipientExtractor {
             )
         }
 
-        // 3. Reference number / UTR check (6 or more digits without alphabetical characters)
+        // 3. Reject pure numeric sequences (account numbers, reference numbers, or unrelated digits)
         if (digitsOnly.length >= 6 && digitsOnly.all { it.isDigit() }) {
-            return ExtractedRecipientInfo(
-                merchantName = null,
-                phoneNumber = null,
-                upiId = null,
-                referenceNumber = digitsOnly
-            )
+            return ExtractedRecipientInfo()
         }
 
         // 4. Filter out generic reserved non-merchant words, payment providers, and bank names

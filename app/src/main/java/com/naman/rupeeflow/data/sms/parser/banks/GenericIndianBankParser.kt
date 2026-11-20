@@ -83,7 +83,10 @@ class GenericIndianBankParser : BankMessageParser {
 
         // Generic banking indicators
         val hasBankIndicator = upperBody.contains("A/C") || upperBody.contains("ACCOUNT") ||
-                upperBody.contains("BANK") || upperBody.contains("UPI") || normSender.contains("BANK")
+                upperBody.contains("BANK") || upperBody.contains("UPI") || upperBody.contains("UTR") ||
+                upperBody.contains("RRN") || upperBody.contains("REF") || upperBody.contains("VPA") ||
+                upperBody.contains("IMPS") || upperBody.contains("NEFT") || upperBody.contains("RTGS") ||
+                normSender.contains("BANK")
         val hasTransactionKeyword = upperBody.contains("DEBITED") || upperBody.contains("CREDITED") ||
                 upperBody.contains("REFUND") || upperBody.contains("TRANSFERRED") ||
                 upperBody.contains("PAID") || upperBody.contains("SPENT")
@@ -99,6 +102,7 @@ class GenericIndianBankParser : BankMessageParser {
         if (amountPaise <= 0L) return null
 
         val refNumber = ReferenceExtractor.extract(trimmed)
+        val upiRef = ReferenceExtractor.extractUpiReference(trimmed)
 
         var accountLast4: String? = null
         val acMatcher = ACCOUNT_PATTERN.matcher(trimmed)
@@ -177,6 +181,7 @@ class GenericIndianBankParser : BankMessageParser {
             phoneNumber = recipient.phoneNumber,
             upiId = recipient.upiId,
             referenceNumber = refNumber,
+            upiReferenceNumber = upiRef,
             paymentMethod = paymentMethod,
             timestamp = timestamp,
             rawSender = sender,

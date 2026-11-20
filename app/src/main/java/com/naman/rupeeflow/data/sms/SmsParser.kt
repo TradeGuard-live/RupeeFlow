@@ -18,6 +18,7 @@ data class ParsedSmsResult(
     val accountLast4: String? = null,
     val merchant: String? = null,
     val referenceNumber: String? = null,
+    val upiReferenceNumber: String? = null,
     val isOtp: Boolean = false,
     val isFailed: Boolean = false,
     val isBalanceInquiry: Boolean = false,
@@ -150,6 +151,8 @@ object SmsParser {
         // 3. Fallback for unclassified candidate
         val amountPaise = AmountExtractor.extract(combined)
         val recipientInfo = PaymentRecipientExtractor.extract(combined)
+        val upiRef = ReferenceExtractor.extractUpiReference(combined)
+        val generalRef = recipientInfo.referenceNumber ?: ReferenceExtractor.extract(combined)
 
         return ParsedSmsResult(
             isValidTransaction = false,
@@ -159,7 +162,8 @@ object SmsParser {
             merchant = recipientInfo.merchantName,
             phoneNumber = recipientInfo.phoneNumber,
             upiId = recipientInfo.upiId,
-            referenceNumber = recipientInfo.referenceNumber ?: ReferenceExtractor.extract(combined),
+            referenceNumber = upiRef ?: generalRef,
+            upiReferenceNumber = upiRef,
             rawSender = packageName,
             rawBody = sanitizeRawContent(combined),
             timestamp = timestamp,

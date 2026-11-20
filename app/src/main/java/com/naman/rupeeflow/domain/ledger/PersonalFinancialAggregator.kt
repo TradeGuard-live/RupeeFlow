@@ -109,6 +109,82 @@ object PersonalFinancialAggregator {
     }
 
     /**
+     * Calculates personal expense contribution for a given date range [startMillis, endMillisExclusive).
+     * For normal single-day transactions, counts on transactionDate.
+     * For spread expenses, counts strictly the allocations falling within the range.
+     */
+    fun calculatePersonalExpenseForPeriod(
+        transaction: Transaction,
+        startMillis: Long,
+        endMillisExclusive: Long
+    ): Long {
+        if (transaction.transactionStatus == TransactionStatus.IGNORED) return 0L
+        if (transaction.transactionType != TransactionType.EXPENSE &&
+            transaction.transactionType != TransactionType.UPI_LITE_PAYMENT
+        ) return 0L
+
+        val totalPersonal = calculatePersonalExpense(transaction)
+        if (totalPersonal <= 0L) return 0L
+
+        if (transaction.isSpread && transaction.allocations.isNotEmpty()) {
+            val matchingAllocations = transaction.allocations.filter {
+                it.allocationDate >= startMillis && it.allocationDate < endMillisExclusive
+            }
+            if (matchingAllocations.isEmpty()) return 0L
+
+            return if (transaction.isSplit && transaction.amountPaise > 0L) {
+                // Determine personal share proportion
+                val personalAllocations = com.naman.rupeeflow.domain.util.ExpenseAllocationCalculator.calculateAllocations(
+                    amountPaise = totalPersonal,
+                    durationDays = transaction.spreadDurationDays,
+                    startDateMillis = transaction.spreadStartDate ?: transaction.transactionDate
+                )
+                personalAllocations.filter {
+                    it.allocationDate >= startMillis && it.allocationDate < endMillisExclusive
+                }.safeSumOf { it.amountPaise }
+            } else {
+                matchingAllocations.safeSumOf { it.amountPaise }
+            }
+        } else {
+            return if (transaction.transactionDate >= startMillis && transaction.transactionDate < endMillisExclusive) {
+                totalPersonal
+            } else 0L
+        }
+    }
+
+    /**
+     * Sums personal expenses across a list of transactions strictly within a period [startMillis, endMillisExclusive).
+     * Correctly accounts for daily allocations of spread expenses.
+     */
+    fun calculateTotalPersonalExpenseForPeriod(
+        transactions: List<Transaction>,
+        startMillis: Long,
+        endMillisExclusive: Long
+    ): Long {
+        return transactions.safeSumOf { calculatePersonalExpenseForPeriod(it, startMillis, endMillisExclusive) }
+    }
+
+    /**
+     * Aggregates personal spending by Category ID strictly within a period [startMillis, endMillisExclusive).
+     * Correctly attributes allocated amounts of spread expenses to each period.
+     */
+    fun calculatePersonalCategoryTotalsForPeriod(
+        transactions: List<Transaction>,
+        startMillis: Long,
+        endMillisExclusive: Long
+    ): Map<Long, Long> {
+        val result = mutableMapOf<Long, Long>()
+        for (txn in transactions) {
+            val expense = calculatePersonalExpenseForPeriod(txn, startMillis, endMillisExclusive)
+            if (expense > 0L) {
+                val current = result.getOrDefault(txn.categoryId, 0L)
+                result[txn.categoryId] = SafeMath.safeAdd(current, expense)
+            }
+        }
+        return result
+    }
+
+    /**
      * Sums personal expenses across a list of transactions using 64-bit integer paise arithmetic.
      */
     fun calculateTotalPersonalExpense(transactions: List<Transaction>): Long {
@@ -216,11 +292,9 @@ object PersonalFinancialAggregator {
             val dayStart = dayDate.atStartOfDay(zoneId).toInstant().toEpochMilli()
             val dayEndExclusive = dayDate.plusDays(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
 
-            val dayTotal = transactions
-                .filter {
-                    it.transactionDate >= dayStart && it.transactionDate < dayEndExclusive
-                }
-                .safeSumOf { calculatePersonalExpense(it) }
+            val dayTotal = transactions.safeSumOf {
+                calculatePersonalExpenseForPeriod(it, dayStart, dayEndExclusive)
+            }
 
             val dayLabel = dayDate.dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
             val dateRange = dayDate.format(DateTimeFormatter.ofPattern("d MMM", locale))
@@ -237,15 +311,20 @@ object PersonalFinancialAggregator {
         timeZone: TimeZone = TimeZone.getDefault(),
         locale: Locale = Locale.getDefault()
     ): List<DailySpending> {
+        val zoneId = timeZone.toZoneId()
+        val mStart = yearMonth.atDay(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val mEndExclusive = yearMonth.plusMonths(1).atDay(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
+
         val buckets = DatePeriodHelper.getMonthlyWeeks(yearMonth, timeZone, locale)
 
         return buckets.map { bucket ->
-            val total = transactions
-                .filter {
-                    it.transactionDate >= bucket.calendarWeekStartMillis &&
-                            it.transactionDate < bucket.calendarWeekEndMillisExclusive
-                }
-                .safeSumOf { calculatePersonalExpense(it) }
+            // Clamp bucket boundaries to the calendar month so overlapping week edges do not pull expenses from adjacent months
+            val effectiveStart = maxOf(bucket.calendarWeekStartMillis, mStart)
+            val effectiveEndExclusive = minOf(bucket.calendarWeekEndMillisExclusive, mEndExclusive)
+
+            val total = transactions.safeSumOf {
+                calculatePersonalExpenseForPeriod(it, effectiveStart, effectiveEndExclusive)
+            }
 
             DailySpending(
                 timestamp = bucket.calendarWeekStartMillis,
@@ -270,11 +349,9 @@ object PersonalFinancialAggregator {
             val mStart = ym.atDay(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
             val mEndExclusive = ym.plusMonths(1).atDay(1).atStartOfDay(zoneId).toInstant().toEpochMilli()
 
-            val mTotal = transactions
-                .filter {
-                    it.transactionDate >= mStart && it.transactionDate < mEndExclusive
-                }
-                .safeSumOf { calculatePersonalExpense(it) }
+            val mTotal = transactions.safeSumOf {
+                calculatePersonalExpenseForPeriod(it, mStart, mEndExclusive)
+            }
 
             val mLabel = ym.month.getDisplayName(TextStyle.SHORT, locale)
             val fullLabel = ym.month.getDisplayName(TextStyle.FULL, locale)
@@ -294,11 +371,9 @@ object PersonalFinancialAggregator {
             val yStart = LocalDate.of(year, 1, 1).atStartOfDay(zoneId).toInstant().toEpochMilli()
             val yEndExclusive = LocalDate.of(year + 1, 1, 1).atStartOfDay(zoneId).toInstant().toEpochMilli()
 
-            val yTotal = transactions
-                .filter {
-                    it.transactionDate >= yStart && it.transactionDate < yEndExclusive
-                }
-                .safeSumOf { calculatePersonalExpense(it) }
+            val yTotal = transactions.safeSumOf {
+                calculatePersonalExpenseForPeriod(it, yStart, yEndExclusive)
+            }
 
             DailySpending(yStart, year.toString(), yTotal, year.toString())
         }

@@ -46,7 +46,8 @@ class IciciBankParser : BankMessageParser {
         val amountPaise = AmountExtractor.extract(trimmed)
         if (amountPaise <= 0L) return null
 
-        var refNumber = ReferenceExtractor.extract(trimmed)
+        val refNumber = ReferenceExtractor.extract(trimmed)
+        val upiRef = ReferenceExtractor.extractUpiReference(trimmed)
 
         var accountLast4: String? = null
         val acMatcher = ACCOUNT_PATTERN.matcher(trimmed)
@@ -104,6 +105,7 @@ class IciciBankParser : BankMessageParser {
             accountLast4 = accountLast4,
             merchant = merchant,
             referenceNumber = refNumber,
+            upiReferenceNumber = upiRef,
             paymentMethod = paymentMethod,
             timestamp = timestamp,
             rawSender = sender,

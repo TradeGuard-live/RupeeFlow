@@ -5,10 +5,12 @@ import com.naman.rupeeflow.data.local.dao.CategoryDao
 import com.naman.rupeeflow.data.local.dao.FriendDao
 import com.naman.rupeeflow.data.local.dao.TransactionDao
 import com.naman.rupeeflow.data.local.dao.TransactionWithParticipants
+import com.naman.rupeeflow.data.local.entity.ExpenseAllocationEntity
 import com.naman.rupeeflow.data.local.entity.TransactionEntity
 import com.naman.rupeeflow.data.local.entity.TransactionParticipantEntity
 import com.naman.rupeeflow.domain.matching.MerchantNormalizer
 import com.naman.rupeeflow.domain.model.*
+import com.naman.rupeeflow.domain.util.ExpenseAllocationCalculator
 import com.naman.rupeeflow.widget.RupeeFlowWidgetManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -127,7 +129,45 @@ class TransactionRepositoryImpl(
             updatedAt = System.currentTimeMillis()
         )
         val participantEntities = transaction.participants.map { it.toEntity(transaction.id) }
-        val result = transactionDao.saveTransactionWithParticipants(entity, participantEntities)
+
+        val allocationEntities = if (transaction.isSpread && transaction.spreadDurationDays > 1) {
+            val calcAllocations = if (transaction.allocations.isNotEmpty()) {
+                transaction.allocations.map {
+                    ExpenseAllocationEntity(
+                        id = it.id,
+                        transactionId = transaction.id,
+                        allocationDate = it.allocationDate,
+                        amountPaise = it.amountPaise,
+                        createdAt = if (it.createdAt > 0L) it.createdAt else System.currentTimeMillis(),
+                        updatedAt = System.currentTimeMillis()
+                    )
+                }
+            } else {
+                val start = transaction.spreadStartDate ?: transaction.transactionDate
+                val calculated = ExpenseAllocationCalculator.calculateAllocations(
+                    amountPaise = transaction.amountPaise,
+                    durationDays = transaction.spreadDurationDays,
+                    startDateMillis = start
+                )
+                calculated.map {
+                    ExpenseAllocationEntity(
+                        id = 0L,
+                        transactionId = transaction.id,
+                        allocationDate = it.allocationDate,
+                        amountPaise = it.amountPaise
+                    )
+                }
+            }
+            calcAllocations
+        } else {
+            emptyList()
+        }
+
+        val result = transactionDao.saveTransactionWithParticipantsAndAllocations(
+            entity,
+            participantEntities,
+            allocationEntities
+        )
 
         // Automatically learn merchant-category association
         val merchantToLearn = transaction.merchantName?.trim()?.ifBlank { null }
@@ -190,7 +230,7 @@ class TransactionRepositoryImpl(
         title: String?
     ): Boolean {
         if (!refNumber.isNullOrBlank()) {
-            val existing = transactionDao.findByReferenceNumber(refNumber)
+            val existing = transactionDao.findByUpiReferenceNumber(refNumber) ?: transactionDao.findByReferenceNumber(refNumber)
             if (existing != null) return true
         }
 
@@ -198,6 +238,18 @@ class TransactionRepositoryImpl(
         val recent = transactionDao.findSimilarRecent(amountPaise, timestamp - window, timestamp + window)
 
         for (item in recent) {
+            val itemRef = item.upiReferenceNumber ?: item.referenceNumber
+            // If both transactions have references and they differ, they are distinct transactions!
+            if (!refNumber.isNullOrBlank() && !itemRef.isNullOrBlank() && !refNumber.equals(itemRef, ignoreCase = true)) {
+                continue
+            }
+
+            // If both transactions have merchants and they differ, they are distinct legitimate purchases!
+            if (!merchant.isNullOrBlank() && !item.merchantName.isNullOrBlank() &&
+                !merchant.equals(item.merchantName, ignoreCase = true)) {
+                continue
+            }
+
             // Immediate duplicate notification/broadcast within 5 seconds with identical merchant or title
             if (kotlin.math.abs(item.transactionDate - timestamp) < 5_000L) {
                 if (!merchant.isNullOrBlank() && !item.merchantName.isNullOrBlank()) {
@@ -247,6 +299,17 @@ class TransactionRepositoryImpl(
             )
         }
 
+        val allocationDomains = allocations.sortedBy { it.allocationDate }.map { a ->
+            ExpenseAllocation(
+                id = a.id,
+                transactionId = a.transactionId,
+                allocationDate = a.allocationDate,
+                amountPaise = a.amountPaise,
+                createdAt = a.createdAt,
+                updatedAt = a.updatedAt
+            )
+        }
+
         return Transaction(
             id = transaction.id,
             title = transaction.title,
@@ -269,6 +332,7 @@ class TransactionRepositoryImpl(
             rawMerchant = transaction.rawMerchant,
             sourcePackage = transaction.sourcePackage,
             referenceNumber = transaction.referenceNumber,
+            upiReferenceNumber = transaction.upiReferenceNumber ?: transaction.referenceNumber,
             phoneNumber = transaction.phoneNumber,
             upiId = transaction.upiId,
             groupId = transaction.groupId,
@@ -282,6 +346,11 @@ class TransactionRepositoryImpl(
             locationSource = transaction.locationSource,
             locationLabel = transaction.locationLabel,
             googleMapsUrl = transaction.googleMapsUrl,
+            isSpread = transaction.isSpread,
+            spreadDurationDays = transaction.spreadDurationDays,
+            spreadStartDate = transaction.spreadStartDate,
+            spreadEndDate = transaction.spreadEndDate,
+            allocations = allocationDomains,
             createdAt = transaction.createdAt,
             updatedAt = transaction.updatedAt
         )
@@ -306,6 +375,7 @@ class TransactionRepositoryImpl(
         rawMerchant = rawMerchant ?: merchantName,
         sourcePackage = sourcePackage,
         referenceNumber = referenceNumber,
+        upiReferenceNumber = upiReferenceNumber ?: referenceNumber,
         phoneNumber = phoneNumber,
         upiId = upiId,
         groupId = groupId,
@@ -319,6 +389,10 @@ class TransactionRepositoryImpl(
         locationSource = locationSource,
         locationLabel = locationLabel,
         googleMapsUrl = googleMapsUrl,
+        isSpread = isSpread,
+        spreadDurationDays = spreadDurationDays,
+        spreadStartDate = spreadStartDate,
+        spreadEndDate = spreadEndDate,
         createdAt = createdAt,
         updatedAt = System.currentTimeMillis()
     )

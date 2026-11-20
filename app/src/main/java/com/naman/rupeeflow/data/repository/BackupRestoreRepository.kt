@@ -9,6 +9,7 @@ import com.naman.rupeeflow.domain.matching.MerchantNormalizer
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
+import com.naman.rupeeflow.domain.util.ExpenseAllocationCalculator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -230,6 +231,7 @@ class BackupRestoreRepository(
                 put("rawMerchant", t.rawMerchant ?: "")
                 put("sourcePackage", t.sourcePackage ?: "")
                 put("referenceNumber", t.referenceNumber ?: "")
+                put("upiReferenceNumber", t.upiReferenceNumber ?: t.referenceNumber ?: "")
                 put("groupId", t.groupId ?: -1L)
                 if (t.expenseGroupId != null) put("expenseGroupId", t.expenseGroupId)
                 put("expenseGroupName", t.expenseGroupName ?: "")
@@ -242,6 +244,10 @@ class BackupRestoreRepository(
                 if (!t.locationLabel.isNullOrBlank()) put("locationLabel", t.locationLabel)
                 if (!t.googleMapsUrl.isNullOrBlank()) put("googleMapsUrl", t.googleMapsUrl)
                 put("createdAt", t.createdAt)
+                put("isSpread", t.isSpread)
+                put("spreadDurationDays", t.spreadDurationDays)
+                if (t.spreadStartDate != null) put("spreadStartDate", t.spreadStartDate)
+                if (t.spreadEndDate != null) put("spreadEndDate", t.spreadEndDate)
             }
 
             val partArray = JSONArray()
@@ -256,6 +262,21 @@ class BackupRestoreRepository(
                 partArray.put(pObj)
             }
             obj.put("participants", partArray)
+
+            val allocArray = JSONArray()
+            for (a in t.allocations) {
+                val aObj = JSONObject().apply {
+                    put("id", a.id)
+                    put("transactionId", a.transactionId)
+                    put("allocationDate", a.allocationDate)
+                    put("amountPaise", a.amountPaise)
+                    put("createdAt", a.createdAt)
+                    put("updatedAt", a.updatedAt)
+                }
+                allocArray.put(aObj)
+            }
+            obj.put("allocations", allocArray)
+
             txnArray.put(obj)
         }
         root.put("transactions", txnArray)
@@ -322,6 +343,7 @@ class BackupRestoreRepository(
                 put("merchantNormalized", pt.merchantNormalized ?: "")
                 put("sourcePackage", pt.sourcePackage ?: "")
                 put("referenceNumber", pt.referenceNumber ?: "")
+                put("upiReferenceNumber", pt.upiReferenceNumber ?: pt.referenceNumber ?: "")
                 put("rawContent", pt.rawContent)
                 put("timestamp", pt.timestamp)
                 put("status", pt.status.name)
@@ -579,7 +601,8 @@ class BackupRestoreRepository(
                 return inspectBackup(decrypted, null)
             }
 
-            if (!root.has("appName") || root.getString("appName") != BACKUP_APP_NAME) {
+            val app = root.optString("appName").takeIf { it.isNotBlank() } ?: root.optString("app")
+            if (app != BACKUP_APP_NAME) {
                 return BackupPreview(isValid = false, errorMessage = "Invalid backup format: Not a RupeeFlow backup")
             }
 
@@ -633,7 +656,8 @@ class BackupRestoreRepository(
         val root: JSONObject
         try {
             root = JSONObject(jsonString)
-            if (!root.has("appName") || root.getString("appName") != BACKUP_APP_NAME) {
+            val app = root.optString("appName").takeIf { it.isNotBlank() } ?: root.optString("app")
+            if (app != BACKUP_APP_NAME) {
                 return@withContext false
             }
         } catch (_: Exception) {
@@ -834,6 +858,7 @@ class BackupRestoreRepository(
 
                 // 5. Restore Transactions & Participants
                 if (root.has("transactions")) {
+                    database.expenseAllocationDao().clearAllAllocations()
                     val txnArray = root.getJSONArray("transactions")
                     for (i in 0 until txnArray.length()) {
                         val obj = txnArray.getJSONObject(i)
@@ -881,6 +906,7 @@ class BackupRestoreRepository(
                             rawMerchant = obj.optString("rawMerchant").takeIf { it.isNotBlank() } ?: obj.optString("merchantName").takeIf { it.isNotBlank() },
                             sourcePackage = obj.optString("sourcePackage").takeIf { it.isNotBlank() },
                             referenceNumber = obj.optString("referenceNumber").takeIf { it.isNotBlank() },
+                            upiReferenceNumber = obj.optString("upiReferenceNumber").takeIf { it.isNotBlank() } ?: obj.optString("referenceNumber").takeIf { it.isNotBlank() },
                             groupId = gId,
                             expenseGroupId = egId,
                             expenseGroupName = egName,
@@ -892,6 +918,10 @@ class BackupRestoreRepository(
                             locationSource = locSource,
                             locationLabel = locLabel,
                             googleMapsUrl = mapsUrl,
+                            isSpread = obj.optBoolean("isSpread", false),
+                            spreadDurationDays = obj.optInt("spreadDurationDays", 1),
+                            spreadStartDate = if (obj.has("spreadStartDate") && !obj.isNull("spreadStartDate")) obj.getLong("spreadStartDate") else null,
+                            spreadEndDate = if (obj.has("spreadEndDate") && !obj.isNull("spreadEndDate")) obj.getLong("spreadEndDate") else null,
                             createdAt = obj.optLong("createdAt", System.currentTimeMillis()),
                             updatedAt = obj.optLong("updatedAt", System.currentTimeMillis())
                         )
@@ -916,7 +946,43 @@ class BackupRestoreRepository(
                                 )
                             }
                         }
-                        database.transactionDao().saveTransactionWithParticipants(txnEntity, participants)
+
+                        val allocations = mutableListOf<ExpenseAllocationEntity>()
+                        if (obj.has("allocations")) {
+                            val aArray = obj.getJSONArray("allocations")
+                            for (j in 0 until aArray.length()) {
+                                val aObj = aArray.getJSONObject(j)
+                                allocations.add(
+                                    ExpenseAllocationEntity(
+                                        id = aObj.optLong("id", 0L),
+                                        transactionId = txnEntity.id,
+                                        allocationDate = aObj.getLong("allocationDate"),
+                                        amountPaise = aObj.getLong("amountPaise"),
+                                        createdAt = aObj.optLong("createdAt", System.currentTimeMillis()),
+                                        updatedAt = aObj.optLong("updatedAt", System.currentTimeMillis())
+                                    )
+                                )
+                            }
+                        } else if (txnEntity.isSpread && txnEntity.spreadDurationDays > 1) {
+                            val start = txnEntity.spreadStartDate ?: txnEntity.transactionDate
+                            val calculated = ExpenseAllocationCalculator.calculateAllocations(
+                                amountPaise = txnEntity.amountPaise,
+                                durationDays = txnEntity.spreadDurationDays,
+                                startDateMillis = start
+                            )
+                            allocations.addAll(calculated.map {
+                                ExpenseAllocationEntity(
+                                    id = 0L,
+                                    transactionId = txnEntity.id,
+                                    allocationDate = it.allocationDate,
+                                    amountPaise = it.amountPaise,
+                                    createdAt = System.currentTimeMillis(),
+                                    updatedAt = System.currentTimeMillis()
+                                )
+                            })
+                        }
+
+                        database.transactionDao().saveTransactionWithParticipantsAndAllocations(txnEntity, participants, allocations)
                     }
                 }
 
@@ -1023,6 +1089,7 @@ class BackupRestoreRepository(
                             merchantNormalized = obj.optString("merchantNormalized").takeIf { it.isNotBlank() } ?: obj.optString("detectedMerchant").takeIf { it.isNotBlank() }?.let { MerchantNormalizer.normalize(it).takeIf { n -> n.isNotBlank() } },
                             sourcePackage = obj.optString("sourcePackage").takeIf { it.isNotBlank() },
                             referenceNumber = obj.optString("referenceNumber").takeIf { it.isNotBlank() },
+                            upiReferenceNumber = obj.optString("upiReferenceNumber").takeIf { it.isNotBlank() } ?: obj.optString("referenceNumber").takeIf { it.isNotBlank() },
                             rawContent = obj.getString("rawContent"),
                             timestamp = obj.getLong("timestamp"),
                             status = runCatching {
@@ -1124,7 +1191,7 @@ class BackupRestoreRepository(
     suspend fun exportTransactionsToCsv(): String = withContext(Dispatchers.IO) {
         val txns = transactionRepository.getAllTransactionsList()
         val sb = StringBuilder()
-        sb.append("ID,Date,Time,Title,Type,Category,Amount(INR),PaymentMethod,PaidBy,Status,Merchant,RefNo,Description\n")
+        sb.append("ID,Date,Time,Title,Type,Category,Amount(INR),PaymentMethod,PaidBy,Status,Merchant,RefNo,UpiRefNo,Description\n")
 
         for (t in txns) {
             val dateStr = DateTimeUtils.formatDate(t.transactionDate, "yyyy-MM-dd")
@@ -1134,8 +1201,9 @@ class BackupRestoreRepository(
             val titleEscaped = "\"${t.title.replace("\"", "\"\"")}\""
             val descEscaped = "\"${t.description.replace("\"", "\"\"")}\""
             val merchantEscaped = "\"${(t.merchantName ?: "").replace("\"", "\"\"")}\""
+            val upiRef = t.upiReferenceNumber ?: t.referenceNumber ?: ""
 
-            sb.append("${t.id},$dateStr,$timeStr,$titleEscaped,${t.transactionType.name},$catStr,$amtStr,${t.paymentMethod.name},${t.paidByName},${t.transactionStatus.name},$merchantEscaped,${t.referenceNumber ?: ""},$descEscaped\n")
+            sb.append("${t.id},$dateStr,$timeStr,$titleEscaped,${t.transactionType.name},$catStr,$amtStr,${t.paymentMethod.name},${t.paidByName},${t.transactionStatus.name},$merchantEscaped,${t.referenceNumber ?: ""},$upiRef,$descEscaped\n")
         }
         sb.toString()
     }

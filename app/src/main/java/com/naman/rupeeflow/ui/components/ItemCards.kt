@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.CallMade
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Group
@@ -187,6 +188,35 @@ fun TransactionItemCard(
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1
                             )
+                        }
+                    }
+
+                    if (transaction.isSpread && transaction.spreadDurationDays > 1) {
+                        Text("•", color = AppTheme.colors.textTertiary, fontSize = 10.sp)
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = if (isLight) Color(0xFFF3E8FF) else Color(0xFF581C87).copy(alpha = 0.4f)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DateRange,
+                                    contentDescription = null,
+                                    tint = if (isLight) Color(0xFF7E22CE) else Color(0xFFD8B4FE),
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "Spread over ${transaction.spreadDurationDays} days",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isLight) Color(0xFF7E22CE) else Color(0xFFD8B4FE),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                            }
                         }
                     }
                 }

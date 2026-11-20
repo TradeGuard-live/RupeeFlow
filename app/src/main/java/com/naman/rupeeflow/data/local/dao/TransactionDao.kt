@@ -1,6 +1,7 @@
 package com.naman.rupeeflow.data.local.dao
 
 import androidx.room.*
+import com.naman.rupeeflow.data.local.entity.ExpenseAllocationEntity
 import com.naman.rupeeflow.data.local.entity.TransactionEntity
 import com.naman.rupeeflow.data.local.entity.TransactionParticipantEntity
 import com.naman.rupeeflow.domain.model.TransactionStatus
@@ -12,7 +13,12 @@ data class TransactionWithParticipants(
         parentColumn = "id",
         entityColumn = "transactionId"
     )
-    val participants: List<TransactionParticipantEntity>
+    val participants: List<TransactionParticipantEntity>,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "transactionId"
+    )
+    val allocations: List<ExpenseAllocationEntity> = emptyList()
 )
 
 @Dao
@@ -70,6 +76,9 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE referenceNumber = :refNumber LIMIT 1")
     suspend fun findByReferenceNumber(refNumber: String): TransactionEntity?
 
+    @Query("SELECT * FROM transactions WHERE upiReferenceNumber = :upiRef LIMIT 1")
+    suspend fun findByUpiReferenceNumber(upiRef: String): TransactionEntity?
+
     @Query("SELECT * FROM transactions WHERE amountPaise = :amountPaise AND transactionDate BETWEEN :startMillis AND :endMillis")
     suspend fun findSimilarRecent(amountPaise: Long, startMillis: Long, endMillis: Long): List<TransactionEntity>
 
@@ -107,13 +116,31 @@ interface TransactionDao {
     @Query("UPDATE transactions SET latitude = NULL, longitude = NULL, accuracyMeters = NULL, locationCapturedAt = NULL, locationSource = NULL, locationLabel = NULL, googleMapsUrl = NULL")
     suspend fun clearAllLocations()
 
+    @Query("DELETE FROM expense_allocations WHERE transactionId = :transactionId")
+    suspend fun deleteAllocationsForTransaction(transactionId: Long)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllocationEntities(allocations: List<ExpenseAllocationEntity>)
+
+    @Query("SELECT * FROM expense_allocations WHERE transactionId = :transactionId ORDER BY allocationDate ASC")
+    suspend fun getAllocationsForTransaction(transactionId: Long): List<ExpenseAllocationEntity>
+
     // Atomic save/update inside a single Room transaction
     // Enforces strict share balance validation, duplicate participant rejection,
-    // and safe participant replacement.
+    // safe participant replacement, and deterministic allocation persistence.
     @androidx.room.Transaction
     suspend fun saveTransactionWithParticipants(
         transaction: TransactionEntity,
         participants: List<TransactionParticipantEntity>
+    ): Long {
+        return saveTransactionWithParticipantsAndAllocations(transaction, participants, emptyList())
+    }
+
+    @androidx.room.Transaction
+    suspend fun saveTransactionWithParticipantsAndAllocations(
+        transaction: TransactionEntity,
+        participants: List<TransactionParticipantEntity>,
+        allocations: List<ExpenseAllocationEntity>
     ): Long {
         require(transaction.amountPaise > 0L) { "Transaction amount must be greater than zero" }
 
@@ -131,10 +158,18 @@ interface TransactionDao {
             }
         }
 
+        if (transaction.isSpread && allocations.isNotEmpty()) {
+            val totalAllocated = allocations.sumOf { it.amountPaise }
+            require(totalAllocated == transaction.amountPaise) {
+                "Total allocations ($totalAllocated paise) must strictly equal total amount (${transaction.amountPaise} paise)"
+            }
+        }
+
         val txnId = if (transaction.id == 0L) {
             insertTransactionEntity(transaction)
         } else {
             deleteParticipantsForTransaction(transaction.id)
+            deleteAllocationsForTransaction(transaction.id)
             val rows = updateTransactionEntity(transaction)
             if (rows == 0) {
                 insertTransactionEntity(transaction)
@@ -146,6 +181,11 @@ interface TransactionDao {
         if (participants.isNotEmpty()) {
             val updatedParticipants = participants.map { it.copy(id = 0L, transactionId = txnId) }
             insertParticipantEntities(updatedParticipants)
+        }
+
+        if (transaction.isSpread && allocations.isNotEmpty()) {
+            val updatedAllocations = allocations.map { it.copy(id = 0L, transactionId = txnId) }
+            insertAllocationEntities(updatedAllocations)
         }
 
         return txnId

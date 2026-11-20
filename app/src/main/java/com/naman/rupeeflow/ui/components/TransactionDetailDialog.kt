@@ -29,6 +29,7 @@ import com.naman.rupeeflow.domain.model.TransactionStatus
 import com.naman.rupeeflow.domain.model.TransactionType
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
+import com.naman.rupeeflow.domain.util.ExpenseAllocationCalculator
 import com.naman.rupeeflow.location.LocationIntentHelper
 import com.naman.rupeeflow.location.LocationNameResolver
 import com.naman.rupeeflow.ui.theme.*
@@ -148,11 +149,44 @@ fun TransactionDetailDialog(
                         val friendsShare = (transaction.amountPaise - transaction.userExpensePaise).coerceAtLeast(0L)
                         DetailRow("Friends' Share (Debt/Credit)", CurrencyUtils.formatPaiseToRupees(friendsShare))
                     }
-                    if (!transaction.referenceNumber.isNullOrBlank()) {
-                        DetailRow("Reference", transaction.referenceNumber)
-                    }
                     if (!transaction.merchantName.isNullOrBlank()) {
                         DetailRow("Merchant", transaction.merchantName)
+                    }
+                    val upiRef = transaction.upiReferenceNumber ?: transaction.referenceNumber
+                    if (!upiRef.isNullOrBlank()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "UPI Reference Number", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(text = upiRef, style = MaterialTheme.typography.titleSmall, color = AppTheme.colors.textPrimary)
+                                IconButton(
+                                    onClick = {
+                                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                        val clip = android.content.ClipData.newPlainText("UPI Reference Number", upiRef)
+                                        clipboard?.setPrimaryClip(clip)
+                                        android.widget.Toast.makeText(context, "UPI Reference Number copied", android.widget.Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ContentCopy,
+                                        contentDescription = "Copy UPI Reference Number",
+                                        tint = AppTheme.colors.primaryAccent,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                        }
+                    } else if (!transaction.referenceNumber.isNullOrBlank()) {
+                        DetailRow("Reference", transaction.referenceNumber)
                     }
                     if (transaction.hasExpenseGroup) {
                         DetailRow("Expense Group", transaction.expenseGroupName ?: "Group")
@@ -165,6 +199,105 @@ fun TransactionDetailDialog(
                             longitude = transaction.longitude
                         )
                         DetailRow("Payment Location", readableLocation)
+                    }
+                }
+
+                // Expense Allocation Details (When expense is spread across days)
+                if (transaction.isSpread && transaction.spreadDurationDays > 1) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    RupeeFlowCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 14.dp
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DateRange,
+                                contentDescription = null,
+                                tint = AppTheme.colors.primaryAccent,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Expense Allocation (Daily Spreading)",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = AppTheme.colors.textPrimary
+                            )
+                        }
+
+                        DetailRow("Original Amount", CurrencyUtils.formatPaiseToRupees(transaction.amountPaise))
+                        DetailRow("Purchase Date", DateTimeUtils.formatDate(transaction.transactionDate, "dd MMMM yyyy"))
+                        DetailRow("Duration", "${transaction.spreadDurationDays} days")
+                        val startDateFormatted = transaction.spreadStartDate?.let { DateTimeUtils.formatDate(it, "dd MMM yyyy") } ?: DateTimeUtils.formatDate(transaction.transactionDate, "dd MMM yyyy")
+                        val endDateFormatted = transaction.spreadEndDate?.let { DateTimeUtils.formatDate(it, "dd MMM yyyy") } ?: "N/A"
+                        DetailRow("Spread Period", "$startDateFormatted — $endDateFormatted")
+
+                        val dailyBasePaise = transaction.amountPaise / transaction.spreadDurationDays
+                        DetailRow("Daily Allocation", "~${CurrencyUtils.formatPaiseToRupees(dailyBasePaise)} / day")
+
+                        val totalAllocated = if (transaction.allocations.isNotEmpty()) {
+                            transaction.allocations.sumOf { it.amountPaise }
+                        } else {
+                            transaction.amountPaise
+                        }
+                        DetailRow("Total Allocated", CurrencyUtils.formatPaiseToRupees(totalAllocated))
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Daily Breakdown",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AppTheme.colors.textSecondary
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        val displayAllocations = if (transaction.allocations.isNotEmpty()) {
+                            transaction.allocations.map {
+                                ExpenseAllocationCalculator.CalculatedAllocation(it.allocationDate, it.amountPaise)
+                            }
+                        } else {
+                            val start = transaction.spreadStartDate ?: transaction.transactionDate
+                            ExpenseAllocationCalculator.calculateAllocations(transaction.amountPaise, transaction.spreadDurationDays, start)
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = AppTheme.colors.surfaceSecondary.copy(alpha = 0.35f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                displayAllocations.forEachIndexed { index, alloc ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 3.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = ExpenseAllocationCalculator.formatPreviewDate(alloc.allocationDate),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = AppTheme.colors.textSecondary
+                                        )
+                                        Text(
+                                            text = CurrencyUtils.formatPaiseToRupees(alloc.amountPaise),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = AppTheme.colors.textPrimary
+                                        )
+                                    }
+                                    if (index < displayAllocations.lastIndex) {
+                                        HorizontalDivider(
+                                            modifier = Modifier.padding(vertical = 2.dp),
+                                            color = AppTheme.colors.cardBorder.copy(alpha = 0.4f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 

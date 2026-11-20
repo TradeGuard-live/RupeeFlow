@@ -42,6 +42,7 @@ class SbiBankParser : BankMessageParser {
         if (amountPaise <= 0L) return null
 
         val refNumber = ReferenceExtractor.extract(trimmed)
+        val upiRef = ReferenceExtractor.extractUpiReference(trimmed)
 
         var accountLast4: String? = null
         val acMatcher = ACCOUNT_PATTERN.matcher(trimmed)
@@ -99,6 +100,7 @@ class SbiBankParser : BankMessageParser {
             phoneNumber = recipient.phoneNumber,
             upiId = recipient.upiId,
             referenceNumber = refNumber,
+            upiReferenceNumber = upiRef,
             paymentMethod = paymentMethod,
             timestamp = timestamp,
             rawSender = sender,

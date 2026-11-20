@@ -39,6 +39,7 @@ import com.naman.rupeeflow.ui.components.FriendAvatar
 import com.naman.rupeeflow.ui.components.rupeeFlowTextFieldColors
 import com.naman.rupeeflow.ui.theme.*
 import com.naman.rupeeflow.upi.UpiAppInfo
+import com.naman.rupeeflow.upi.UpiDiagnostics
 import com.naman.rupeeflow.upi.UpiIntentBuilder
 import com.naman.rupeeflow.upi.UpiSettlementManager
 import com.naman.rupeeflow.upi.UpiValidator
@@ -117,6 +118,8 @@ fun UpiSettlementDialog(
     var activeSettlementId by remember { mutableStateOf<Long?>(null) }
     var activeSettlementResult by remember { mutableStateOf<Settlement?>(null) }
     var isProcessingLaunch by remember { mutableStateOf(false) }
+    var showFallbackChooserPrompt by remember { mutableStateOf(false) }
+    var fallbackPromptAppName by remember { mutableStateOf("") }
 
     // UPI Activity Launcher
     val upiLauncher = rememberLauncherForActivityResult(
@@ -187,10 +190,14 @@ fun UpiSettlementDialog(
         return isValid
     }
 
-    fun launchUpiPayment() {
+    fun launchUpiPayment(forceGenericChooser: Boolean = false) {
         val friend = selectedFriend ?: return
         isProcessingLaunch = true
         errorMessage = null
+
+        val targetPkg = if (forceGenericChooser) null else selectedTargetPackage
+        val appName = installedApps.find { it.packageName == targetPkg }?.appName
+            ?: (if (targetPkg == null) "System Chooser" else "Selected App")
 
         scope.launch {
             try {
@@ -199,26 +206,36 @@ fun UpiSettlementDialog(
                     amountPaise = currentAmountPaise,
                     groupId = group?.id,
                     note = noteInput.trim(),
-                    targetPackage = selectedTargetPackage
+                    targetPackage = targetPkg
                 )
                 activeSettlementId = settlementId
+
+                val resolvedComponent = UpiIntentBuilder.getResolvedActivityComponent(context, intent)
+                UpiDiagnostics.logActivityResolution(targetPkg, resolvedComponent)
+                UpiDiagnostics.logLaunchAttempt(targetPkg, isGenericChooser = targetPkg == null)
+
+                // If explicitly targeted to a package (e.g. BHIM), verify resolution before launch
+                if (resolvedComponent == null && targetPkg != null) {
+                    val notFound = ActivityNotFoundException("No activity found to handle explicit intent for $targetPkg")
+                    UpiDiagnostics.logLaunchException(targetPkg, notFound)
+                    fallbackPromptAppName = appName
+                    showFallbackChooserPrompt = true
+                    return@launch
+                }
+
                 try {
                     upiLauncher.launch(intent)
                 } catch (e: ActivityNotFoundException) {
-                    if (selectedTargetPackage != null) {
-                        val fallbackIntent = upiSettlementManager.buildGenericUpiIntent(
-                            friend = friend,
-                            amountPaise = currentAmountPaise,
-                            note = noteInput.trim()
-                        )
-                        upiLauncher.launch(fallbackIntent)
+                    UpiDiagnostics.logLaunchException(targetPkg, e)
+                    if (targetPkg != null) {
+                        fallbackPromptAppName = appName
+                        showFallbackChooserPrompt = true
                     } else {
-                        throw e
+                        errorMessage = "No compatible UPI app found to process this payment"
                     }
                 }
-            } catch (e: ActivityNotFoundException) {
-                errorMessage = "No compatible UPI app found to process this payment"
             } catch (e: Exception) {
+                UpiDiagnostics.logLaunchException(targetPkg, e)
                 errorMessage = e.message ?: "Failed to launch UPI application"
             } finally {
                 isProcessingLaunch = false
@@ -786,6 +803,61 @@ fun UpiSettlementDialog(
                 }
             }
         }
+    }
+
+    if (showFallbackChooserPrompt) {
+        AlertDialog(
+            onDismissRequest = { showFallbackChooserPrompt = false },
+            title = {
+                Text(
+                    text = "App Launch Notice",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = AppTheme.colors.textPrimary
+                )
+            },
+            text = {
+                Text(
+                    text = "$fallbackPromptAppName cannot open this payment request directly. " +
+                        "Would you like to try opening with the system app chooser, or copy the UPI ID?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = AppTheme.colors.textSecondary
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showFallbackChooserPrompt = false
+                        selectedTargetPackage = null
+                        launchUpiPayment(forceGenericChooser = true)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppTheme.colors.primaryAccent,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("Open Chooser")
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                            val clip = android.content.ClipData.newPlainText("UPI ID", upiIdInput.trim())
+                            clipboard?.setPrimaryClip(clip)
+                            android.widget.Toast.makeText(context, "UPI ID copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+                            showFallbackChooserPrompt = false
+                        }
+                    ) {
+                        Text("Copy UPI ID")
+                    }
+                    TextButton(onClick = { showFallbackChooserPrompt = false }) {
+                        Text("Cancel")
+                    }
+                }
+            }
+        )
     }
 }
 

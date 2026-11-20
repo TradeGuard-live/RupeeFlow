@@ -31,6 +31,9 @@ interface PendingTransactionDao {
     @Query("SELECT * FROM pending_transactions WHERE referenceNumber = :refNumber LIMIT 1")
     suspend fun findByReference(refNumber: String): PendingTransactionEntity?
 
+    @Query("SELECT * FROM pending_transactions WHERE upiReferenceNumber = :upiRef LIMIT 1")
+    suspend fun findByUpiReference(upiRef: String): PendingTransactionEntity?
+
     @Query("SELECT * FROM pending_transactions WHERE detectedAmountPaise = :amountPaise AND timestamp BETWEEN :startMillis AND :endMillis")
     suspend fun findSimilarRecent(amountPaise: Long, startMillis: Long, endMillis: Long): List<PendingTransactionEntity>
 
