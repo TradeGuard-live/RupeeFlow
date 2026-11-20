@@ -396,11 +396,7 @@ class ReportGeneratorViewModel(
 
         // Filter transactions strictly within date range
         val inRange = baseTxns.filter { txn ->
-            if (txn.isSpread && txn.allocations.isNotEmpty()) {
-                txn.allocations.any { it.allocationDate in startMillis..endMillis }
-            } else {
-                txn.transactionDate in startMillis..endMillis
-            }
+            txn.transactionDate in startMillis..endMillis
         }
 
         // Apply report exclusions (never modifies actual database data!)
@@ -409,7 +405,7 @@ class ReportGeneratorViewModel(
         }
 
         val totalExpensesPaise = included.safeSumOf {
-            com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(it, startMillis, endMillis + 1)
+            com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpense(it)
         }
         val totalIncomePaise = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculateTotalPersonalIncome(
             included.filter { it.transactionDate in startMillis..endMillis }
@@ -420,22 +416,16 @@ class ReportGeneratorViewModel(
         val netSpendingPaise = com.naman.rupeeflow.domain.util.SafeMath.safeSubtract(totalExpensesPaise, totalRefundsPaise).coerceAtLeast(0L)
         val cashSpendingPaise = included
             .filter { it.paymentMethod == PaymentMethod.CASH }
-            .safeSumOf { com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(it, startMillis, endMillis + 1) }
+            .safeSumOf { com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpense(it) }
         val onlineSpendingPaise = included
             .filter { it.paymentMethod != PaymentMethod.CASH }
-            .safeSumOf { com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(it, startMillis, endMillis + 1) }
+            .safeSumOf { com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpense(it) }
         val grossBillsPaise = included
             .filter {
                 it.transactionStatus == TransactionStatus.ACTIVE &&
                         (it.transactionType == TransactionType.EXPENSE || it.transactionType == TransactionType.UPI_LITE_PAYMENT)
             }
-            .safeSumOf { txn: Transaction ->
-                if (txn.isSpread && txn.allocations.isNotEmpty()) {
-                    txn.allocations.filter { a -> a.allocationDate in startMillis..endMillis }.safeSumOf { a -> a.amountPaise }
-                } else {
-                    txn.amountPaise
-                }
-            }
+            .safeSumOf { it.amountPaise }
 
         // Category breakdown using personal shares
         val categoryBreakdown = included

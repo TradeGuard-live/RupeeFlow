@@ -304,10 +304,10 @@ class ExpenseSpreadingQATest {
         val novExpense = PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(loaded, novStart, novEnd)
         val decExpense = PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(loaded, decStart, decEnd)
 
-        // 3 days in Nov (28, 29, 30) = 3000 paise
-        assertEquals(3000L, novExpense)
-        // 2 days in Dec (1, 2) = 2000 paise
-        assertEquals(2000L, decExpense)
+        // Spreading is for user knowledge only and does not alter monthly totals:
+        // November retains the full 5000 paise on transaction date; December is unaffected.
+        assertEquals(5000L, novExpense)
+        assertEquals(0L, decExpense)
         assertEquals(5000L, novExpense + decExpense)
     }
 
@@ -345,8 +345,9 @@ class ExpenseSpreadingQATest {
         val exp2026 = PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(loaded, year2026Start, year2026End)
         val exp2027 = PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(loaded, year2027Start, year2027End)
 
-        assertEquals(2000L, exp2026) // Dec 30, 31
-        assertEquals(2000L, exp2027) // Jan 1, 2
+        // Spreading is for user knowledge only: full amount is attributed to transaction date in 2026
+        assertEquals(4000L, exp2026)
+        assertEquals(0L, exp2027)
         assertEquals(4000L, exp2026 + exp2027)
     }
 
@@ -541,9 +542,16 @@ class ExpenseSpreadingQATest {
         val expNov11 = PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(loaded, nov11Start, nov11End)
         val expNov12 = PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(loaded, nov12Start, nov12End)
 
-        assertEquals(2000L, expNov10)
-        assertEquals(2000L, expNov11)
-        assertEquals(2000L, expNov12)
+        // Spreading is for user knowledge: allocations exist (3 days @ 2000p)
+        assertEquals(3, loaded.allocations.size)
+        assertEquals(2000L, loaded.allocations[0].amountPaise)
+        assertEquals(2000L, loaded.allocations[1].amountPaise)
+        assertEquals(2000L, loaded.allocations[2].amountPaise)
+
+        // For analysis and totals, expense is attributed on transaction date (Nov 10)
+        assertEquals(6000L, expNov10)
+        assertEquals(0L, expNov11)
+        assertEquals(0L, expNov12)
     }
 
     // ------------------------------------------------------------------------
@@ -552,8 +560,8 @@ class ExpenseSpreadingQATest {
     @Test
     fun test13_WeeklyAnalytics_UsesAllocationsInsideWeek() = runBlocking {
         // Nov 13, 2026 is Friday.
-        // Week 1 (Mon Nov 9 - Sun Nov 15) covers Nov 13, 14, 15 (3 days)
-        // Week 2 (Mon Nov 16 - Sun Nov 22) covers Nov 16, 17 (2 days)
+        // Week 1 (Mon Nov 9 - Sun Nov 15) covers transaction date Nov 13
+        // Week 2 (Mon Nov 16 - Sun Nov 22)
         val startDate = makeCalendarTimestamp(2026, Calendar.NOVEMBER, 13, 10)
         val spread = Transaction(
             id = 0L,
@@ -579,8 +587,9 @@ class ExpenseSpreadingQATest {
         val expWeek1 = PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(loaded, week1Start, week1End)
         val expWeek2 = PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(loaded, week2Start, week2End)
 
-        assertEquals(3000L, expWeek1) // 3 days in Week 1
-        assertEquals(2000L, expWeek2) // 2 days in Week 2
+        // Full expense attributed to transaction week (Week 1); Week 2 unaffected
+        assertEquals(5000L, expWeek1)
+        assertEquals(0L, expWeek2)
         assertEquals(5000L, expWeek1 + expWeek2)
     }
 
@@ -615,8 +624,10 @@ class ExpenseSpreadingQATest {
         val octExp = PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(loaded, octStart, octEnd)
         val novExp = PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(loaded, novStart, novEnd)
 
-        assertEquals(6000L, octExp) // Oct 30, 31 (2 days)
-        assertEquals(3000L, novExp) // Nov 1 (1 day)
+        // Monthly total is strictly attributed to transaction month (October):
+        // November total is completely unaffected by spreading
+        assertEquals(9000L, octExp)
+        assertEquals(0L, novExp)
     }
 
     // ------------------------------------------------------------------------
@@ -650,7 +661,8 @@ class ExpenseSpreadingQATest {
             novEnd
         )
 
-        assertEquals(6000L, categoryTotalsNov[1L]) // 2 days in Nov
+        // Full category amount attributed in November
+        assertEquals(9000L, categoryTotalsNov[1L])
     }
 
     // ------------------------------------------------------------------------
@@ -662,8 +674,8 @@ class ExpenseSpreadingQATest {
         val budgetStart = makeCalendarTimestamp(2026, Calendar.NOVEMBER, 1, 0)
         val budgetEnd = makeCalendarTimestamp(2026, Calendar.NOVEMBER, 16, 0)
 
-        // Expense 1: ₹100 over 10 days starting Nov 10 (Nov 10 to Nov 19) -> ₹10/day
-        // Days inside budget: Nov 10, 11, 12, 13, 14, 15 (6 days = ₹60.00 = 6000 paise)
+        // Expense 1: ₹100 over 10 days starting Nov 10 (Nov 10 to Nov 19)
+        // Transaction date Nov 10 falls in budget period: full 10000 paise counted
         val startDate = makeCalendarTimestamp(2026, Calendar.NOVEMBER, 10, 10)
         val spread = Transaction(
             id = 0L,
@@ -685,7 +697,7 @@ class ExpenseSpreadingQATest {
             budgetStart,
             budgetEnd
         )
-        assertEquals(6000L, totalInBudget)
+        assertEquals(10000L, totalInBudget)
     }
 
     // ------------------------------------------------------------------------
@@ -693,7 +705,7 @@ class ExpenseSpreadingQATest {
     // ------------------------------------------------------------------------
     @Test
     fun test17_MonthlyCalendarSummaries_DayWiseAllocationInMonthlyCalendarEngine() = runBlocking {
-        // Milk ₹60 over 5 days (Nov 19 to Nov 23) -> ₹12/day
+        // Milk ₹60 over 5 days (Nov 19 to Nov 23)
         val startDate = makeCalendarTimestamp(2026, Calendar.NOVEMBER, 19, 10)
         val spread = Transaction(
             id = 0L,
@@ -719,14 +731,12 @@ class ExpenseSpreadingQATest {
 
         // Nov 18 should have 0
         assertEquals(0L, calendarSummaries[18]?.totalExpensePaise ?: 0L)
-        // Nov 19 to 23 should each have ₹12 (1200 paise)
-        for (day in 19..23) {
-            val daySummary = calendarSummaries[day]
-            assertNotNull("Day $day must have summary", daySummary)
-            assertEquals("Day $day must allocate 1200 paise", 1200L, daySummary!!.totalExpensePaise)
+        // Nov 19 (transaction date) has the full ₹60 expense
+        assertEquals(6000L, calendarSummaries[19]?.totalExpensePaise ?: 0L)
+        // Other days unaffected
+        for (day in 20..24) {
+            assertEquals(0L, calendarSummaries[day]?.totalExpensePaise ?: 0L)
         }
-        // Nov 24 should have 0
-        assertEquals(0L, calendarSummaries[24]?.totalExpensePaise ?: 0L)
     }
 
     // ------------------------------------------------------------------------
@@ -785,12 +795,12 @@ class ExpenseSpreadingQATest {
         assertEquals(5000L, unsettled[0].remainingOutstandingPaise)
         assertEquals(ExpenseObligationDirection.THEY_OWE_ME, unsettled[0].direction)
 
-        // 2. Personal spending calculation: Me's 5000 paise share is spread across 5 days (1000 paise/day)
+        // 2. Personal spending calculation: Me's 5000 paise share is on transaction date
         val day1Start = makeCalendarTimestamp(2026, Calendar.NOVEMBER, 19, 0)
         val day1End = makeCalendarTimestamp(2026, Calendar.NOVEMBER, 20, 0)
 
         val meExpenseDay1 = PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(loaded, day1Start, day1End)
-        assertEquals(1000L, meExpenseDay1)
+        assertEquals(5000L, meExpenseDay1)
     }
 
     // ------------------------------------------------------------------------

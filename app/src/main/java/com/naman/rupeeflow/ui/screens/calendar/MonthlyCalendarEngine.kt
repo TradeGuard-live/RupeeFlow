@@ -160,24 +160,10 @@ object MonthlyCalendarEngine {
                 continue
             }
 
-            if (txn.isSpread && txn.allocations.isNotEmpty()) {
-                // Spread expense: index by each allocation date falling in this month
-                for (allocation in txn.allocations) {
-                    cal.timeInMillis = allocation.allocationDate
-                    if (cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) == month) {
-                        val day = cal.get(Calendar.DAY_OF_MONTH)
-                        val list = dayMap.getOrPut(day) { mutableListOf() }
-                        if (!list.any { it.id == txn.id }) {
-                            list.add(txn)
-                        }
-                    }
-                }
-            } else {
-                cal.timeInMillis = txn.transactionDate
-                if (cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) == month) {
-                    val day = cal.get(Calendar.DAY_OF_MONTH)
-                    dayMap.getOrPut(day) { mutableListOf() }.add(txn)
-                }
+            cal.timeInMillis = txn.transactionDate
+            if (cal.get(Calendar.YEAR) == year && cal.get(Calendar.MONTH) == month) {
+                val day = cal.get(Calendar.DAY_OF_MONTH)
+                dayMap.getOrPut(day) { mutableListOf() }.add(txn)
             }
         }
 
@@ -212,11 +198,7 @@ object MonthlyCalendarEngine {
                 val activeTxn = if (txn.isIgnored) txn.copy(transactionStatus = TransactionStatus.ACTIVE) else txn
                 when (txn.transactionType) {
                     TransactionType.EXPENSE, TransactionType.UPI_LITE_PAYMENT -> {
-                        val share = if (activeTxn.isSpread && activeTxn.allocations.isNotEmpty()) {
-                            PersonalFinancialAggregator.calculatePersonalExpenseForPeriod(activeTxn, dayStart, dayEndExclusive)
-                        } else {
-                            PersonalFinancialAggregator.calculatePersonalExpense(activeTxn)
-                        }
+                        val share = PersonalFinancialAggregator.calculatePersonalExpense(activeTxn)
                         expenseTotal = SafeMath.safeAdd(expenseTotal, share)
                     }
                     TransactionType.INCOME -> {

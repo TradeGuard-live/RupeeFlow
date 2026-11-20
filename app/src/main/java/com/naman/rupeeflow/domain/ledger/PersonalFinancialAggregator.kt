@@ -126,30 +126,11 @@ object PersonalFinancialAggregator {
         val totalPersonal = calculatePersonalExpense(transaction)
         if (totalPersonal <= 0L) return 0L
 
-        if (transaction.isSpread && transaction.allocations.isNotEmpty()) {
-            val matchingAllocations = transaction.allocations.filter {
-                it.allocationDate >= startMillis && it.allocationDate < endMillisExclusive
-            }
-            if (matchingAllocations.isEmpty()) return 0L
-
-            return if (transaction.isSplit && transaction.amountPaise > 0L) {
-                // Determine personal share proportion
-                val personalAllocations = com.naman.rupeeflow.domain.util.ExpenseAllocationCalculator.calculateAllocations(
-                    amountPaise = totalPersonal,
-                    durationDays = transaction.spreadDurationDays,
-                    startDateMillis = transaction.spreadStartDate ?: transaction.transactionDate
-                )
-                personalAllocations.filter {
-                    it.allocationDate >= startMillis && it.allocationDate < endMillisExclusive
-                }.safeSumOf { it.amountPaise }
-            } else {
-                matchingAllocations.safeSumOf { it.amountPaise }
-            }
-        } else {
-            return if (transaction.transactionDate >= startMillis && transaction.transactionDate < endMillisExclusive) {
-                totalPersonal
-            } else 0L
-        }
+        // Spreading is informational for user knowledge/reference; analysis and monthly totals
+        // attribute expenses strictly to the transaction date so spreading across days/months never affects totals.
+        return if (transaction.transactionDate >= startMillis && transaction.transactionDate < endMillisExclusive) {
+            totalPersonal
+        } else 0L
     }
 
     /**
