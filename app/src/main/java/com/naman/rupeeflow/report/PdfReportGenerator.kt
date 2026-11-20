@@ -308,12 +308,13 @@ object PdfReportGenerator {
             val txnHeaderRect = RectF(MARGIN_X, y, MARGIN_X + USABLE_WIDTH, y + 18f)
             canvas.drawRect(txnHeaderRect, headerRowBgPaint)
 
-            boldPaint.textSize = 7.5f
+            boldPaint.textSize = 7f
             canvas.drawText("Date", MARGIN_X + 4f, y + 12f, boldPaint)
-            canvas.drawText("Title", MARGIN_X + 52f, y + 12f, boldPaint)
-            canvas.drawText("Merchant", MARGIN_X + 174f, y + 12f, boldPaint)
+            canvas.drawText("Title", MARGIN_X + 44f, y + 12f, boldPaint)
+            canvas.drawText("Merchant", MARGIN_X + 138f, y + 12f, boldPaint)
+            canvas.drawText("Ref No", MARGIN_X + 228f, y + 12f, boldPaint)
             canvas.drawText("Category", MARGIN_X + 294f, y + 12f, boldPaint)
-            canvas.drawText("Method", MARGIN_X + 380f, y + 12f, boldPaint)
+            canvas.drawText("Method", MARGIN_X + 372f, y + 12f, boldPaint)
             secondaryPaint.textAlign = Paint.Align.RIGHT
             canvas.drawText("Amount (₹)", MARGIN_X + USABLE_WIDTH - 4f, y + 12f, boldPaint)
             secondaryPaint.textAlign = Paint.Align.LEFT
@@ -323,12 +324,14 @@ object PdfReportGenerator {
 
         drawTransactionTableHeader()
 
-        textPaint.textSize = 7.5f
-        secondaryPaint.textSize = 7.5f
+        textPaint.textSize = 7f
+        secondaryPaint.textSize = 7f
         data.transactions.forEach { txn ->
             if (y + 16f > PAGE_HEIGHT - MARGIN_BOTTOM) {
                 startNewPage()
                 drawTransactionTableHeader()
+                textPaint.textSize = 7f
+                secondaryPaint.textSize = 7f
             }
 
             val dateStr = DateTimeUtils.formatDate(txn.transactionDate, "dd/MM/yy")
@@ -344,26 +347,30 @@ object PdfReportGenerator {
             }
             val amountStr = (if (isIncome) "+ " else "- ") + CurrencyUtils.formatPaiseToRupees(displayPaise)
             val titleStr = if (txn.isSplit) {
-                "${txn.title.take(18)} (Split)"
+                "${txn.title.take(12)} (Split)"
             } else {
-                txn.title.take(24)
+                txn.title.take(18)
             }
-            val merchantStr = txn.merchantName?.trim()?.takeIf { it.isNotBlank() }?.take(24) ?: "—"
-            val catStr = (txn.category?.name ?: "Other").take(16)
-            val methodStr = txn.paymentMethod.displayName.take(12)
+            val merchantStr = txn.merchantName?.trim()?.takeIf { it.isNotBlank() }?.take(18) ?: "—"
+            val refStr = (txn.upiReferenceNumber?.trim()?.takeIf { it.isNotBlank() }
+                ?: txn.referenceNumber?.trim()?.takeIf { it.isNotBlank() }
+                ?: "—").take(14)
+            val catStr = (txn.category?.name ?: "Other").take(14)
+            val methodStr = txn.paymentMethod.displayName.take(10)
 
             canvas.drawText(dateStr, MARGIN_X + 4f, y + 11f, secondaryPaint)
-            canvas.drawText(titleStr, MARGIN_X + 52f, y + 11f, textPaint)
-            canvas.drawText(merchantStr, MARGIN_X + 174f, y + 11f, textPaint)
+            canvas.drawText(titleStr, MARGIN_X + 44f, y + 11f, textPaint)
+            canvas.drawText(merchantStr, MARGIN_X + 138f, y + 11f, textPaint)
+            canvas.drawText(refStr, MARGIN_X + 228f, y + 11f, secondaryPaint)
             canvas.drawText(catStr, MARGIN_X + 294f, y + 11f, textPaint)
-            canvas.drawText(methodStr, MARGIN_X + 380f, y + 11f, secondaryPaint)
+            canvas.drawText(methodStr, MARGIN_X + 372f, y + 11f, secondaryPaint)
 
             if (isIncome) {
                 boldPaint.color = Color.rgb(16, 185, 129)
             } else {
                 boldPaint.color = Color.rgb(220, 38, 38)
             }
-            boldPaint.textSize = 7.5f
+            boldPaint.textSize = 7f
             secondaryPaint.textAlign = Paint.Align.RIGHT
             canvas.drawText(amountStr, MARGIN_X + USABLE_WIDTH - 4f, y + 11f, boldPaint)
             secondaryPaint.textAlign = Paint.Align.LEFT

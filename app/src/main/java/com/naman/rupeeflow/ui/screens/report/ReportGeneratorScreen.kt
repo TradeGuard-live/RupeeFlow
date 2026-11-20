@@ -890,8 +890,10 @@ fun ReportGeneratorScreen(
                                         maxLines = 1
                                     )
                                     val merchantPart = txn.merchantName?.takeIf { it.isNotBlank() }?.let { " • $it" } ?: ""
+                                    val refNum = (txn.upiReferenceNumber ?: txn.referenceNumber)?.trim()?.takeIf { it.isNotBlank() }
+                                    val refPart = refNum?.let { " • Ref: $it" } ?: ""
                                     Text(
-                                        text = "${DateTimeUtils.formatDate(txn.transactionDate, "dd MMM")}$merchantPart • ${txn.category?.name ?: "Other"}",
+                                        text = "${DateTimeUtils.formatDate(txn.transactionDate, "dd MMM")}$merchantPart$refPart • ${txn.category?.name ?: "Other"}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = AppTheme.colors.textTertiary
                                     )

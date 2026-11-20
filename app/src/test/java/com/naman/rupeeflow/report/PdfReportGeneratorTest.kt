@@ -157,6 +157,7 @@ class PdfReportGeneratorTest {
                 id = 1L,
                 title = "Dinner with Friends",
                 merchantName = "Domino's Pizza",
+                upiReferenceNumber = "634512345678",
                 amountPaise = 125000L,
                 categoryId = 1L,
                 category = Category(1L, "Food", "restaurant", "#F97316"),
@@ -168,6 +169,7 @@ class PdfReportGeneratorTest {
                 id = 2L,
                 title = "Monthly Train Pass",
                 merchantName = null, // No merchant, displays "—"
+                referenceNumber = "REF987654321",
                 amountPaise = 80000L,
                 categoryId = 2L,
                 category = Category(2L, "Transport", "directions_car", "#3B82F6"),
@@ -214,6 +216,53 @@ class PdfReportGeneratorTest {
         assertNotNull(pdfFile)
         assertTrue(pdfFile.exists())
         assertTrue(pdfFile.length() > 0L)
+    }
+
+    @Test
+    fun testGeneratePdfWithReferenceNumberColumn() {
+        val context = RuntimeEnvironment.getApplication()
+        val txns = listOf(
+            Transaction(
+                id = 10L,
+                title = "Coffee",
+                merchantName = "Starbucks",
+                upiReferenceNumber = "432198765432",
+                amountPaise = 35000L,
+                transactionDate = System.currentTimeMillis(),
+                paymentMethod = PaymentMethod.UPI,
+                transactionType = TransactionType.EXPENSE
+            ),
+            Transaction(
+                id = 11L,
+                title = "Cash Snack",
+                merchantName = null,
+                referenceNumber = null,
+                upiReferenceNumber = null,
+                amountPaise = 5000L,
+                transactionDate = System.currentTimeMillis(),
+                paymentMethod = PaymentMethod.CASH,
+                transactionType = TransactionType.EXPENSE
+            )
+        )
+
+        val data = ReportGenerationData(
+            title = "Weekly Report",
+            periodLabel = "Weekly",
+            dateRangeLabel = "14 Nov 2026 - 20 Nov 2026",
+            transactions = txns,
+            totalExpensesPaise = 40000L,
+            totalIncomePaise = 0L,
+            totalRefundsPaise = 0L,
+            netSpendingPaise = 40000L,
+            cashSpendingPaise = 5000L,
+            onlineSpendingPaise = 35000L,
+            categoryBreakdown = emptyList(),
+            expenseGroupBreakdown = emptyList()
+        )
+
+        val pdfFile = PdfReportGenerator.generatePdf(context, data)
+        assertNotNull(pdfFile)
+        assertTrue(pdfFile.exists())
     }
 }
 
