@@ -889,8 +889,9 @@ fun ReportGeneratorScreen(
                                         fontWeight = if (isIncluded) FontWeight.SemiBold else FontWeight.Normal,
                                         maxLines = 1
                                     )
+                                    val merchantPart = txn.merchantName?.takeIf { it.isNotBlank() }?.let { " • $it" } ?: ""
                                     Text(
-                                        text = "${DateTimeUtils.formatDate(txn.transactionDate, "dd MMM")} • ${txn.category?.name ?: "Other"}",
+                                        text = "${DateTimeUtils.formatDate(txn.transactionDate, "dd MMM")}$merchantPart • ${txn.category?.name ?: "Other"}",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = AppTheme.colors.textTertiary
                                     )

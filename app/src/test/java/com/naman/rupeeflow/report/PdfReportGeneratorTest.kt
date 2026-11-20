@@ -148,5 +148,72 @@ class PdfReportGeneratorTest {
         assertEquals(2, draft.excludedTransactionIds.size)
         assertTrue(draft.excludedTransactionIds.contains(101L))
     }
+
+    @Test
+    fun testGeneratePdfWithSeparateTitleAndMerchantColumns() {
+        val context = RuntimeEnvironment.getApplication()
+        val txns = listOf(
+            Transaction(
+                id = 1L,
+                title = "Dinner with Friends",
+                merchantName = "Domino's Pizza",
+                amountPaise = 125000L,
+                categoryId = 1L,
+                category = Category(1L, "Food", "restaurant", "#F97316"),
+                transactionDate = System.currentTimeMillis() - 86400000L,
+                paymentMethod = PaymentMethod.UPI,
+                transactionType = TransactionType.EXPENSE
+            ),
+            Transaction(
+                id = 2L,
+                title = "Monthly Train Pass",
+                merchantName = null, // No merchant, displays "—"
+                amountPaise = 80000L,
+                categoryId = 2L,
+                category = Category(2L, "Transport", "directions_car", "#3B82F6"),
+                transactionDate = System.currentTimeMillis() - 43200000L,
+                paymentMethod = PaymentMethod.CASH,
+                transactionType = TransactionType.EXPENSE
+            ),
+            Transaction(
+                id = 3L,
+                title = "Team Outing",
+                merchantName = "Hard Rock Cafe",
+                amountPaise = 300000L,
+                categoryId = 1L,
+                category = Category(1L, "Food", "restaurant", "#F97316"),
+                transactionDate = System.currentTimeMillis(),
+                paymentMethod = PaymentMethod.UPI,
+                transactionType = TransactionType.EXPENSE,
+                participants = listOf(
+                    TransactionParticipant(id = 1L, transactionId = 3L, friendId = null, friendName = "Me", shareAmountPaise = 150000L, percentage = 50.0, splitMethod = SplitMethod.EQUAL)
+                )
+            )
+        )
+
+        val totalExpenses = txns.sumOf { it.amountPaise }
+        val data = ReportGenerationData(
+            title = "Monthly Statement",
+            periodLabel = "Monthly",
+            dateRangeLabel = "01 Nov 2026 - 30 Nov 2026",
+            transactions = txns,
+            totalExpensesPaise = totalExpenses,
+            totalIncomePaise = 0L,
+            totalRefundsPaise = 0L,
+            netSpendingPaise = totalExpenses,
+            cashSpendingPaise = 80000L,
+            onlineSpendingPaise = 425000L,
+            categoryBreakdown = listOf(
+                CategoryReportItem("Food", 425000L, 84.1, 2),
+                CategoryReportItem("Transport", 80000L, 15.9, 1)
+            ),
+            expenseGroupBreakdown = emptyList()
+        )
+
+        val pdfFile = PdfReportGenerator.generatePdf(context, data)
+        assertNotNull(pdfFile)
+        assertTrue(pdfFile.exists())
+        assertTrue(pdfFile.length() > 0L)
+    }
 }
 
