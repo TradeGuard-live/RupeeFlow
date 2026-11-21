@@ -557,30 +557,6 @@ object LedgerCalculator {
                         )
                     )
                 }
-
-                // If net exceeds all recorded expense shares (e.g. advance settlement or direct transfer),
-                // represent the remaining surplus as an outstanding balance obligation.
-                if (absNet > grossTheyOweMeExpenses) {
-                    val surplusPaise = SafeMath.safeSubtract(absNet, grossTheyOweMeExpenses)
-                    val advanceTxn = Transaction(
-                        id = -friendId,
-                        title = "Settlement Advance / Direct Balance",
-                        amountPaise = surplusPaise,
-                        transactionDate = lastTxnDate ?: System.currentTimeMillis(),
-                        paidByName = "Me"
-                    )
-                    allHistory.add(
-                        UnsettledExpenseItem(
-                            transaction = advanceTxn,
-                            totalTransactionAmountPaise = surplusPaise,
-                            originalShareAmountPaise = surplusPaise,
-                            settledAmountPaise = 0L,
-                            remainingOutstandingPaise = surplusPaise,
-                            isPartiallySettled = false,
-                            direction = ExpenseObligationDirection.THEY_OWE_ME
-                        )
-                    )
-                }
             }
 
             FriendBalanceStatus.I_OWE_THEM -> {
@@ -643,28 +619,6 @@ object LedgerCalculator {
                             remainingOutstandingPaise = 0L,
                             isPartiallySettled = false,
                             direction = ExpenseObligationDirection.THEY_OWE_ME
-                        )
-                    )
-                }
-
-                if (absNet > grossIOweThemExpenses) {
-                    val surplusPaise = SafeMath.safeSubtract(absNet, grossIOweThemExpenses)
-                    val advanceTxn = Transaction(
-                        id = -friendId,
-                        title = "Settlement Advance / Direct Debt",
-                        amountPaise = surplusPaise,
-                        transactionDate = lastTxnDate ?: System.currentTimeMillis(),
-                        paidByName = friend.name
-                    )
-                    allHistory.add(
-                        UnsettledExpenseItem(
-                            transaction = advanceTxn,
-                            totalTransactionAmountPaise = surplusPaise,
-                            originalShareAmountPaise = surplusPaise,
-                            settledAmountPaise = 0L,
-                            remainingOutstandingPaise = surplusPaise,
-                            isPartiallySettled = false,
-                            direction = ExpenseObligationDirection.I_OWE_THEM
                         )
                     )
                 }

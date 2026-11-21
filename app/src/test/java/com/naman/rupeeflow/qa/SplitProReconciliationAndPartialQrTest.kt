@@ -92,7 +92,10 @@ class SplitProReconciliationAndPartialQrTest {
                 title = "Dinner",
                 amountPaise = 50000L, // 500.00
                 paidByFriendId = null, // Me paid
-                participants = listOf(TransactionParticipant(friendId = friendId, shareAmountPaise = 25000L))
+                participants = listOf(
+                    TransactionParticipant(friendId = null, shareAmountPaise = 25000L),
+                    TransactionParticipant(friendId = friendId, shareAmountPaise = 25000L)
+                )
             )
         )
 
@@ -240,16 +243,37 @@ class SplitProReconciliationAndPartialQrTest {
             )
         )
 
-        // Settlements totaling 500:
-        // 300 on Dinner + 100 on Gas bill + 100 on Snacks = 500 settled
-        // Total expenses = 500 + 250 + 100 = 850
-        // Remaining = 850 - 500 = 350
+        // Specific settlements matching example table:
+        // 300 for Dinner, 100 for Gas bill, 100 for Snacks
         settlementRepository.recordSettlement(
             Settlement(
                 payerId = friendId,
                 receiverId = null,
-                amountPaise = 50000L,
+                amountPaise = 30000L,
+                notes = "Dinner settlement",
                 settlementDate = now - 50000,
+                upiPaymentStatus = SettlementPaymentStatus.SUCCESS,
+                upiVerificationStatus = SettlementVerificationStatus.AUTOMATIC_VERIFIED
+            )
+        )
+        settlementRepository.recordSettlement(
+            Settlement(
+                payerId = friendId,
+                receiverId = null,
+                amountPaise = 10000L,
+                notes = "Gas bill settlement",
+                settlementDate = now - 40000,
+                upiPaymentStatus = SettlementPaymentStatus.SUCCESS,
+                upiVerificationStatus = SettlementVerificationStatus.AUTOMATIC_VERIFIED
+            )
+        )
+        settlementRepository.recordSettlement(
+            Settlement(
+                payerId = friendId,
+                receiverId = null,
+                amountPaise = 10000L,
+                notes = "Snacks settlement",
+                settlementDate = now - 30000,
                 upiPaymentStatus = SettlementPaymentStatus.SUCCESS,
                 upiVerificationStatus = SettlementVerificationStatus.AUTOMATIC_VERIFIED
             )
@@ -273,6 +297,9 @@ class SplitProReconciliationAndPartialQrTest {
         assertNull("Fully settled Snacks must NOT be in Outstanding", snacksItem)
         assertNotNull("Dinner must be in Outstanding", dinnerItem)
         assertNotNull("Gas bill must be in Outstanding", gasItem)
+
+        assertEquals("Dinner remaining must be 200", 20000L, dinnerItem!!.remainingOutstandingPaise)
+        assertEquals("Gas bill remaining must be 150", 15000L, gasItem!!.remainingOutstandingPaise)
 
         assertEquals("Outstanding sum reconciles with balance card",
             reconciliation.friend.netBalancePaise,
@@ -436,7 +463,10 @@ class SplitProReconciliationAndPartialQrTest {
                 title = "Movie Tickets",
                 amountPaise = 100000L,
                 paidByFriendId = friendId, // Aman paid
-                participants = listOf(TransactionParticipant(friendId = friendId, shareAmountPaise = 50000L))
+                participants = listOf(
+                    TransactionParticipant(friendId = null, shareAmountPaise = 50000L),
+                    TransactionParticipant(friendId = friendId, shareAmountPaise = 50000L)
+                )
             )
         )
 
