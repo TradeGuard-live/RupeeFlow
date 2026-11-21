@@ -750,7 +750,11 @@ fun FriendDetailScreen(
                 viewModel.updatePersonalUpi(upiId, name)
             },
             onMarkAsReceived = { settlement ->
-                viewModel.recordSettlement(settlement)
+                if (settlement.id > 0L) {
+                    viewModel.updateSettlement(settlement)
+                } else {
+                    viewModel.recordSettlement(settlement)
+                }
                 showPersonalUpiQrDialog = false
                 upiTargetAmountPaise = 0L
             },
@@ -832,7 +836,15 @@ fun FriendDetailScreen(
             onReverse = { viewModel.reverseSettlement(it.id) },
             onUnreverse = { viewModel.unreverseSettlement(it.id) },
             onDelete = { viewModel.deleteSettlement(it) },
-            onEdit = { toEdit -> editingSettlement = toEdit }
+            onEdit = { toEdit -> editingSettlement = toEdit },
+            onConfirmReceived = { toConfirm ->
+                if (toConfirm.id > 0L) {
+                    viewModel.updateSettlement(toConfirm)
+                } else {
+                    viewModel.recordSettlement(toConfirm)
+                }
+                selectedSettlementForDetail = null
+            }
         )
     }
 
@@ -1117,11 +1129,28 @@ private fun FriendSettlementCard(
                     textDecoration = if (settlement.isReversed) TextDecoration.LineThrough else null
                 )
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "${DateTimeUtils.formatDate(settlement.settlementDate)} • ${settlement.paymentMethod.displayName}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = AppTheme.colors.textSecondary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${DateTimeUtils.formatDate(settlement.settlementDate)} • ${settlement.paymentMethod.displayName}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = AppTheme.colors.textSecondary
+                    )
+                    if (!settlement.affectsLedger && !settlement.isReversed) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = AmberGold.copy(alpha = 0.2f)
+                        ) {
+                            Text(
+                                text = "Verification Pending",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                color = AmberGold,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
             }
 
             Column(horizontalAlignment = Alignment.End) {

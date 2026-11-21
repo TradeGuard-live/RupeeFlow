@@ -151,7 +151,11 @@ class FriendDetailViewModel(
 
     fun recordSettlement(settlement: Settlement) {
         viewModelScope.launch {
-            settlementRepository.recordSettlement(settlement)
+            if (settlement.id > 0L) {
+                settlementRepository.updateSettlement(settlement)
+            } else {
+                settlementRepository.recordSettlement(settlement)
+            }
         }
     }
 

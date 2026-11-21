@@ -36,7 +36,8 @@ fun SettlementDetailDialog(
     onReverse: (Settlement) -> Unit,
     onUnreverse: (Settlement) -> Unit,
     onDelete: (Settlement) -> Unit,
-    onEdit: (Settlement) -> Unit
+    onEdit: (Settlement) -> Unit,
+    onConfirmReceived: ((Settlement) -> Unit)? = null
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showReverseConfirm by remember { mutableStateOf(false) }
@@ -131,14 +132,24 @@ fun SettlementDetailDialog(
                         color = AppTheme.colors.textPrimary
                     )
 
+                    val statusText = when {
+                        settlement.isReversed -> "REVERSED"
+                        !settlement.affectsLedger -> "VERIFICATION PENDING"
+                        else -> "ACTIVE"
+                    }
+                    val statusColor = when {
+                        settlement.isReversed -> AmberGold
+                        !settlement.affectsLedger -> AmberGold
+                        else -> AppTheme.colors.incomeGreen
+                    }
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = if (settlement.isReversed) AmberGold.copy(alpha = 0.2f) else AppTheme.colors.incomeGreen.copy(alpha = 0.2f)
+                        color = statusColor.copy(alpha = 0.2f)
                     ) {
                         Text(
-                            text = if (settlement.isReversed) "REVERSED" else "ACTIVE",
+                            text = statusText,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (settlement.isReversed) AmberGold else AppTheme.colors.incomeGreen,
+                            color = statusColor,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
@@ -198,9 +209,68 @@ fun SettlementDetailDialog(
                 HorizontalDivider(color = AppTheme.colors.divider)
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Verification Pending Notice & One-Tap Confirmation
+                if (!settlement.affectsLedger && !settlement.isReversed) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = AmberGold.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, AmberGold.copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = AmberGold,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Bank SMS has not arrived yet. If payment was credited to your bank, confirm it below to deduct this from the outstanding ledger balance immediately.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AppTheme.colors.textPrimary
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
                 // Responsive Action Button Layout (Phase 3: Zero Text Clipping)
                 BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                     val isNarrow = maxWidth < 280.dp
+
+                    val confirmReceivedButton: @Composable (Modifier) -> Unit = { modifier ->
+                        Button(
+                            onClick = {
+                                val confirmed = settlement.copy(
+                                    upiPaymentStatus = com.naman.rupeeflow.domain.model.SettlementPaymentStatus.SUCCESS,
+                                    upiVerificationStatus = com.naman.rupeeflow.domain.model.SettlementVerificationStatus.MANUAL_UNVERIFIED
+                                )
+                                onConfirmReceived?.invoke(confirmed)
+                                onDismiss()
+                            },
+                            modifier = modifier.heightIn(min = 48.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = EmeraldMint,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Confirm Payment Received",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
 
                     val editButton: @Composable (Modifier) -> Unit = { modifier ->
                         Button(
@@ -296,6 +366,9 @@ fun SettlementDetailDialog(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            if (onConfirmReceived != null && !settlement.affectsLedger && !settlement.isReversed) {
+                                confirmReceivedButton(Modifier.fillMaxWidth())
+                            }
                             editButton(Modifier.fillMaxWidth())
                             reverseRestoreButton(Modifier.fillMaxWidth())
                             deleteButton(Modifier.fillMaxWidth())
@@ -305,6 +378,9 @@ fun SettlementDetailDialog(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            if (onConfirmReceived != null && !settlement.affectsLedger && !settlement.isReversed) {
+                                confirmReceivedButton(Modifier.fillMaxWidth())
+                            }
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)

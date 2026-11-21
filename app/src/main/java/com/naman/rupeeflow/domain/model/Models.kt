@@ -280,9 +280,14 @@ data class Settlement(
     val upiReceiverVpa: String? = null
 ) {
     val affectsLedger: Boolean
-        get() = (upiPaymentStatus == SettlementPaymentStatus.SUCCESS) &&
-                (upiVerificationStatus == SettlementVerificationStatus.AUTOMATIC_VERIFIED ||
-                 upiVerificationStatus == SettlementVerificationStatus.MANUAL_UNVERIFIED)
+        get() = if (paymentMethod != PaymentMethod.UPI) {
+            upiPaymentStatus != SettlementPaymentStatus.CANCELLED &&
+            upiPaymentStatus != SettlementPaymentStatus.FAILED
+        } else {
+            (upiPaymentStatus == SettlementPaymentStatus.SUCCESS) &&
+            (upiVerificationStatus == SettlementVerificationStatus.AUTOMATIC_VERIFIED ||
+             upiVerificationStatus == SettlementVerificationStatus.MANUAL_UNVERIFIED)
+        }
 }
 
 // Production hardening: robust default parameters for testability and non-SMS sources

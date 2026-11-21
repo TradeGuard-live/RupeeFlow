@@ -360,7 +360,10 @@ object LedgerCalculator {
         val friend: Friend,
         val allExpenseHistory: List<UnsettledExpenseItem>,
         val unsettledExpenses: List<UnsettledExpenseItem>
-    )
+    ) {
+        val isAllSettledUp: Boolean
+            get() = unsettledExpenses.isEmpty() && friend.netBalancePaise == 0L
+    }
 
     /**
      * Single Source of Truth Ledger Reconciliation for Friend & Split Pro.

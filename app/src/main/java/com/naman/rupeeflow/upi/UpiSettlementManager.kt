@@ -117,7 +117,9 @@ class UpiSettlementManager(
             ?: throw IllegalArgumentException("Settlement with ID $settlementId not found")
 
         // Idempotency: if already SUCCESS and ledger-applied, do not re-process
-        if (existing.upiPaymentStatus == SettlementPaymentStatus.SUCCESS) {
+        if (existing.upiPaymentStatus == SettlementPaymentStatus.SUCCESS &&
+            (existing.upiVerificationStatus == SettlementVerificationStatus.AUTOMATIC_VERIFIED ||
+             existing.upiVerificationStatus == SettlementVerificationStatus.MANUAL_UNVERIFIED)) {
             return existing
         }
 
@@ -184,7 +186,9 @@ class UpiSettlementManager(
         val existing = settlementRepository.getSettlementById(settlementId)
             ?: throw IllegalArgumentException("Settlement with ID $settlementId not found")
 
-        if (existing.upiPaymentStatus == SettlementPaymentStatus.SUCCESS) {
+        if (existing.upiPaymentStatus == SettlementPaymentStatus.SUCCESS &&
+            (existing.upiVerificationStatus == SettlementVerificationStatus.AUTOMATIC_VERIFIED ||
+             existing.upiVerificationStatus == SettlementVerificationStatus.MANUAL_UNVERIFIED)) {
             return existing
         }
 

@@ -565,4 +565,181 @@ class SplitProReconciliationAndPartialQrTest {
         val allSettlements = settlementRepository.getAllSettlementsList()
         assertEquals("Must only have 1 settlement in database", 1, allSettlements.size)
     }
+
+    // =========================================================================
+    // SUITE 4: MARK AS RECEIVED & MANUAL SETTLEMENT CONFIRMATION
+    // =========================================================================
+
+    @Test
+    fun test12_markAsReceived_deductsBalanceImmediatelyAndSetsManualUnverified() = runBlocking {
+        val friendId = friendRepository.addFriend(Friend(name = "Manan", upiId = "manan@upi"))
+        val friend = friendRepository.getFriendById(friendId)!!
+
+        // Manan owes Me ₹350
+        transactionRepository.saveTransaction(
+            Transaction(
+                title = "Dinner & Snacks",
+                amountPaise = 50000L,
+                paidByFriendId = null, // Me paid
+                participants = listOf(
+                    TransactionParticipant(friendId = null, shareAmountPaise = 15000L),
+                    TransactionParticipant(friendId = friendId, shareAmountPaise = 35000L)
+                )
+            )
+        )
+
+        val txnsBefore = transactionRepository.getAllTransactionsList()
+        val reconBefore = LedgerCalculator.reconcileFriendLedger(friend, txnsBefore, emptyList())
+        assertEquals("Manan owes me ₹350 before settlement", 35000L, reconBefore.friend.netBalancePaise)
+        assertEquals("1 outstanding expense before settlement", 1, reconBefore.unsettledExpenses.size)
+
+        // Generate QR code: initiates settlement session in Room
+        val sId = upiSettlementManager.initiateQrSettlement(
+            friend = friend,
+            amountPaise = 35000L,
+            isPayingFriend = false,
+            qrReference = "REF_MANAN_350"
+        )
+
+        // Before SMS arrives or user clicks mark as received:
+        val initiatedSettlement = settlementRepository.getSettlementById(sId)!!
+        assertEquals(SettlementPaymentStatus.INITIATED, initiatedSettlement.upiPaymentStatus)
+        assertEquals(SettlementVerificationStatus.PENDING, initiatedSettlement.upiVerificationStatus)
+        assertFalse("Initiated settlement does not affect ledger yet", initiatedSettlement.affectsLedger)
+
+        val reconPending = LedgerCalculator.reconcileFriendLedger(
+            friend, txnsBefore, listOf(initiatedSettlement)
+        )
+        assertEquals("Pending settlement must NOT deduct from ledger", 35000L, reconPending.friend.netBalancePaise)
+
+        // Bank SMS does not arrive. User clicks "Mark as received" -> Confirm & Settle
+        val receivedSettlement = Settlement(
+            id = sId,
+            payerId = friendId,
+            receiverId = null,
+            amountPaise = 35000L,
+            settlementDate = System.currentTimeMillis(),
+            paymentMethod = PaymentMethod.UPI,
+            referenceNumber = "REF_MANAN_350",
+            notes = "Personal UPI QR Settlement from Manan",
+            isReversed = false,
+            upiPaymentStatus = SettlementPaymentStatus.SUCCESS,
+            upiVerificationStatus = SettlementVerificationStatus.MANUAL_UNVERIFIED,
+            upiTransactionRef = "REF_MANAN_350",
+            upiReceiverVpa = "personal@upi"
+        )
+
+        // FriendDetailScreen / ViewModel records / updates the settlement
+        settlementRepository.recordSettlement(receivedSettlement)
+
+        // Verify database state: status is SUCCESS and MANUAL_UNVERIFIED
+        val updatedInDb = settlementRepository.getSettlementById(sId)!!
+        assertEquals("Payment status is SUCCESS", SettlementPaymentStatus.SUCCESS, updatedInDb.upiPaymentStatus)
+        assertEquals("Verification status is MANUAL_UNVERIFIED", SettlementVerificationStatus.MANUAL_UNVERIFIED, updatedInDb.upiVerificationStatus)
+        assertTrue("Settlement affects ledger", updatedInDb.affectsLedger)
+
+        // Verify friend's ledger reconciliation immediately reflects the deduction
+        val allSettlements = settlementRepository.getSettlementsForFriendList(friendId)
+        val reconAfter = LedgerCalculator.reconcileFriendLedger(friend, txnsBefore, allSettlements)
+        assertEquals("Manan balance is completely settled to 0", 0L, reconAfter.friend.netBalancePaise)
+        assertEquals("Outstanding expense list is empty", 0, reconAfter.unsettledExpenses.size)
+        assertTrue("Friend is all settled up", reconAfter.isAllSettledUp)
+    }
+
+    @Test
+    fun test13_markAsReceived_viaReferenceMatch_whenIdIsZero_updatesRoomRecord() = runBlocking {
+        val friendId = friendRepository.addFriend(Friend(name = "Rohan", upiId = "rohan@upi"))
+        val friend = friendRepository.getFriendById(friendId)!!
+
+        transactionRepository.saveTransaction(
+            Transaction(
+                title = "Cab Share",
+                amountPaise = 40000L,
+                paidByFriendId = null,
+                participants = listOf(
+                    TransactionParticipant(friendId = null, shareAmountPaise = 20000L),
+                    TransactionParticipant(friendId = friendId, shareAmountPaise = 20000L)
+                )
+            )
+        )
+
+        // QR initiated
+        val sId = upiSettlementManager.initiateQrSettlement(
+            friend = friend,
+            amountPaise = 20000L,
+            isPayingFriend = false,
+            qrReference = "REF_ZERO_ID_TEST"
+        )
+
+        // Mark as received where id is 0L but reference matches
+        val markReceivedWithZeroId = Settlement(
+            id = 0L,
+            payerId = friendId,
+            receiverId = null,
+            amountPaise = 20000L,
+            settlementDate = System.currentTimeMillis(),
+            paymentMethod = PaymentMethod.UPI,
+            referenceNumber = "REF_ZERO_ID_TEST",
+            notes = "Marked as received with reference match",
+            isReversed = false,
+            upiPaymentStatus = SettlementPaymentStatus.SUCCESS,
+            upiVerificationStatus = SettlementVerificationStatus.MANUAL_UNVERIFIED,
+            upiTransactionRef = "REF_ZERO_ID_TEST"
+        )
+
+        val returnedId = settlementRepository.recordSettlement(markReceivedWithZeroId)
+        assertEquals("Returns existing settlement ID", sId, returnedId)
+
+        val persisted = settlementRepository.getSettlementById(sId)!!
+        assertEquals("Status updated to SUCCESS", SettlementPaymentStatus.SUCCESS, persisted.upiPaymentStatus)
+        assertEquals("Status updated to MANUAL_UNVERIFIED", SettlementVerificationStatus.MANUAL_UNVERIFIED, persisted.upiVerificationStatus)
+        assertTrue("Affects ledger", persisted.affectsLedger)
+
+        val txns = transactionRepository.getAllTransactionsList()
+        val settlements = settlementRepository.getSettlementsForFriendList(friendId)
+        val recon = LedgerCalculator.reconcileFriendLedger(friend, txns, settlements)
+        assertEquals("Outstanding balance deducted to 0", 0L, recon.friend.netBalancePaise)
+        assertEquals("Unsettled expenses is 0", 0, recon.unsettledExpenses.size)
+    }
+
+    @Test
+    fun test14_confirmManuallyUnverified_fromUpiSettlementManager_updatesLedger() = runBlocking {
+        val friendId = friendRepository.addFriend(Friend(name = "Kavita", upiId = "kavita@upi"))
+        val friend = friendRepository.getFriendById(friendId)!!
+
+        transactionRepository.saveTransaction(
+            Transaction(
+                title = "Grocery",
+                amountPaise = 60000L,
+                paidByFriendId = null,
+                participants = listOf(
+                    TransactionParticipant(friendId = null, shareAmountPaise = 30000L),
+                    TransactionParticipant(friendId = friendId, shareAmountPaise = 30000L)
+                )
+            )
+        )
+
+        val sId = upiSettlementManager.initiateQrSettlement(
+            friend = friend,
+            amountPaise = 30000L,
+            isPayingFriend = false,
+            qrReference = "REF_KAVITA_300"
+        )
+
+        val confirmed = upiSettlementManager.confirmManuallyUnverified(sId)
+        assertEquals(SettlementPaymentStatus.SUCCESS, confirmed.upiPaymentStatus)
+        assertEquals(SettlementVerificationStatus.MANUAL_UNVERIFIED, confirmed.upiVerificationStatus)
+        assertTrue(confirmed.affectsLedger)
+
+        val inDb = settlementRepository.getSettlementById(sId)!!
+        assertEquals(SettlementPaymentStatus.SUCCESS, inDb.upiPaymentStatus)
+        assertEquals(SettlementVerificationStatus.MANUAL_UNVERIFIED, inDb.upiVerificationStatus)
+        assertTrue(inDb.affectsLedger)
+
+        val txns = transactionRepository.getAllTransactionsList()
+        val settlements = settlementRepository.getSettlementsForFriendList(friendId)
+        val recon = LedgerCalculator.reconcileFriendLedger(friend, txns, settlements)
+        assertEquals(0L, recon.friend.netBalancePaise)
+        assertTrue(recon.isAllSettledUp)
+    }
 }

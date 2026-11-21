@@ -5,6 +5,8 @@ import com.naman.rupeeflow.data.local.dao.FriendDao
 import com.naman.rupeeflow.data.local.dao.SettlementDao
 import com.naman.rupeeflow.data.local.entity.SettlementEntity
 import com.naman.rupeeflow.domain.model.Settlement
+import com.naman.rupeeflow.domain.model.SettlementPaymentStatus
+import com.naman.rupeeflow.domain.model.SettlementVerificationStatus
 import com.naman.rupeeflow.widget.RupeeFlowWidgetManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -82,6 +84,15 @@ class SettlementRepositoryImpl(
             require(hasMe) { "Exactly one side of a settlement must be Me" }
         }
 
+        // If the settlement already has an ID > 0 and exists in the DB, update it
+        if (settlement.id > 0L) {
+            val existingById = settlementDao.getSettlementById(settlement.id)
+            if (existingById != null) {
+                updateSettlement(settlement)
+                return settlement.id
+            }
+        }
+
         // Prevent duplicate settlement records by reference number or UPI transaction ref
         val ref = settlement.upiTransactionRef?.takeIf { it.isNotBlank() }
             ?: settlement.referenceNumber?.takeIf { it.isNotBlank() }
@@ -89,6 +100,25 @@ class SettlementRepositoryImpl(
             val existingByRef = settlementDao.getSettlementByUpiTransactionRef(ref)
                 ?: settlementDao.getSettlementByReferenceNumber(ref)
             if (existingByRef != null) {
+                // If existing record was pending or initiated and new one has updated status/amount, update it!
+                val shouldUpdate = existingByRef.upiPaymentStatus != settlement.upiPaymentStatus ||
+                        existingByRef.upiVerificationStatus != settlement.upiVerificationStatus ||
+                        settlement.upiPaymentStatus == SettlementPaymentStatus.SUCCESS ||
+                        existingByRef.amountPaise != settlement.amountPaise
+                if (shouldUpdate) {
+                    val updated = existingByRef.copy(
+                        amountPaise = settlement.amountPaise,
+                        settlementDate = settlement.settlementDate,
+                        paymentMethod = settlement.paymentMethod,
+                        notes = settlement.notes ?: existingByRef.notes,
+                        upiPaymentStatus = settlement.upiPaymentStatus,
+                        upiVerificationStatus = settlement.upiVerificationStatus,
+                        upiTransactionRef = settlement.upiTransactionRef ?: existingByRef.upiTransactionRef,
+                        upiReceiverVpa = settlement.upiReceiverVpa ?: existingByRef.upiReceiverVpa
+                    )
+                    settlementDao.updateSettlement(updated)
+                    context?.let { RupeeFlowWidgetManager.updateAllWidgets(it) }
+                }
                 return existingByRef.id
             }
         }
