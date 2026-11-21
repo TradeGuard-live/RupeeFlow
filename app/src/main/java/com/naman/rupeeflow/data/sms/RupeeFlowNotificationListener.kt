@@ -133,10 +133,28 @@ class RupeeFlowNotificationListener : NotificationListenerService() {
                         else -> null
                     }
 
-                    val pendingStatus = if (parseResult.isValidTransaction) {
-                        PendingStatus.PENDING
-                    } else {
-                        PendingStatus.UNKNOWN
+                    // Reconcile against pending Split Pro QR/UPI settlement session if present
+                    val reconciledSettlement = if (parseResult.isValidTransaction) {
+                        try {
+                            app.appContainer.upiSettlementManager.reconcileIncomingTransaction(
+                                amountPaise = parseResult.amountPaise,
+                                type = parseResult.type,
+                                referenceNumber = parseResult.referenceNumber,
+                                upiReferenceNumber = parseResult.upiReferenceNumber,
+                                merchantOrPayee = parseResult.merchant,
+                                senderUpiId = parseResult.upiId,
+                                timestamp = parseResult.timestamp,
+                                rawContent = combined
+                            )
+                        } catch (_: Exception) {
+                            null
+                        }
+                    } else null
+
+                    val pendingStatus = when {
+                        reconciledSettlement != null -> PendingStatus.RESOLVED
+                        parseResult.isValidTransaction -> PendingStatus.PENDING
+                        else -> PendingStatus.UNKNOWN
                     }
 
                     val entity = PendingTransactionEntity(

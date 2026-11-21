@@ -147,6 +147,20 @@ fun UpiSettlementDialog(
         }
     }
 
+    // Auto-reconciliation listener for incoming bank SMS / notification while UPI dialog is active
+    LaunchedEffect(upiSettlementManager, activeSettlementId) {
+        val sId = activeSettlementId
+        upiSettlementManager.settlementReconciledEvents.collect { event ->
+            if (sId != null && event.id == sId) {
+                activeSettlementResult = event
+                currentStep = UpiDialogStep.RESULT
+                if (event.affectsLedger) {
+                    onSettlementCompleted(event)
+                }
+            }
+        }
+    }
+
     fun validateConfiguration(): Boolean {
         var isValid = true
         errorMessage = null
@@ -463,6 +477,60 @@ fun UpiSettlementDialog(
                                         },
                                         label = { Text("50% Partial") }
                                     )
+                                }
+                            }
+
+                            // Remaining Balance Preview (Bug 3 Requirement 6)
+                            if (debtPaise > 0L && currentAmountPaise > 0L) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = when {
+                                        currentAmountPaise < debtPaise -> AppTheme.colors.surfaceSecondary
+                                        currentAmountPaise == debtPaise -> AppTheme.colors.incomeGreen.copy(alpha = 0.12f)
+                                        else -> AmberGold.copy(alpha = 0.12f)
+                                    },
+                                    border = BorderStroke(
+                                        1.dp,
+                                        when {
+                                            currentAmountPaise < debtPaise -> AppTheme.colors.cardBorder
+                                            currentAmountPaise == debtPaise -> AppTheme.colors.incomeGreen.copy(alpha = 0.3f)
+                                            else -> AmberGold.copy(alpha = 0.3f)
+                                        }
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = when {
+                                                currentAmountPaise < debtPaise -> "Remaining balance after payment:"
+                                                currentAmountPaise == debtPaise -> "Full Settlement status:"
+                                                else -> "Advance / Credit after payment:"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = AppTheme.colors.textSecondary
+                                        )
+                                        Text(
+                                            text = when {
+                                                currentAmountPaise < debtPaise -> CurrencyUtils.formatPaiseToRupees(debtPaise - currentAmountPaise)
+                                                currentAmountPaise == debtPaise -> "Fully Settled (₹0.00)"
+                                                else -> "+${CurrencyUtils.formatPaiseToRupees(currentAmountPaise - debtPaise)}"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = when {
+                                                currentAmountPaise < debtPaise -> AppTheme.colors.primaryAccent
+                                                currentAmountPaise == debtPaise -> AppTheme.colors.incomeGreen
+                                                else -> AmberGold
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }

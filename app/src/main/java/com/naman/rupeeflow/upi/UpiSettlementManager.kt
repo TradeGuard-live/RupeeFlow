@@ -2,14 +2,22 @@ package com.naman.rupeeflow.upi
 
 import android.content.Context
 import android.content.Intent
+import com.naman.rupeeflow.data.repository.FriendRepository
 import com.naman.rupeeflow.data.repository.GroupActivityRepository
 import com.naman.rupeeflow.data.repository.SettlementRepository
 import com.naman.rupeeflow.domain.model.*
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 class UpiSettlementManager(
     private val settlementRepository: SettlementRepository,
-    private val groupActivityRepository: GroupActivityRepository? = null
+    private val groupActivityRepository: GroupActivityRepository? = null,
+    private val friendRepository: FriendRepository? = null
 ) {
+
+    private val _settlementReconciledEvents = MutableSharedFlow<Settlement>(extraBufferCapacity = 16)
+    val settlementReconciledEvents: SharedFlow<Settlement> = _settlementReconciledEvents.asSharedFlow()
 
     /**
      * Creates an INITIATED settlement record and builds the corresponding UPI payment Intent.
@@ -216,6 +224,197 @@ class UpiSettlementManager(
         )
 
         settlementRepository.updateSettlement(updated)
+        return updated
+    }
+
+    /**
+     * Creates an INITIATED settlement record for a QR code payment session.
+     * Does not affect the financial ledger while in INITIATED or PENDING status.
+     */
+    suspend fun initiateQrSettlement(
+        friend: Friend,
+        amountPaise: Long,
+        isPayingFriend: Boolean,
+        qrReference: String,
+        groupId: Long? = null,
+        note: String? = null
+    ): Long {
+        require(amountPaise > 0L) { "Settlement amount must be greater than zero" }
+
+        val defaultNote = note?.trim()?.takeIf { it.isNotBlank() }
+            ?: if (isPayingFriend) "RupeeFlow settlement to ${friend.name}" else "RupeeFlow settlement from ${friend.name}"
+
+        val settlement = Settlement(
+            id = 0L,
+            payerId = if (isPayingFriend) null else friend.id,
+            receiverId = if (isPayingFriend) friend.id else null,
+            amountPaise = amountPaise,
+            settlementDate = System.currentTimeMillis(),
+            paymentMethod = PaymentMethod.UPI,
+            referenceNumber = qrReference,
+            notes = defaultNote,
+            groupId = groupId,
+            isReversed = false,
+            upiPaymentStatus = SettlementPaymentStatus.INITIATED,
+            upiVerificationStatus = SettlementVerificationStatus.PENDING,
+            upiTransactionRef = qrReference,
+            upiPayerVpa = if (!isPayingFriend) friend.upiId else null,
+            upiReceiverVpa = if (isPayingFriend) friend.upiId else null
+        )
+
+        return settlementRepository.recordSettlement(settlement)
+    }
+
+    /**
+     * Updates an initiated settlement's amount and reference.
+     */
+    suspend fun updatePendingSettlementAmount(
+        settlementId: Long,
+        newAmountPaise: Long,
+        newQrReference: String? = null
+    ): Settlement {
+        val existing = settlementRepository.getSettlementById(settlementId)
+            ?: throw IllegalArgumentException("Settlement with ID $settlementId not found")
+        require(newAmountPaise > 0L) { "Settlement amount must be greater than zero" }
+
+        val updated = existing.copy(
+            amountPaise = newAmountPaise,
+            referenceNumber = newQrReference ?: existing.referenceNumber,
+            upiTransactionRef = newQrReference ?: existing.upiTransactionRef
+        )
+        settlementRepository.updateSettlement(updated)
+        return updated
+    }
+
+    /**
+     * Matches an incoming bank/UPI transaction against active pending settlement sessions.
+     * Reconciles matching settlement by updating it to SUCCESS with AUTOMATIC_VERIFIED.
+     */
+    suspend fun reconcileIncomingTransaction(
+        amountPaise: Long,
+        type: TransactionType,
+        referenceNumber: String? = null,
+        upiReferenceNumber: String? = null,
+        merchantOrPayee: String? = null,
+        senderUpiId: String? = null,
+        timestamp: Long = System.currentTimeMillis(),
+        rawContent: String? = null
+    ): Settlement? {
+        if (amountPaise <= 0L) return null
+
+        val allSettlements = settlementRepository.getAllSettlementsList()
+        val pendingCandidates = allSettlements.filter { s ->
+            !s.isReversed &&
+            (s.upiPaymentStatus == SettlementPaymentStatus.INITIATED ||
+             s.upiPaymentStatus == SettlementPaymentStatus.PENDING_VERIFICATION)
+        }
+
+        if (pendingCandidates.isEmpty()) return null
+
+        // Exact amount match
+        val amountMatches = pendingCandidates.filter { it.amountPaise == amountPaise }
+        if (amountMatches.isEmpty()) return null
+
+        // Direction match:
+        // EXPENSE: User paid friend (payerId == null, receiverId != null)
+        // INCOME: Friend paid user (payerId != null, receiverId == null)
+        val directionMatches = amountMatches.filter { s ->
+            when (type) {
+                TransactionType.EXPENSE -> s.payerId == null && s.receiverId != null
+                TransactionType.INCOME -> s.payerId != null && s.receiverId == null
+                else -> false
+            }
+        }
+        if (directionMatches.isEmpty()) return null
+
+        var bestCandidate: Settlement? = null
+        var bestScore = -1
+
+        val ref = upiReferenceNumber?.trim()?.takeIf { it.isNotBlank() }
+            ?: referenceNumber?.trim()?.takeIf { it.isNotBlank() }
+        val payeeText = listOfNotNull(merchantOrPayee, senderUpiId, rawContent).joinToString(" ").lowercase()
+
+        for (candidate in directionMatches) {
+            var score = 0
+            val friendId = candidate.receiverId ?: candidate.payerId
+            val friend = friendId?.let { friendRepository?.getFriendById(it) }
+
+            // Reference match
+            val candidateRef = candidate.referenceNumber ?: candidate.upiTransactionRef
+            if (ref != null && candidateRef != null) {
+                if (ref.equals(candidateRef, ignoreCase = true) ||
+                    (rawContent != null && rawContent.contains(candidateRef, ignoreCase = true))) {
+                    score += 100
+                }
+            }
+
+            // Payee / UPI ID match
+            if (friend != null) {
+                val friendUpi = friend.upiId?.lowercase()?.trim()
+                val friendName = friend.name.lowercase().trim()
+                val friendPhone = friend.phoneNumber?.trim()
+
+                if (!friendUpi.isNullOrBlank() && payeeText.contains(friendUpi)) {
+                    score += 60
+                }
+                if (friendName.isNotBlank() && payeeText.contains(friendName)) {
+                    score += 40
+                }
+                if (!friendPhone.isNullOrBlank() && payeeText.contains(friendPhone)) {
+                    score += 30
+                }
+            }
+
+            // Time proximity
+            val timeDiffMs = kotlin.math.abs(timestamp - candidate.createdAt)
+            if (timeDiffMs <= 3 * 60 * 1000L) {
+                score += 30
+            } else if (timeDiffMs <= 15 * 60 * 1000L) {
+                score += 15
+            }
+
+            if (directionMatches.size == 1 && timeDiffMs <= 15 * 60 * 1000L) {
+                score += 20
+            }
+
+            if (score > bestScore) {
+                bestScore = score
+                bestCandidate = candidate
+            }
+        }
+
+        if (bestCandidate == null || bestScore < 20) return null
+
+        val finalRef = ref ?: bestCandidate.referenceNumber ?: bestCandidate.upiTransactionRef
+        val updated = bestCandidate.copy(
+            upiPaymentStatus = SettlementPaymentStatus.SUCCESS,
+            upiVerificationStatus = SettlementVerificationStatus.AUTOMATIC_VERIFIED,
+            referenceNumber = finalRef,
+            upiTransactionRef = finalRef,
+            upiResponseRaw = rawContent ?: bestCandidate.upiResponseRaw,
+            settlementDate = timestamp
+        )
+
+        settlementRepository.updateSettlement(updated)
+
+        UpiDiagnostics.logLedgerSafety(
+            settlementId = updated.id,
+            affectsLedger = updated.affectsLedger,
+            reason = "Auto-reconciled via SMS/Notification matching score $bestScore (Ref: $finalRef)"
+        )
+
+        if (updated.affectsLedger && updated.groupId != null && groupActivityRepository != null) {
+            try {
+                groupActivityRepository.recordActivity(
+                    groupId = updated.groupId,
+                    activityType = GroupActivityType.SETTLEMENT_RECORDED,
+                    actorName = "You",
+                    description = "Settlement of ${updated.amountPaise / 100} INR auto-reconciled via bank transaction"
+                )
+            } catch (_: Exception) {}
+        }
+
+        _settlementReconciledEvents.tryEmit(updated)
         return updated
     }
 }

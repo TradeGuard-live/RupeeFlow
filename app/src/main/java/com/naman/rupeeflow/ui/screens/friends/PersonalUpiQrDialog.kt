@@ -10,7 +10,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -23,23 +25,30 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.naman.rupeeflow.data.repository.SettlementRepository
 import com.naman.rupeeflow.domain.model.*
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.ui.components.rupeeFlowTextFieldColors
 import com.naman.rupeeflow.ui.theme.*
 import com.naman.rupeeflow.upi.UpiQrCodeGenerator
+import com.naman.rupeeflow.upi.UpiSettlementManager
 import com.naman.rupeeflow.upi.UpiValidator
+import kotlinx.coroutines.delay
 
 @Composable
 fun PersonalUpiQrDialog(
     friend: Friend,
     personalUpiId: String?,
     personalUpiName: String?,
-    outstandingAmountPaise: Long,
+    initialAmountPaise: Long = 0L,
+    totalOutstandingPaise: Long = 0L,
+    upiSettlementManager: UpiSettlementManager? = null,
+    settlementRepository: SettlementRepository? = null,
     onSavePersonalUpi: (upiId: String, name: String?) -> Unit,
     onMarkAsReceived: (Settlement) -> Unit,
     onDismiss: () -> Unit
@@ -51,19 +60,75 @@ fun PersonalUpiQrDialog(
     var nameInput by remember(personalUpiName) { mutableStateOf(personalUpiName ?: "") }
     var upiError by remember { mutableStateOf<String?>(null) }
 
+    // Settlement amount state (Bug 3 fix: editable with separate original and remaining values)
+    val defaultTargetPaise = if (initialAmountPaise > 0L) initialAmountPaise else totalOutstandingPaise
+    var amountInput by remember(defaultTargetPaise) {
+        mutableStateOf(
+            if (defaultTargetPaise > 0L) CurrencyUtils.formatPaiseToRupees(defaultTargetPaise, includeSymbol = false) else ""
+        )
+    }
+    val currentAmountPaise = remember(amountInput) {
+        CurrencyUtils.parseInputToPaise(amountInput)
+    }
+
     var currentRef by remember { mutableStateOf(UpiQrCodeGenerator.generateQrReference()) }
     var showConfirmReceiveDialog by remember { mutableStateOf(false) }
     var isProcessingMark by remember { mutableStateOf(false) }
 
-    val formattedAmount = CurrencyUtils.formatPaiseToRupees(outstandingAmountPaise)
+    // Real-time automatic reconciliation state (Bug 2 fix)
+    var activePendingSettlementId by remember { mutableStateOf<Long?>(null) }
+    var reconciledSettlement by remember { mutableStateOf<Settlement?>(null) }
+    var autoCloseJobStarted by remember { mutableStateOf(false) }
 
-    val qrUri = remember(personalUpiId, personalUpiName, outstandingAmountPaise, currentRef) {
-        if (!personalUpiId.isNullOrBlank() && outstandingAmountPaise > 0L) {
+    // Initiate or update pending settlement session in Room
+    LaunchedEffect(friend.id, personalUpiId, currentAmountPaise, currentRef) {
+        if (!personalUpiId.isNullOrBlank() && currentAmountPaise > 0L && upiSettlementManager != null) {
+            try {
+                val currentId = activePendingSettlementId
+                if (currentId == null) {
+                    val sId = upiSettlementManager.initiateQrSettlement(
+                        friend = friend,
+                        amountPaise = currentAmountPaise,
+                        isPayingFriend = false, // Friend is paying Me
+                        qrReference = currentRef,
+                        note = "RupeeFlow QR settlement from ${friend.name}"
+                    )
+                    activePendingSettlementId = sId
+                } else {
+                    upiSettlementManager.updatePendingSettlementAmount(
+                        settlementId = currentId,
+                        newAmountPaise = currentAmountPaise,
+                        newQrReference = currentRef
+                    )
+                }
+            } catch (_: Exception) {}
+        }
+    }
+
+    // Observe active pending settlement for real-time bank SMS reconciliation
+    LaunchedEffect(activePendingSettlementId, settlementRepository) {
+        val sId = activePendingSettlementId ?: return@LaunchedEffect
+        val repo = settlementRepository ?: return@LaunchedEffect
+        repo.getSettlementByIdFlow(sId).collect { settlement ->
+            if (settlement?.upiPaymentStatus == SettlementPaymentStatus.SUCCESS) {
+                reconciledSettlement = settlement
+                if (!autoCloseJobStarted) {
+                    autoCloseJobStarted = true
+                    delay(1200L)
+                    onDismiss()
+                }
+            }
+        }
+    }
+
+    // Dynamic NPCI UPI payment request URI: exact user-entered amount in 'am' parameter
+    val qrUri = remember(personalUpiId, personalUpiName, currentAmountPaise, currentRef) {
+        if (!personalUpiId.isNullOrBlank() && currentAmountPaise > 0L) {
             try {
                 UpiQrCodeGenerator.buildSettlementQrUri(
                     receiverUpiId = personalUpiId,
                     receiverName = personalUpiName ?: "RupeeFlow User",
-                    amountPaise = outstandingAmountPaise,
+                    amountPaise = currentAmountPaise,
                     note = "RupeeFlow settlement from ${friend.name}",
                     transactionRef = currentRef
                 )
@@ -231,7 +296,7 @@ fun PersonalUpiQrDialog(
                             }
                         }
                     }
-                } else if (outstandingAmountPaise <= 0L) {
+                } else if (totalOutstandingPaise <= 0L && currentAmountPaise <= 0L) {
                     // Friend owes ₹0.00: QR generation disabled
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
@@ -257,7 +322,7 @@ fun PersonalUpiQrDialog(
                                 color = AppTheme.colors.textPrimary
                             )
                             Text(
-                                text = "${friend.name} does not currently owe you any money. QR generation is disabled for ₹0.00 balances.",
+                                text = "${friend.name} does not currently owe you any money.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 textAlign = TextAlign.Center,
                                 color = AppTheme.colors.textSecondary
@@ -272,12 +337,183 @@ fun PersonalUpiQrDialog(
                         }
                     }
                 } else {
-                    // Active QR Code Display
+                    // Active QR Code & Amount Configuration
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
+                        // Real-time Reconciliation Status Banner
+                        if (reconciledSettlement != null) {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = EmeraldMint.copy(alpha = 0.15f),
+                                border = BorderStroke(1.dp, EmeraldMint.copy(alpha = 0.5f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = EmeraldMint,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Payment Detected & Reconciled!",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EmeraldMint
+                                        )
+                                        Text(
+                                            text = "Received ${CurrencyUtils.formatPaiseToRupees(reconciledSettlement?.amountPaise ?: currentAmountPaise)} • Closing in a moment...",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = AppTheme.colors.textPrimary
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = AppTheme.colors.surfaceSecondary,
+                                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = AppTheme.colors.primaryAccent
+                                    )
+                                    Text(
+                                        text = "Awaiting bank payment • Reconciles automatically on SMS",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = AppTheme.colors.textSecondary
+                                    )
+                                }
+                            }
+                        }
+
+                        // Editable Settlement Amount Input (Bug 3 Fix)
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = amountInput,
+                                onValueChange = { input ->
+                                    amountInput = input
+                                    val parsed = CurrencyUtils.parseInputToPaise(input)
+                                    if (parsed > 0L && parsed != currentAmountPaise) {
+                                        currentRef = UpiQrCodeGenerator.generateQrReference()
+                                    }
+                                },
+                                label = { Text("Settlement Amount") },
+                                placeholder = { Text("0.00") },
+                                prefix = { Text("₹ ", fontWeight = FontWeight.Bold) },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                isError = currentAmountPaise <= 0L,
+                                supportingText = {
+                                    if (currentAmountPaise <= 0L) {
+                                        Text("Please enter a valid amount greater than zero", color = CoralRed)
+                                    } else {
+                                        Text("QR code updates immediately with entered amount", color = AppTheme.colors.textTertiary)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = rupeeFlowTextFieldColors(),
+                                shape = RoundedCornerShape(14.dp)
+                            )
+
+                            // Quick Partial/Full Shortcuts
+                            if (totalOutstandingPaise > 0L) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    AssistChip(
+                                        onClick = {
+                                            amountInput = CurrencyUtils.formatPaiseToRupees(totalOutstandingPaise, includeSymbol = false)
+                                            currentRef = UpiQrCodeGenerator.generateQrReference()
+                                        },
+                                        label = { Text("Full Balance (${CurrencyUtils.formatPaiseToRupees(totalOutstandingPaise)})") }
+                                    )
+                                    if (totalOutstandingPaise > 200L) {
+                                        AssistChip(
+                                            onClick = {
+                                                val half = totalOutstandingPaise / 2L
+                                                amountInput = CurrencyUtils.formatPaiseToRupees(half, includeSymbol = false)
+                                                currentRef = UpiQrCodeGenerator.generateQrReference()
+                                            },
+                                            label = { Text("50% Partial") }
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Remaining Balance Preview (Bug 3 Requirement 6)
+                            if (totalOutstandingPaise > 0L && currentAmountPaise > 0L) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = when {
+                                        currentAmountPaise < totalOutstandingPaise -> AppTheme.colors.surfaceSecondary
+                                        currentAmountPaise == totalOutstandingPaise -> AppTheme.colors.incomeGreen.copy(alpha = 0.12f)
+                                        else -> AmberGold.copy(alpha = 0.12f)
+                                    },
+                                    border = BorderStroke(
+                                        1.dp,
+                                        when {
+                                            currentAmountPaise < totalOutstandingPaise -> AppTheme.colors.cardBorder
+                                            currentAmountPaise == totalOutstandingPaise -> AppTheme.colors.incomeGreen.copy(alpha = 0.3f)
+                                            else -> AmberGold.copy(alpha = 0.3f)
+                                        }
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = when {
+                                                currentAmountPaise < totalOutstandingPaise -> "Remaining balance after payment:"
+                                                currentAmountPaise == totalOutstandingPaise -> "Full Settlement status:"
+                                                else -> "Advance / Credit after payment:"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = AppTheme.colors.textSecondary
+                                        )
+                                        Text(
+                                            text = when {
+                                                currentAmountPaise < totalOutstandingPaise -> CurrencyUtils.formatPaiseToRupees(totalOutstandingPaise - currentAmountPaise)
+                                                currentAmountPaise == totalOutstandingPaise -> "Fully Settled (₹0.00)"
+                                                else -> "+${CurrencyUtils.formatPaiseToRupees(currentAmountPaise - totalOutstandingPaise)}"
+                                            },
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = when {
+                                                currentAmountPaise < totalOutstandingPaise -> AppTheme.colors.primaryAccent
+                                                currentAmountPaise == totalOutstandingPaise -> AppTheme.colors.incomeGreen
+                                                else -> AmberGold
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         // QR Code Card
                         Surface(
                             shape = RoundedCornerShape(18.dp),
@@ -304,9 +540,9 @@ fun PersonalUpiQrDialog(
                             }
                         }
 
-                        // Exact Settlement Amount
+                        // Exact Settlement Amount Display
                         Text(
-                            text = formattedAmount,
+                            text = CurrencyUtils.formatPaiseToRupees(currentAmountPaise),
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             color = EmeraldMint
@@ -412,29 +648,6 @@ fun PersonalUpiQrDialog(
                             }
                         }
 
-                        // Payer Authorization & Fixed Amount Guidance
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = AppTheme.colors.surface,
-                            border = BorderStroke(1.dp, AppTheme.colors.cardBorder)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = "Payer must scan and authorize payment inside their UPI app (Google Pay, PhonePe, BHIM, Paytm).",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = AppTheme.colors.textSecondary
-                                )
-                                Text(
-                                    text = "Fixed Amount: RupeeFlow sets the exact requested amount. Whether an app permits modifying this amount is governed by the payer's UPI app.",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = AppTheme.colors.textTertiary
-                                )
-                            }
-                        }
-
                         // Share & Save Actions
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -443,11 +656,12 @@ fun PersonalUpiQrDialog(
                             OutlinedButton(
                                 onClick = {
                                     qrBitmap?.let { bmp ->
-                                        val shareText = "RupeeFlow Settlement Request: Please pay $formattedAmount to $personalUpiId using any UPI app (Ref: $currentRef)."
+                                        val amtStr = CurrencyUtils.formatPaiseToRupees(currentAmountPaise)
+                                        val shareText = "RupeeFlow Settlement Request: Please pay $amtStr to $personalUpiId using any UPI app (Ref: $currentRef)."
                                         UpiQrCodeGenerator.shareQrCode(context, bmp, shareText, currentRef)
                                     }
                                 },
-                                enabled = qrBitmap != null,
+                                enabled = qrBitmap != null && currentAmountPaise > 0L,
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
@@ -467,7 +681,7 @@ fun PersonalUpiQrDialog(
                                         }
                                     }
                                 },
-                                enabled = qrBitmap != null,
+                                enabled = qrBitmap != null && currentAmountPaise > 0L,
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
@@ -505,20 +719,20 @@ fun PersonalUpiQrDialog(
 
                         HorizontalDivider(color = AppTheme.colors.divider)
 
-                        // Settlement Safety Notice & Manual Confirmation Action
+                        // Manual Confirmation Action
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = "Settlement Safety: Generating or sharing this QR does NOT mark the expense as settled. Keep records pending until confirmed in your bank account.",
+                                text = "Automatic Reconcile: RupeeFlow automatically records the settlement when your bank credit SMS arrives.",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = AppTheme.colors.textSecondary
                             )
 
                             Button(
                                 onClick = { showConfirmReceiveDialog = true },
-                                enabled = !isProcessingMark,
+                                enabled = !isProcessingMark && currentAmountPaise > 0L,
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = EmeraldMint)
@@ -526,7 +740,7 @@ fun PersonalUpiQrDialog(
                                 Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Mark as received (not bank verified)",
+                                    text = "Mark as received (${CurrencyUtils.formatPaiseToRupees(currentAmountPaise)})",
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -537,8 +751,9 @@ fun PersonalUpiQrDialog(
         }
     }
 
-    // Confirmation Prompt before recording settlement to prevent accidental double-settlement
+    // Confirmation Prompt before recording settlement manually
     if (showConfirmReceiveDialog) {
+        val confirmFormatted = CurrencyUtils.formatPaiseToRupees(currentAmountPaise)
         AlertDialog(
             onDismissRequest = { showConfirmReceiveDialog = false },
             title = {
@@ -546,8 +761,8 @@ fun PersonalUpiQrDialog(
             },
             text = {
                 Text(
-                    "Have you verified that $formattedAmount has been credited to your bank account?\n\n" +
-                    "This will record a settlement from ${friend.name} and reduce their outstanding debt. You can reverse this entry anytime from the settlements history."
+                    "Have you verified that $confirmFormatted has been credited to your bank account?\n\n" +
+                    "This will record a settlement of $confirmFormatted from ${friend.name} and update their ledger balance."
                 )
             },
             confirmButton = {
@@ -556,10 +771,10 @@ fun PersonalUpiQrDialog(
                         showConfirmReceiveDialog = false
                         isProcessingMark = true
                         val settlement = Settlement(
-                            id = 0L,
+                            id = activePendingSettlementId ?: 0L,
                             payerId = friend.id,
                             receiverId = null, // ME
-                            amountPaise = outstandingAmountPaise,
+                            amountPaise = currentAmountPaise,
                             settlementDate = System.currentTimeMillis(),
                             paymentMethod = PaymentMethod.UPI,
                             referenceNumber = currentRef,
@@ -571,7 +786,7 @@ fun PersonalUpiQrDialog(
                             upiReceiverVpa = personalUpiId
                         )
                         onMarkAsReceived(settlement)
-                        Toast.makeText(context, "Settlement recorded: $formattedAmount received", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Settlement recorded: $confirmFormatted received", Toast.LENGTH_SHORT).show()
                         onDismiss()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = EmeraldMint)

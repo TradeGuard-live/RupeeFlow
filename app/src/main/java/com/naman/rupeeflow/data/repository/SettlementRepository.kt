@@ -17,6 +17,7 @@ interface SettlementRepository {
     fun getSettlementsForGroup(groupId: Long): Flow<List<Settlement>> = kotlinx.coroutines.flow.flowOf(emptyList())
     suspend fun getSettlementsForGroupList(groupId: Long): List<Settlement> = emptyList()
     suspend fun getSettlementById(id: Long): Settlement?
+    fun getSettlementByIdFlow(id: Long): Flow<Settlement?> = kotlinx.coroutines.flow.flowOf(null)
     suspend fun getSettlementByUpiTransactionRef(txnRef: String): Settlement? = null
     suspend fun getSettlementByReferenceNumber(refNum: String): Settlement? = null
     suspend fun recordSettlement(settlement: Settlement): Long
@@ -59,6 +60,10 @@ class SettlementRepositoryImpl(
 
     override suspend fun getSettlementById(id: Long): Settlement? {
         return settlementDao.getSettlementById(id)?.toDomain()
+    }
+
+    override fun getSettlementByIdFlow(id: Long): Flow<Settlement?> {
+        return settlementDao.getSettlementByIdFlow(id).map { it?.toDomain() }
     }
 
     override suspend fun getSettlementByUpiTransactionRef(txnRef: String): Settlement? {

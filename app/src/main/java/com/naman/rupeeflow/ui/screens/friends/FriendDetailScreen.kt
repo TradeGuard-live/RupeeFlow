@@ -114,6 +114,7 @@ fun FriendDetailScreen(
                             enabled = friend?.status == FriendBalanceStatus.THEY_OWE_ME,
                             onClick = {
                                 showMenu = false
+                                upiTargetAmountPaise = abs(friend?.netBalancePaise ?: 0L)
                                 showPersonalUpiQrDialog = true
                             }
                         )
@@ -355,6 +356,7 @@ fun FriendDetailScreen(
                     } else if (friend.status == FriendBalanceStatus.THEY_OWE_ME) {
                         Button(
                             onClick = {
+                                upiTargetAmountPaise = abs(friend.netBalancePaise)
                                 showPersonalUpiQrDialog = true
                             },
                             modifier = Modifier
@@ -507,7 +509,7 @@ fun FriendDetailScreen(
                         }
                     }
 
-                    if (state.unsettledExpenses.isEmpty()) {
+                    if (state.unsettledExpenses.isEmpty() && abs(friend.netBalancePaise) == 0L) {
                         item {
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
@@ -539,6 +541,36 @@ fun FriendDetailScreen(
                                     Text(
                                         text = "No outstanding expenses with ${friend.name}.",
                                         style = MaterialTheme.typography.bodyMedium,
+                                        color = AppTheme.colors.textSecondary,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    } else if (state.unsettledExpenses.isEmpty()) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = AppTheme.colors.cardBackground,
+                                border = BorderStroke(1.dp, AppTheme.colors.cardBorder),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(20.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text(
+                                        text = "Outstanding Balance: ${CurrencyUtils.formatPaiseToRupees(abs(friend.netBalancePaise))}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (friend.status == FriendBalanceStatus.THEY_OWE_ME) AppTheme.colors.incomeGreen else CoralRed
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = "Historical transactions and settlements are balanced in All Activity.",
+                                        style = MaterialTheme.typography.bodySmall,
                                         color = AppTheme.colors.textSecondary,
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                     )
@@ -679,6 +711,7 @@ fun FriendDetailScreen(
                 showUpiSettlementDialog = true
             },
             onRequestPaymentQr = { targetFriend, amountPaise ->
+                upiTargetAmountPaise = amountPaise
                 showSettleDialog = false
                 showPersonalUpiQrDialog = true
             }
@@ -709,16 +742,21 @@ fun FriendDetailScreen(
             friend = friend,
             personalUpiId = state.userPreferences.personalUpiId,
             personalUpiName = state.userPreferences.personalUpiName,
-            outstandingAmountPaise = if (friend.status == FriendBalanceStatus.THEY_OWE_ME) abs(friend.netBalancePaise) else 0L,
+            initialAmountPaise = if (upiTargetAmountPaise > 0L) upiTargetAmountPaise else abs(friend.netBalancePaise),
+            totalOutstandingPaise = abs(friend.netBalancePaise),
+            upiSettlementManager = viewModel.upiSettlementManager,
+            settlementRepository = viewModel.settlementRepo,
             onSavePersonalUpi = { upiId, name ->
                 viewModel.updatePersonalUpi(upiId, name)
             },
             onMarkAsReceived = { settlement ->
                 viewModel.recordSettlement(settlement)
                 showPersonalUpiQrDialog = false
+                upiTargetAmountPaise = 0L
             },
             onDismiss = {
                 showPersonalUpiQrDialog = false
+                upiTargetAmountPaise = 0L
             }
         )
     }

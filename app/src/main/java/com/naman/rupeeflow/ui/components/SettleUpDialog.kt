@@ -137,6 +137,81 @@ fun SettleUpDialog(
                     label = "Settlement Amount"
                 )
 
+                // Real-time remaining balance preview
+                if (defaultAmount > 0L && amountPaise > 0L) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = when {
+                            amountPaise < defaultAmount -> AppTheme.colors.surfaceSecondary
+                            amountPaise == defaultAmount -> AppTheme.colors.incomeGreen.copy(alpha = 0.12f)
+                            else -> AmberGold.copy(alpha = 0.12f)
+                        },
+                        border = BorderStroke(
+                            1.dp,
+                            when {
+                                amountPaise < defaultAmount -> AppTheme.colors.cardBorder
+                                amountPaise == defaultAmount -> AppTheme.colors.incomeGreen.copy(alpha = 0.3f)
+                                else -> AmberGold.copy(alpha = 0.3f)
+                            }
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Total Outstanding:",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AppTheme.colors.textSecondary
+                                )
+                                Text(
+                                    text = CurrencyUtils.formatPaiseToRupees(defaultAmount),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = AppTheme.colors.textPrimary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = when {
+                                        amountPaise < defaultAmount -> "Remaining balance after payment:"
+                                        amountPaise == defaultAmount -> "Full Settlement status:"
+                                        else -> "Advance / Credit after payment:"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = when {
+                                        amountPaise < defaultAmount -> AppTheme.colors.textSecondary
+                                        amountPaise == defaultAmount -> AppTheme.colors.incomeGreen
+                                        else -> AmberGold
+                                    },
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = when {
+                                        amountPaise < defaultAmount -> CurrencyUtils.formatPaiseToRupees(defaultAmount - amountPaise)
+                                        amountPaise == defaultAmount -> "Fully Settled (₹0.00)"
+                                        else -> "+${CurrencyUtils.formatPaiseToRupees(amountPaise - defaultAmount)}"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = when {
+                                        amountPaise < defaultAmount -> AppTheme.colors.primaryAccent
+                                        amountPaise == defaultAmount -> AppTheme.colors.incomeGreen
+                                        else -> AmberGold
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Payment Method

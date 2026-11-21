@@ -25,6 +25,7 @@ interface AppContainer {
     val merchantPreferenceRepository: MerchantPreferenceRepository
     val smartTransactionMatcher: com.naman.rupeeflow.domain.matching.SmartTransactionMatcher
     val savingsGoalRepository: SavingsGoalRepository
+    val upiSettlementManager: com.naman.rupeeflow.upi.UpiSettlementManager
 }
 
 class DefaultAppContainer(private val context: Context) : AppContainer {
@@ -134,6 +135,14 @@ class DefaultAppContainer(private val context: Context) : AppContainer {
         SavingsGoalRepositoryImpl(
             savingsGoalDao = database.savingsGoalDao(),
             savingsEntryDao = database.savingsEntryDao()
+        )
+    }
+
+    override val upiSettlementManager: com.naman.rupeeflow.upi.UpiSettlementManager by lazy {
+        com.naman.rupeeflow.upi.UpiSettlementManager(
+            settlementRepository = settlementRepository,
+            groupActivityRepository = groupActivityRepository,
+            friendRepository = friendRepository
         )
     }
 }

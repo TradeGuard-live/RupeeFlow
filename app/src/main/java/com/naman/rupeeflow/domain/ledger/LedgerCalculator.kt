@@ -356,123 +356,372 @@ object LedgerCalculator {
         return sum == totalAmountPaise
     }
 
+    data class FriendLedgerReconciliation(
+        val friend: Friend,
+        val allExpenseHistory: List<UnsettledExpenseItem>,
+        val unsettledExpenses: List<UnsettledExpenseItem>
+    )
+
+    /**
+     * Single Source of Truth Ledger Reconciliation for Friend & Split Pro.
+     * Guarantees absolute consistency between:
+     * 1. Friend Balance card (friend.netBalancePaise & friend.status).
+     * 2. Outstanding Expenses tab count and individual item balances.
+     * 3. INVARIANT: sum(unsettledExpenses.remainingOutstandingPaise) == abs(friend.netBalancePaise).
+     * 4. INVARIANT: unsettledExpenses.isEmpty() <==> friend.netBalancePaise == 0L.
+     */
+    fun reconcileFriendLedger(
+        friend: Friend,
+        transactions: List<Transaction>,
+        settlements: List<Settlement>
+    ): FriendLedgerReconciliation {
+        val friendId = friend.id
+        val validTransactions = transactions.filter {
+            it.transactionStatus == TransactionStatus.ACTIVE &&
+                    (it.transactionType == TransactionType.EXPENSE ||
+                     it.transactionType == TransactionType.UPI_LITE_PAYMENT ||
+                     it.transactionType == TransactionType.REFUND ||
+                     it.transactionType == TransactionType.UPI_LITE_REFUND)
+        }
+        val validSettlements = settlements.filter { !it.isReversed && it.affectsLedger }
+
+        // Group 1: Transactions where ME paid and Friend participated (Friend owes ME)
+        val friendOwesMeExpenses = mutableListOf<UnsettledExpenseEntry>()
+        // Group 2: Transactions where Friend paid and ME participated (ME owes Friend)
+        val iOweFriendExpenses = mutableListOf<UnsettledExpenseEntry>()
+
+        var lastTxnDate: Long? = friend.lastTransactionDate
+
+        for (txn in validTransactions) {
+            val payerId = txn.paidByFriendId
+            val isExpense = txn.transactionType == TransactionType.EXPENSE || txn.transactionType == TransactionType.UPI_LITE_PAYMENT
+            val isRefund = txn.transactionType == TransactionType.REFUND || txn.transactionType == TransactionType.UPI_LITE_REFUND
+
+            if (isExpense) {
+                if (payerId == null) {
+                    val part = txn.participants.firstOrNull { it.friendId == friendId }
+                    if (part != null && part.shareAmountPaise > 0L) {
+                        friendOwesMeExpenses.add(
+                            UnsettledExpenseEntry(txn, part.shareAmountPaise, ExpenseObligationDirection.THEY_OWE_ME)
+                        )
+                        if (lastTxnDate == null || txn.transactionDate > lastTxnDate) {
+                            lastTxnDate = txn.transactionDate
+                        }
+                    }
+                } else if (payerId == friendId) {
+                    val myPart = txn.participants.firstOrNull { it.friendId == null }
+                    if (myPart != null && myPart.shareAmountPaise > 0L) {
+                        iOweFriendExpenses.add(
+                            UnsettledExpenseEntry(txn, myPart.shareAmountPaise, ExpenseObligationDirection.I_OWE_THEM)
+                        )
+                        if (lastTxnDate == null || txn.transactionDate > lastTxnDate) {
+                            lastTxnDate = txn.transactionDate
+                        }
+                    }
+                }
+            } else if (isRefund) {
+                if (payerId == null) {
+                    val part = txn.participants.firstOrNull { it.friendId == friendId }
+                    if (part != null && part.shareAmountPaise > 0L) {
+                        friendOwesMeExpenses.add(
+                            UnsettledExpenseEntry(txn, -part.shareAmountPaise, ExpenseObligationDirection.THEY_OWE_ME)
+                        )
+                        if (lastTxnDate == null || txn.transactionDate > lastTxnDate) {
+                            lastTxnDate = txn.transactionDate
+                        }
+                    }
+                } else if (payerId == friendId) {
+                    val myPart = txn.participants.firstOrNull { it.friendId == null }
+                    if (myPart != null && myPart.shareAmountPaise > 0L) {
+                        iOweFriendExpenses.add(
+                            UnsettledExpenseEntry(txn, -myPart.shareAmountPaise, ExpenseObligationDirection.I_OWE_THEM)
+                        )
+                        if (lastTxnDate == null || txn.transactionDate > lastTxnDate) {
+                            lastTxnDate = txn.transactionDate
+                        }
+                    }
+                }
+            }
+        }
+
+        // Settlements tracking
+        for (s in validSettlements) {
+            if (s.payerId == friendId || s.receiverId == friendId) {
+                if (lastTxnDate == null || s.settlementDate > lastTxnDate) {
+                    lastTxnDate = s.settlementDate
+                }
+            }
+        }
+
+        val grossTheyOweMeExpenses = friendOwesMeExpenses.sumOf { it.shareAmountPaise }
+        val grossIOweThemExpenses = iOweFriendExpenses.sumOf { it.shareAmountPaise }
+
+        val settlementsFriendPaidMe = validSettlements
+            .filter { it.payerId == friendId && it.receiverId == null }
+            .sumOf { it.amountPaise }
+        val settlementsIPaidFriend = validSettlements
+            .filter { it.payerId == null && it.receiverId == friendId }
+            .sumOf { it.amountPaise }
+
+        val theyOweMeNet = SafeMath.safeSubtract(grossTheyOweMeExpenses, settlementsFriendPaidMe)
+        val iOweThemNet = SafeMath.safeSubtract(grossIOweThemExpenses, settlementsIPaidFriend)
+
+        val netBalancePaise = SafeMath.safeSubtract(theyOweMeNet, iOweThemNet)
+        val absNet = SafeMath.safeAbs(netBalancePaise)
+
+        val status = when {
+            netBalancePaise > 0L -> FriendBalanceStatus.THEY_OWE_ME
+            netBalancePaise < 0L -> FriendBalanceStatus.I_OWE_THEM
+            else -> FriendBalanceStatus.SETTLED
+        }
+
+        val finalTheyOweMe = if (netBalancePaise > 0L) netBalancePaise else 0L
+        val finalIOweThem = if (netBalancePaise < 0L) absNet else 0L
+
+        val updatedFriend = friend.copy(
+            totalTheyOweMePaise = finalTheyOweMe,
+            totalIOweThemPaise = finalIOweThem,
+            netBalancePaise = netBalancePaise,
+            lastTransactionDate = lastTxnDate,
+            status = status
+        )
+
+        // Sort chronologically (oldest first for allocation)
+        val sortedTheyOweMe = friendOwesMeExpenses.filter { it.shareAmountPaise > 0L }.sortedBy { it.transaction.transactionDate }
+        val sortedIOweThem = iOweFriendExpenses.filter { it.shareAmountPaise > 0L }.sortedBy { it.transaction.transactionDate }
+
+        val allHistory = mutableListOf<UnsettledExpenseItem>()
+
+        when (status) {
+            FriendBalanceStatus.THEY_OWE_ME -> {
+                // Friend owes ME absNet.
+                // Outstanding items must come from sortedTheyOweMe.
+                // Amount of sortedTheyOweMe that is satisfied = grossTheyOweMe - absNet.
+                val satisfied = SafeMath.safeSubtract(grossTheyOweMeExpenses, absNet)
+                var pool = maxOf(0L, satisfied)
+
+                // First pass: direct note matching for specific settlements
+                val directAllocations = mutableMapOf<Long, Long>()
+                for (s in validSettlements.filter { it.payerId == friendId && it.receiverId == null }) {
+                    val sNote = (s.notes ?: "").lowercase().trim()
+                    if (sNote.isNotBlank()) {
+                        for (entry in sortedTheyOweMe) {
+                            val title = entry.transaction.title.lowercase().trim()
+                            if (title.isNotBlank() && (sNote.contains(title) || title.contains(sNote))) {
+                                val currentAlloc = directAllocations.getOrDefault(entry.transaction.id, 0L)
+                                val available = SafeMath.safeSubtract(entry.shareAmountPaise, currentAlloc)
+                                if (available > 0L) {
+                                    val alloc = minOf(s.amountPaise, available)
+                                    directAllocations[entry.transaction.id] = SafeMath.safeAdd(currentAlloc, alloc)
+                                    pool = SafeMath.safeSubtract(pool, alloc)
+                                }
+                                break
+                            }
+                        }
+                    }
+                }
+                pool = maxOf(0L, pool)
+
+                for (entry in sortedTheyOweMe) {
+                    val share = entry.shareAmountPaise
+                    val direct = directAllocations.getOrDefault(entry.transaction.id, 0L)
+                    val additional = minOf(pool, SafeMath.safeSubtract(share, direct))
+                    val totalAllocated = SafeMath.safeAdd(direct, additional)
+                    val remaining = SafeMath.safeSubtract(share, totalAllocated)
+                    pool = SafeMath.safeSubtract(pool, additional)
+
+                    allHistory.add(
+                        UnsettledExpenseItem(
+                            transaction = entry.transaction,
+                            totalTransactionAmountPaise = entry.transaction.amountPaise,
+                            originalShareAmountPaise = share,
+                            settledAmountPaise = totalAllocated,
+                            remainingOutstandingPaise = remaining,
+                            isPartiallySettled = totalAllocated > 0L && remaining > 0L,
+                            direction = ExpenseObligationDirection.THEY_OWE_ME
+                        )
+                    )
+                }
+
+                // All expenses where friend paid (iOweFriend) are fully satisfied in this net state
+                for (entry in sortedIOweThem) {
+                    allHistory.add(
+                        UnsettledExpenseItem(
+                            transaction = entry.transaction,
+                            totalTransactionAmountPaise = entry.transaction.amountPaise,
+                            originalShareAmountPaise = entry.shareAmountPaise,
+                            settledAmountPaise = entry.shareAmountPaise,
+                            remainingOutstandingPaise = 0L,
+                            isPartiallySettled = false,
+                            direction = ExpenseObligationDirection.I_OWE_THEM
+                        )
+                    )
+                }
+
+                // If net exceeds all recorded expense shares (e.g. advance settlement or direct transfer),
+                // represent the remaining surplus as an outstanding balance obligation.
+                if (absNet > grossTheyOweMeExpenses) {
+                    val surplusPaise = SafeMath.safeSubtract(absNet, grossTheyOweMeExpenses)
+                    val advanceTxn = Transaction(
+                        id = -friendId,
+                        title = "Settlement Advance / Direct Balance",
+                        amountPaise = surplusPaise,
+                        transactionDate = lastTxnDate ?: System.currentTimeMillis(),
+                        paidByName = "Me"
+                    )
+                    allHistory.add(
+                        UnsettledExpenseItem(
+                            transaction = advanceTxn,
+                            totalTransactionAmountPaise = surplusPaise,
+                            originalShareAmountPaise = surplusPaise,
+                            settledAmountPaise = 0L,
+                            remainingOutstandingPaise = surplusPaise,
+                            isPartiallySettled = false,
+                            direction = ExpenseObligationDirection.THEY_OWE_ME
+                        )
+                    )
+                }
+            }
+
+            FriendBalanceStatus.I_OWE_THEM -> {
+                // ME owes friend absNet.
+                // Outstanding items must come from sortedIOweThem.
+                val satisfied = SafeMath.safeSubtract(grossIOweThemExpenses, absNet)
+                var pool = maxOf(0L, satisfied)
+
+                // First pass: direct note matching for specific settlements
+                val directAllocations = mutableMapOf<Long, Long>()
+                for (s in validSettlements.filter { it.payerId == null && it.receiverId == friendId }) {
+                    val sNote = (s.notes ?: "").lowercase().trim()
+                    if (sNote.isNotBlank()) {
+                        for (entry in sortedIOweThem) {
+                            val title = entry.transaction.title.lowercase().trim()
+                            if (title.isNotBlank() && (sNote.contains(title) || title.contains(sNote))) {
+                                val currentAlloc = directAllocations.getOrDefault(entry.transaction.id, 0L)
+                                val available = SafeMath.safeSubtract(entry.shareAmountPaise, currentAlloc)
+                                if (available > 0L) {
+                                    val alloc = minOf(s.amountPaise, available)
+                                    directAllocations[entry.transaction.id] = SafeMath.safeAdd(currentAlloc, alloc)
+                                    pool = SafeMath.safeSubtract(pool, alloc)
+                                }
+                                break
+                            }
+                        }
+                    }
+                }
+                pool = maxOf(0L, pool)
+
+                for (entry in sortedIOweThem) {
+                    val share = entry.shareAmountPaise
+                    val direct = directAllocations.getOrDefault(entry.transaction.id, 0L)
+                    val additional = minOf(pool, SafeMath.safeSubtract(share, direct))
+                    val totalAllocated = SafeMath.safeAdd(direct, additional)
+                    val remaining = SafeMath.safeSubtract(share, totalAllocated)
+                    pool = SafeMath.safeSubtract(pool, additional)
+
+                    allHistory.add(
+                        UnsettledExpenseItem(
+                            transaction = entry.transaction,
+                            totalTransactionAmountPaise = entry.transaction.amountPaise,
+                            originalShareAmountPaise = share,
+                            settledAmountPaise = totalAllocated,
+                            remainingOutstandingPaise = remaining,
+                            isPartiallySettled = totalAllocated > 0L && remaining > 0L,
+                            direction = ExpenseObligationDirection.I_OWE_THEM
+                        )
+                    )
+                }
+
+                // All expenses where ME paid (friendOwesMe) are fully satisfied in this net state
+                for (entry in sortedTheyOweMe) {
+                    allHistory.add(
+                        UnsettledExpenseItem(
+                            transaction = entry.transaction,
+                            totalTransactionAmountPaise = entry.transaction.amountPaise,
+                            originalShareAmountPaise = entry.shareAmountPaise,
+                            settledAmountPaise = entry.shareAmountPaise,
+                            remainingOutstandingPaise = 0L,
+                            isPartiallySettled = false,
+                            direction = ExpenseObligationDirection.THEY_OWE_ME
+                        )
+                    )
+                }
+
+                if (absNet > grossIOweThemExpenses) {
+                    val surplusPaise = SafeMath.safeSubtract(absNet, grossIOweThemExpenses)
+                    val advanceTxn = Transaction(
+                        id = -friendId,
+                        title = "Settlement Advance / Direct Debt",
+                        amountPaise = surplusPaise,
+                        transactionDate = lastTxnDate ?: System.currentTimeMillis(),
+                        paidByName = friend.name
+                    )
+                    allHistory.add(
+                        UnsettledExpenseItem(
+                            transaction = advanceTxn,
+                            totalTransactionAmountPaise = surplusPaise,
+                            originalShareAmountPaise = surplusPaise,
+                            settledAmountPaise = 0L,
+                            remainingOutstandingPaise = surplusPaise,
+                            isPartiallySettled = false,
+                            direction = ExpenseObligationDirection.I_OWE_THEM
+                        )
+                    )
+                }
+            }
+
+            FriendBalanceStatus.SETTLED -> {
+                // When balance is zero, all historical expenses are 100% settled
+                for (entry in sortedTheyOweMe) {
+                    allHistory.add(
+                        UnsettledExpenseItem(
+                            transaction = entry.transaction,
+                            totalTransactionAmountPaise = entry.transaction.amountPaise,
+                            originalShareAmountPaise = entry.shareAmountPaise,
+                            settledAmountPaise = entry.shareAmountPaise,
+                            remainingOutstandingPaise = 0L,
+                            isPartiallySettled = false,
+                            direction = ExpenseObligationDirection.THEY_OWE_ME
+                        )
+                    )
+                }
+                for (entry in sortedIOweThem) {
+                    allHistory.add(
+                        UnsettledExpenseItem(
+                            transaction = entry.transaction,
+                            totalTransactionAmountPaise = entry.transaction.amountPaise,
+                            originalShareAmountPaise = entry.shareAmountPaise,
+                            settledAmountPaise = entry.shareAmountPaise,
+                            remainingOutstandingPaise = 0L,
+                            isPartiallySettled = false,
+                            direction = ExpenseObligationDirection.I_OWE_THEM
+                        )
+                    )
+                }
+            }
+        }
+
+        val sortedHistory = allHistory.sortedByDescending { it.transaction.transactionDate }
+        val unsettled = sortedHistory.filter { it.remainingOutstandingPaise > 0L }
+
+        return FriendLedgerReconciliation(
+            friend = updatedFriend,
+            allExpenseHistory = sortedHistory,
+            unsettledExpenses = unsettled
+        )
+    }
+
     /**
      * Source of truth ledger calculation for all friends.
-     * Computes net balance, amount they owe me, amount I owe them, and settlement status.
-     * - Only processes shared expenses and shared refunds.
-     * - Transfers and ordinary income are excluded from shared ledgers.
-     * - Refunds reduce balances appropriately.
-     * - Settlements reduce balances; reversed settlements restore balances.
-     * - Archived friends retain correct historical balances.
-     * - Over-settlements / negative balances are handled accurately.
+     * Delegates to reconcileFriendLedger for guaranteed consistency across profiles and tabs.
      */
     fun computeFriendLedgers(
         friends: List<Friend>,
         activeTransactions: List<Transaction>,
         settlements: List<Settlement>
     ): List<Friend> {
-        // Exclude ignored transactions, transfers, and plain income
-        val validTransactions = activeTransactions.filter {
-            it.transactionStatus == TransactionStatus.ACTIVE &&
-                    (it.transactionType == TransactionType.EXPENSE || it.transactionType == TransactionType.REFUND)
-        }
-        val validSettlements = settlements.filter { !it.isReversed && it.affectsLedger }
-
-        val theyOweMe = mutableMapOf<Long, Long>()
-        val iOweThem = mutableMapOf<Long, Long>()
-        val lastTxnDate = mutableMapOf<Long, Long>()
-
-        // 1. Process Shared Transactions & Refunds
-        for (txn in validTransactions) {
-            val payerId = txn.paidByFriendId // null = ME
-
-            if (txn.transactionType == TransactionType.EXPENSE) {
-                if (payerId == null) {
-                    // ME paid the total expense.
-                    // Any participant that is a friend owes ME their share amount.
-                    for (participant in txn.participants) {
-                        val fId = participant.friendId ?: continue
-                        val current = theyOweMe.getOrDefault(fId, 0L)
-                        theyOweMe[fId] = SafeMath.safeAdd(current, participant.shareAmountPaise)
-                        val prevDate = lastTxnDate.getOrDefault(fId, 0L)
-                        if (txn.transactionDate > prevDate) lastTxnDate[fId] = txn.transactionDate
-                    }
-                } else {
-                    // A Friend paid the total expense.
-                    // If ME is a participant, ME owes this friend my share.
-                    val myParticipant = txn.participants.firstOrNull { it.friendId == null }
-                    if (myParticipant != null) {
-                        val current = iOweThem.getOrDefault(payerId, 0L)
-                        iOweThem[payerId] = SafeMath.safeAdd(current, myParticipant.shareAmountPaise)
-                    }
-                    val prevDate = lastTxnDate.getOrDefault(payerId, 0L)
-                    if (txn.transactionDate > prevDate) lastTxnDate[payerId] = txn.transactionDate
-                }
-            } else if (txn.transactionType == TransactionType.REFUND) {
-                // Shared transaction refund
-                if (payerId == null) {
-                    // ME received the refund -> reduces what friend participants owe ME
-                    for (participant in txn.participants) {
-                        val fId = participant.friendId ?: continue
-                        val current = theyOweMe.getOrDefault(fId, 0L)
-                        theyOweMe[fId] = SafeMath.safeSubtract(current, participant.shareAmountPaise)
-                        val prevDate = lastTxnDate.getOrDefault(fId, 0L)
-                        if (txn.transactionDate > prevDate) lastTxnDate[fId] = txn.transactionDate
-                    }
-                } else {
-                    // Friend received refund -> reduces what ME owes that friend
-                    val myParticipant = txn.participants.firstOrNull { it.friendId == null }
-                    if (myParticipant != null) {
-                        val current = iOweThem.getOrDefault(payerId, 0L)
-                        iOweThem[payerId] = SafeMath.safeSubtract(current, myParticipant.shareAmountPaise)
-                    }
-                    val prevDate = lastTxnDate.getOrDefault(payerId, 0L)
-                    if (txn.transactionDate > prevDate) lastTxnDate[payerId] = txn.transactionDate
-                }
-            }
-        }
-
-        // 2. Process Settlements
-        for (settlement in validSettlements) {
-            val payerId = settlement.payerId // null = ME
-            val receiverId = settlement.receiverId // null = ME
-
-            if (payerId != null && receiverId == null) {
-                // Friend paid ME -> reduces what they owe me
-                val current = theyOweMe.getOrDefault(payerId, 0L)
-                theyOweMe[payerId] = SafeMath.safeSubtract(current, settlement.amountPaise)
-                val prevDate = lastTxnDate.getOrDefault(payerId, 0L)
-                if (settlement.settlementDate > prevDate) lastTxnDate[payerId] = settlement.settlementDate
-            } else if (payerId == null && receiverId != null) {
-                // ME paid Friend -> reduces what I owe them
-                val current = iOweThem.getOrDefault(receiverId, 0L)
-                iOweThem[receiverId] = SafeMath.safeSubtract(current, settlement.amountPaise)
-                val prevDate = lastTxnDate.getOrDefault(receiverId, 0L)
-                if (settlement.settlementDate > prevDate) lastTxnDate[receiverId] = settlement.settlementDate
-            }
-        }
-
-        // 3. Build updated Friend models (retaining archived friends with correct historical balances)
         return friends.map { friend ->
-            val grossTheyOweMe = theyOweMe.getOrDefault(friend.id, 0L)
-            val grossIOweThem = iOweThem.getOrDefault(friend.id, 0L)
-            // Overflow-protected net balance calculation
-            val net = SafeMath.safeSubtract(grossTheyOweMe, grossIOweThem)
-            val absNet = SafeMath.safeAbs(net)
-
-            val (status, finalTheyOweMe, finalIOweThem) = when {
-                net > 0L -> Triple(FriendBalanceStatus.THEY_OWE_ME, net, 0L)
-                net < 0L -> Triple(FriendBalanceStatus.I_OWE_THEM, 0L, absNet)
-                else -> Triple(FriendBalanceStatus.SETTLED, 0L, 0L)
-            }
-
-            friend.copy(
-                totalTheyOweMePaise = finalTheyOweMe,
-                totalIOweThemPaise = finalIOweThem,
-                netBalancePaise = net,
-                lastTransactionDate = lastTxnDate[friend.id] ?: friend.lastTransactionDate,
-                status = status
-            )
+            reconcileFriendLedger(friend, activeTransactions, settlements).friend
         }
     }
 
@@ -592,14 +841,14 @@ object LedgerCalculator {
         )
     }
 
-    // Calculate outstanding/unsettled expenses for a friend using deterministic FIFO allocation
+    // Calculate outstanding/unsettled expenses for a friend using single source of truth reconciliation
     fun calculateUnsettledExpenses(
         friendId: Long,
         transactions: List<Transaction>,
         settlements: List<Settlement>
     ): List<UnsettledExpenseItem> {
-        return calculateFriendExpenseHistory(friendId, transactions, settlements)
-            .filter { it.remainingOutstandingPaise > 0L }
+        val dummyFriend = Friend(id = friendId, name = "")
+        return reconcileFriendLedger(dummyFriend, transactions, settlements).unsettledExpenses
     }
 
     // Complete friend expense history retaining unpaid, partially settled and fully settled expenses
@@ -608,126 +857,8 @@ object LedgerCalculator {
         transactions: List<Transaction>,
         settlements: List<Settlement>
     ): List<UnsettledExpenseItem> {
-        // Filter active transactions
-        val activeTxns = transactions.filter {
-            it.transactionStatus == TransactionStatus.ACTIVE &&
-                    (it.transactionType == TransactionType.EXPENSE ||
-                     it.transactionType == TransactionType.UPI_LITE_PAYMENT ||
-                     it.transactionType == TransactionType.REFUND ||
-                     it.transactionType == TransactionType.UPI_LITE_REFUND)
-        }
-        val validSettlements = settlements.filter { !it.isReversed && it.affectsLedger }
-
-        // Group 1: Transactions where ME paid and Friend participated (Friend owes ME)
-        val friendOwesMeExpenses = mutableListOf<UnsettledExpenseEntry>()
-        // Group 2: Transactions where Friend paid and ME participated (ME owes Friend)
-        val iOweFriendExpenses = mutableListOf<UnsettledExpenseEntry>()
-
-        for (txn in activeTxns) {
-            val payerId = txn.paidByFriendId
-            val isExpense = txn.transactionType == TransactionType.EXPENSE || txn.transactionType == TransactionType.UPI_LITE_PAYMENT
-            val isRefund = txn.transactionType == TransactionType.REFUND || txn.transactionType == TransactionType.UPI_LITE_REFUND
-
-            if (isExpense) {
-                if (payerId == null) {
-                    val part = txn.participants.firstOrNull { it.friendId == friendId }
-                    if (part != null && part.shareAmountPaise > 0L) {
-                        friendOwesMeExpenses.add(
-                            UnsettledExpenseEntry(txn, part.shareAmountPaise, ExpenseObligationDirection.THEY_OWE_ME)
-                        )
-                    }
-                } else if (payerId == friendId) {
-                    val myPart = txn.participants.firstOrNull { it.friendId == null }
-                    if (myPart != null && myPart.shareAmountPaise > 0L) {
-                        iOweFriendExpenses.add(
-                            UnsettledExpenseEntry(txn, myPart.shareAmountPaise, ExpenseObligationDirection.I_OWE_THEM)
-                        )
-                    }
-                }
-            } else if (isRefund) {
-                if (payerId == null) {
-                    val part = txn.participants.firstOrNull { it.friendId == friendId }
-                    if (part != null && part.shareAmountPaise > 0L) {
-                        friendOwesMeExpenses.add(
-                            UnsettledExpenseEntry(txn, -part.shareAmountPaise, ExpenseObligationDirection.THEY_OWE_ME)
-                        )
-                    }
-                } else if (payerId == friendId) {
-                    val myPart = txn.participants.firstOrNull { it.friendId == null }
-                    if (myPart != null && myPart.shareAmountPaise > 0L) {
-                        iOweFriendExpenses.add(
-                            UnsettledExpenseEntry(txn, -myPart.shareAmountPaise, ExpenseObligationDirection.I_OWE_THEM)
-                        )
-                    }
-                }
-            }
-        }
-
-        // Sort chronologically (oldest first for FIFO allocation)
-        friendOwesMeExpenses.sortBy { it.transaction.transactionDate }
-        iOweFriendExpenses.sortBy { it.transaction.transactionDate }
-
-        // Settlement pools
-        var poolFriendPaidMe = validSettlements
-            .filter { it.payerId == friendId && it.receiverId == null }
-            .sumOf { it.amountPaise }
-        var poolIPaidFriend = validSettlements
-            .filter { it.payerId == null && it.receiverId == friendId }
-            .sumOf { it.amountPaise }
-
-        // Handle mutual expense offsets
-        val grossTheyOweMeExpenses = friendOwesMeExpenses.filter { it.shareAmountPaise > 0L }.sumOf { it.shareAmountPaise }
-        val grossIOweThemExpenses = iOweFriendExpenses.filter { it.shareAmountPaise > 0L }.sumOf { it.shareAmountPaise }
-        val mutualOffset = minOf(grossTheyOweMeExpenses, grossIOweThemExpenses)
-        poolFriendPaidMe = SafeMath.safeAdd(poolFriendPaidMe, mutualOffset)
-        poolIPaidFriend = SafeMath.safeAdd(poolIPaidFriend, mutualOffset)
-
-        val result = mutableListOf<UnsettledExpenseItem>()
-
-        // Allocate to Group 1 (Friend owes ME)
-        for (entry in friendOwesMeExpenses) {
-            if (entry.shareAmountPaise <= 0L) continue
-            val share = entry.shareAmountPaise
-            val allocated = minOf(poolFriendPaidMe, share)
-            val remaining = SafeMath.safeSubtract(share, allocated)
-            poolFriendPaidMe = SafeMath.safeSubtract(poolFriendPaidMe, allocated)
-
-            result.add(
-                UnsettledExpenseItem(
-                    transaction = entry.transaction,
-                    totalTransactionAmountPaise = entry.transaction.amountPaise,
-                    originalShareAmountPaise = share,
-                    settledAmountPaise = allocated,
-                    remainingOutstandingPaise = remaining,
-                    isPartiallySettled = allocated > 0L && remaining > 0L,
-                    direction = ExpenseObligationDirection.THEY_OWE_ME
-                )
-            )
-        }
-
-        // Allocate to Group 2 (ME owes Friend)
-        for (entry in iOweFriendExpenses) {
-            if (entry.shareAmountPaise <= 0L) continue
-            val share = entry.shareAmountPaise
-            val allocated = minOf(poolIPaidFriend, share)
-            val remaining = SafeMath.safeSubtract(share, allocated)
-            poolIPaidFriend = SafeMath.safeSubtract(poolIPaidFriend, allocated)
-
-            result.add(
-                UnsettledExpenseItem(
-                    transaction = entry.transaction,
-                    totalTransactionAmountPaise = entry.transaction.amountPaise,
-                    originalShareAmountPaise = share,
-                    settledAmountPaise = allocated,
-                    remainingOutstandingPaise = remaining,
-                    isPartiallySettled = allocated > 0L && remaining > 0L,
-                    direction = ExpenseObligationDirection.I_OWE_THEM
-                )
-            )
-        }
-
-        // Return sorted by date descending for UI presentation
-        return result.sortedByDescending { it.transaction.transactionDate }
+        val dummyFriend = Friend(id = friendId, name = "")
+        return reconcileFriendLedger(dummyFriend, transactions, settlements).allExpenseHistory
     }
 
     private data class UnsettledExpenseEntry(

@@ -27,6 +27,9 @@ interface SettlementDao {
     @Query("SELECT * FROM settlements WHERE id = :id")
     suspend fun getSettlementById(id: Long): SettlementEntity?
 
+    @Query("SELECT * FROM settlements WHERE id = :id")
+    fun getSettlementByIdFlow(id: Long): Flow<SettlementEntity?>
+
     @Query("SELECT * FROM settlements WHERE upiTransactionRef = :txnRef LIMIT 1")
     suspend fun getSettlementByUpiTransactionRef(txnRef: String): SettlementEntity?
 

@@ -69,9 +69,11 @@ class FriendDetailViewModel(
             combine(baseFlow, groupsFlow, prefsFlow) { data, groups, prefs ->
                 val rawFriend = data.rawFriend ?: return@combine null
 
-                // Compute ledger for this friend
-                val friendsWithLedger = LedgerCalculator.computeFriendLedgers(listOf(rawFriend), data.allTxns, data.settlements)
-                val computedFriend = friendsWithLedger.firstOrNull() ?: rawFriend
+                // Single source of truth ledger reconciliation for this friend
+                val reconciliation = LedgerCalculator.reconcileFriendLedger(rawFriend, data.allTxns, data.settlements)
+                val computedFriend = reconciliation.friend
+                val allExpenseHistory = reconciliation.allExpenseHistory
+                val unsettled = reconciliation.unsettledExpenses
 
                 // Filter related transactions where friend is participant OR payer
                 val relatedTxns = data.allTxns.filter { txn ->
@@ -88,17 +90,13 @@ class FriendDetailViewModel(
                     }
 
                 // Settlements sum
-                val validSettlements = data.settlements.filter { !it.isReversed }
+                val validSettlements = data.settlements.filter { !it.isReversed && it.affectsLedger }
                 val received = validSettlements
                     .filter { it.payerId == friendId && it.receiverId == null }
                     .sumOf { it.amountPaise }
                 val paid = validSettlements
                     .filter { it.payerId == null && it.receiverId == friendId }
                     .sumOf { it.amountPaise }
-
-                // Compute complete friend expense history and outstanding expenses using FIFO settlement allocation
-                val allExpenseHistory = LedgerCalculator.calculateFriendExpenseHistory(friendId, data.allTxns, data.settlements)
-                val unsettled = allExpenseHistory.filter { it.remainingOutstandingPaise > 0L }
 
                 FriendDetailUiState(
                     isLoading = false,
@@ -250,7 +248,10 @@ class FriendDetailViewModel(
         }
     }
 
+    val settlementRepo: SettlementRepository = settlementRepository
+
     val upiSettlementManager = com.naman.rupeeflow.upi.UpiSettlementManager(
-        settlementRepository = settlementRepository
+        settlementRepository = settlementRepository,
+        friendRepository = friendRepository
     )
 }
