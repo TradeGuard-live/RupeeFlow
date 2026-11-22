@@ -346,7 +346,7 @@ fun FriendDetailScreen(
                             Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Pay with UPI",
+                                text = if (friend.upiId.isNullOrBlank() && !friend.phoneNumber.isNullOrBlank()) "Pay via Phone" else "Pay with UPI",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,

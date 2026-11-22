@@ -32,6 +32,9 @@ object UpiIntentBuilder {
     const val MOBIKWIK_PACKAGE = "com.mobikwik_new"
     const val CRED_PACKAGE = "com.cred.club"
 
+    const val PHONEPE_HANDLE = "@ybl"
+    const val BHIM_HANDLE = "@upi"
+
     /**
      * Constructs a maximally-compatible UPI payment URI string for P2P friend settlements.
      *
@@ -167,6 +170,68 @@ object UpiIntentBuilder {
     }
 
     /**
+     * Derives a UPI Virtual Payment Address (VPA) from a phone number for the target app.
+     * - PhonePe: <cleanPhone>@ybl
+     * - BHIM: <cleanPhone>@upi
+     * - Default/Other: <cleanPhone>@upi (NPCI standard handle for mobile numbers)
+     */
+    fun buildPhoneNumberVpa(phoneNumber: String, targetPackage: String? = null): String {
+        val cleanPhone = UpiValidator.cleanPhoneNumber(phoneNumber)
+            ?: throw IllegalArgumentException("Invalid phone number: $phoneNumber")
+        require(UpiValidator.isValidPhoneNumber(cleanPhone)) { "Invalid 10-digit phone number: $phoneNumber" }
+        return when (targetPackage?.trim()) {
+            PHONEPE_PACKAGE -> "${cleanPhone}@ybl"
+            BHIM_PACKAGE -> "${cleanPhone}@upi"
+            else -> "${cleanPhone}@upi"
+        }
+    }
+
+    /**
+     * Constructs a maximally-compatible UPI URI string targeting a phone number.
+     * Automatically pre-fills payee name, amount, and currency while strictly adhering
+     * to NPCI guidelines.
+     */
+    fun buildPhoneNumberUpiUri(
+        phoneNumber: String,
+        receiverName: String,
+        amountPaise: Long,
+        note: String = "RupeeFlow Settlement",
+        targetPackage: String? = null
+    ): String {
+        val vpa = buildPhoneNumberVpa(phoneNumber, targetPackage)
+        return buildUpiUri(
+            receiverUpiId = vpa,
+            receiverName = receiverName,
+            amountPaise = amountPaise,
+            note = note,
+            transactionRef = null,
+            targetPackage = targetPackage
+        )
+    }
+
+    /**
+     * Builds an explicit ACTION_VIEW Intent targeting PhonePe or BHIM using a phone-linked UPI VPA.
+     * Pre-fills amount, payee name, and INR currency.
+     */
+    fun buildPhoneNumberUpiIntent(
+        phoneNumber: String,
+        receiverName: String,
+        amountPaise: Long,
+        note: String = "RupeeFlow Settlement",
+        targetPackage: String? = null
+    ): Intent {
+        val vpa = buildPhoneNumberVpa(phoneNumber, targetPackage)
+        return buildUpiIntent(
+            receiverUpiId = vpa,
+            receiverName = receiverName,
+            amountPaise = amountPaise,
+            note = note,
+            transactionRef = null,
+            targetPackage = targetPackage
+        )
+    }
+
+    /**
      * Builds an explicit BHIM intent targeting in.org.npci.upiapp.
      * Uses the standard minimal P2P URI without 'tn' or 'tr'.
      */
@@ -288,6 +353,40 @@ object UpiIntentBuilder {
     fun isAnyUpiAppInstalled(context: Context): Boolean {
         return getInstalledUpiApps(context).isNotEmpty()
     }
+
+    /**
+     * Retrieves the application launcher intent for the specified package (e.g. PhonePe or BHIM).
+     * Used when external UPI intents are blocked or rejected by the target application's security policies.
+     */
+    fun getAppLaunchIntent(context: Context, packageName: String): Intent? {
+        return try {
+            context.packageManager.getLaunchIntentForPackage(packageName)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Checks if a specific application package is installed on the user's device.
+     */
+    fun isAppInstalled(context: Context, packageName: String): Boolean {
+        return try {
+            context.packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Checks if PhonePe is installed on the user's device.
+     */
+    fun isPhonePeInstalled(context: Context): Boolean = isAppInstalled(context, PHONEPE_PACKAGE)
+
+    /**
+     * Checks if BHIM is installed on the user's device.
+     */
+    fun isBhimInstalled(context: Context): Boolean = isAppInstalled(context, BHIM_PACKAGE)
 
     /**
      * Generates a unique, collision-resistant transaction reference string.

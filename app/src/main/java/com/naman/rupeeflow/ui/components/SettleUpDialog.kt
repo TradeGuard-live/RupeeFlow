@@ -241,8 +241,8 @@ fun SettleUpDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Recipient UPI ID info when user is paying friend
-                if (!isFriendPayingMe && !friend.upiId.isNullOrBlank()) {
+                // Recipient UPI ID or Phone info when user is paying friend
+                if (!isFriendPayingMe && (!friend.upiId.isNullOrBlank() || !friend.phoneNumber.isNullOrBlank())) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = AppTheme.colors.surfaceSecondary,
@@ -262,7 +262,11 @@ fun SettleUpDialog(
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = "Recipient UPI: ${friend.upiId}",
+                                text = if (!friend.upiId.isNullOrBlank()) {
+                                    "Recipient UPI: ${friend.upiId}"
+                                } else {
+                                    "Recipient Phone: ${friend.phoneNumber} (PhonePe / BHIM ready)"
+                                },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = AppTheme.colors.textPrimary
                             )
@@ -270,7 +274,7 @@ fun SettleUpDialog(
                     }
                 }
 
-                // Direct UPI Payment Button
+                // Direct UPI / Phone Payment Button
                 if (!isFriendPayingMe && onPayWithUpi != null) {
                     Button(
                         onClick = {
@@ -292,7 +296,7 @@ fun SettleUpDialog(
                         Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Pay with UPI",
+                            text = if (!friend.phoneNumber.isNullOrBlank()) "Pay with UPI / Phone Number" else "Pay with UPI",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,

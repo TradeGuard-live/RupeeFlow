@@ -21,6 +21,7 @@ class UpiSettlementManager(
 
     /**
      * Creates an INITIATED settlement record and builds the corresponding UPI payment Intent.
+     * Supports both standard UPI ID / VPA addresses and phone-linked VPAs for PhonePe and BHIM.
      * The settlement does not affect the financial ledger while in INITIATED or PENDING status.
      */
     suspend fun initiateSettlement(
@@ -28,11 +29,38 @@ class UpiSettlementManager(
         amountPaise: Long,
         groupId: Long? = null,
         note: String? = null,
-        targetPackage: String? = null
+        targetPackage: String? = null,
+        customVpa: String? = null,
+        phoneNumber: String? = null
     ): Pair<Long, Intent> {
-        val upiId = friend.upiId?.trim()
-        require(!upiId.isNullOrBlank() && UpiValidator.isValidUpiId(upiId)) {
-            "Friend does not have a valid UPI ID"
+        val upiId = when {
+            !customVpa.isNullOrBlank() -> {
+                val clean = customVpa.trim()
+                require(UpiValidator.isValidUpiId(clean)) { "Invalid custom UPI ID: $clean" }
+                clean
+            }
+            !phoneNumber.isNullOrBlank() -> {
+                val cleanPhone = UpiValidator.cleanPhoneNumber(phoneNumber)
+                require(cleanPhone != null && UpiValidator.isValidPhoneNumber(cleanPhone)) {
+                    "Invalid recipient phone number: $phoneNumber"
+                }
+                UpiIntentBuilder.buildPhoneNumberVpa(cleanPhone, targetPackage)
+            }
+            !friend.upiId.isNullOrBlank() -> {
+                val clean = friend.upiId.trim()
+                require(UpiValidator.isValidUpiId(clean)) { "Friend does not have a valid UPI ID" }
+                clean
+            }
+            !friend.phoneNumber.isNullOrBlank() -> {
+                val cleanPhone = UpiValidator.cleanPhoneNumber(friend.phoneNumber)
+                require(cleanPhone != null && UpiValidator.isValidPhoneNumber(cleanPhone)) {
+                    "Friend does not have a valid UPI ID or phone number"
+                }
+                UpiIntentBuilder.buildPhoneNumberVpa(cleanPhone, targetPackage)
+            }
+            else -> {
+                throw IllegalArgumentException("Friend does not have a valid UPI ID or phone number")
+            }
         }
         require(amountPaise > 0L) {
             "Settlement amount must be greater than zero"
@@ -80,6 +108,53 @@ class UpiSettlementManager(
         )
 
         return Pair(settlementId, intent)
+    }
+
+    /**
+     * Creates an INITIATED settlement record when launching PhonePe or BHIM directly
+     * without an automated UPI intent (e.g. when the user chooses to open the app directly,
+     * paste the phone number, and enter the amount manually due to third-party intent restrictions).
+     */
+    suspend fun initiateDirectAppSettlement(
+        friend: Friend,
+        amountPaise: Long,
+        targetPackage: String,
+        groupId: Long? = null,
+        note: String? = null,
+        phoneNumber: String? = null
+    ): Long {
+        require(amountPaise > 0L) { "Settlement amount must be greater than zero" }
+
+        val cleanPhone = phoneNumber?.let { UpiValidator.cleanPhoneNumber(it) }
+            ?: friend.phoneNumber?.let { UpiValidator.cleanPhoneNumber(it) }
+        val receiverIdentifier = if (cleanPhone != null) {
+            UpiIntentBuilder.buildPhoneNumberVpa(cleanPhone, targetPackage)
+        } else {
+            friend.upiId ?: friend.name
+        }
+
+        val transactionRef = UpiIntentBuilder.generateTransactionReference()
+        val defaultNote = note?.trim()?.takeIf { it.isNotBlank() }
+            ?: "RupeeFlow settlement to ${friend.name}"
+
+        val settlement = Settlement(
+            id = 0L,
+            payerId = null, // ME
+            receiverId = friend.id,
+            amountPaise = amountPaise,
+            settlementDate = System.currentTimeMillis(),
+            paymentMethod = PaymentMethod.UPI,
+            referenceNumber = transactionRef,
+            notes = defaultNote,
+            groupId = groupId,
+            isReversed = false,
+            upiPaymentStatus = SettlementPaymentStatus.INITIATED,
+            upiVerificationStatus = SettlementVerificationStatus.PENDING,
+            upiTransactionRef = transactionRef,
+            upiReceiverVpa = receiverIdentifier
+        )
+
+        return settlementRepository.recordSettlement(settlement)
     }
 
     /**
