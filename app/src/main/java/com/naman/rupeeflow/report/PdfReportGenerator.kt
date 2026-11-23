@@ -32,6 +32,12 @@ data class ExpenseGroupReportItem(
     val transactionCount: Int
 )
 
+data class ParticipantReportItem(
+    val participantName: String,
+    val sharePaise: Long,
+    val transactionCount: Int
+)
+
 data class ReportGenerationData(
     val title: String,
     val periodLabel: String,
@@ -45,7 +51,8 @@ data class ReportGenerationData(
     val onlineSpendingPaise: Long,
     val grossBillsPaise: Long = 0L,
     val categoryBreakdown: List<CategoryReportItem>,
-    val expenseGroupBreakdown: List<ExpenseGroupReportItem>
+    val expenseGroupBreakdown: List<ExpenseGroupReportItem>,
+    val participantBreakdown: List<ParticipantReportItem> = emptyList()
 )
 
 object PdfReportGenerator {
@@ -288,6 +295,44 @@ object PdfReportGenerator {
                 canvas.drawText("${eg.transactionCount}", MARGIN_X + 260f, y + 11f, secondaryPaint)
                 secondaryPaint.textAlign = Paint.Align.RIGHT
                 canvas.drawText(CurrencyUtils.formatPaiseToRupees(eg.amountPaise), MARGIN_X + USABLE_WIDTH - 6f, y + 11f, textPaint)
+                secondaryPaint.textAlign = Paint.Align.LEFT
+                y += 16f
+                canvas.drawLine(MARGIN_X, y, MARGIN_X + USABLE_WIDTH, y, dividerPaint)
+            }
+            textPaint.textSize = 10f
+            y += 14f
+        }
+
+        // --- PARTICIPANT BREAKDOWN TABLE (EXCLUDING ₹0 SHARE PARTICIPANTS) ---
+        if (data.participantBreakdown.isNotEmpty()) {
+            if (y + 40f > PAGE_HEIGHT - MARGIN_BOTTOM) {
+                startNewPage()
+            }
+            canvas.drawText("SPENDING BY PARTICIPANT", MARGIN_X, y + 10f, sectionHeaderPaint)
+            y += 18f
+
+            val partHeaderRect = RectF(MARGIN_X, y, MARGIN_X + USABLE_WIDTH, y + 18f)
+            canvas.drawRect(partHeaderRect, headerRowBgPaint)
+
+            boldPaint.textSize = 8.5f
+            canvas.drawText("Participant", MARGIN_X + 6f, y + 12f, boldPaint)
+            canvas.drawText("Split Transactions", MARGIN_X + 260f, y + 12f, boldPaint)
+            secondaryPaint.textAlign = Paint.Align.RIGHT
+            canvas.drawText("Total Share (₹)", MARGIN_X + USABLE_WIDTH - 6f, y + 12f, boldPaint)
+            secondaryPaint.textAlign = Paint.Align.LEFT
+            boldPaint.textSize = 10f
+
+            y += 18f
+            textPaint.textSize = 8.5f
+            // Filter strictly ensuring anyone with zero share is never rendered
+            data.participantBreakdown.filter { it.sharePaise > 0L }.forEach { part ->
+                if (y + 16f > PAGE_HEIGHT - MARGIN_BOTTOM) {
+                    startNewPage()
+                }
+                canvas.drawText(part.participantName, MARGIN_X + 6f, y + 11f, textPaint)
+                canvas.drawText("${part.transactionCount}", MARGIN_X + 260f, y + 11f, secondaryPaint)
+                secondaryPaint.textAlign = Paint.Align.RIGHT
+                canvas.drawText(CurrencyUtils.formatPaiseToRupees(part.sharePaise), MARGIN_X + USABLE_WIDTH - 6f, y + 11f, textPaint)
                 secondaryPaint.textAlign = Paint.Align.LEFT
                 y += 16f
                 canvas.drawLine(MARGIN_X, y, MARGIN_X + USABLE_WIDTH, y, dividerPaint)

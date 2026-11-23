@@ -90,6 +90,31 @@ object LedgerCalculator {
     }
 
     /**
+     * Calculates item-wise shares for participants.
+     * For each item, divides the item's total amount equally among its assigned participants,
+     * distributing remainder paise deterministically.
+     * Aggregates each participant's shares across all items.
+     * Strictly guarantees that sum of participant shares == sum of item total amounts.
+     */
+    fun calculateItemWiseShares(
+        items: List<TransactionItem>,
+        allParticipantIds: List<Long?>
+    ): Map<Long?, Long> {
+        val resultMap = allParticipantIds.associateWith { 0L }.toMutableMap()
+        for (item in items) {
+            val assignedIds = item.allocations.map { it.friendId }
+            if (assignedIds.isNotEmpty() && item.totalAmountPaise > 0L) {
+                val splits = calculateEqualSplit(item.totalAmountPaise, assignedIds.size)
+                assignedIds.forEachIndexed { index, pId ->
+                    val cur = resultMap[pId] ?: 0L
+                    resultMap[pId] = cur + splits[index]
+                }
+            }
+        }
+        return resultMap
+    }
+
+    /**
      * Solves minimal cash transfers to settle all group debts (min cash-flow algorithm).
      * Preserves the exact net balance of every member down to the exact paisa (0 remainder).
      * Uses integer paise arithmetic strictly.

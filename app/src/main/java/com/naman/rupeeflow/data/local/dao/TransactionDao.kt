@@ -3,6 +3,8 @@ package com.naman.rupeeflow.data.local.dao
 import androidx.room.*
 import com.naman.rupeeflow.data.local.entity.ExpenseAllocationEntity
 import com.naman.rupeeflow.data.local.entity.TransactionEntity
+import com.naman.rupeeflow.data.local.entity.TransactionItemAllocationEntity
+import com.naman.rupeeflow.data.local.entity.TransactionItemEntity
 import com.naman.rupeeflow.data.local.entity.TransactionParticipantEntity
 import com.naman.rupeeflow.domain.model.TransactionStatus
 import kotlinx.coroutines.flow.Flow
@@ -18,7 +20,17 @@ data class TransactionWithParticipants(
         parentColumn = "id",
         entityColumn = "transactionId"
     )
-    val allocations: List<ExpenseAllocationEntity> = emptyList()
+    val allocations: List<ExpenseAllocationEntity> = emptyList(),
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "transactionId"
+    )
+    val items: List<TransactionItemEntity> = emptyList(),
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "transactionId"
+    )
+    val itemAllocations: List<TransactionItemAllocationEntity> = emptyList()
 )
 
 @Dao
@@ -125,6 +137,27 @@ interface TransactionDao {
     @Query("SELECT * FROM expense_allocations WHERE transactionId = :transactionId ORDER BY allocationDate ASC")
     suspend fun getAllocationsForTransaction(transactionId: Long): List<ExpenseAllocationEntity>
 
+    @Query("DELETE FROM transaction_items WHERE transactionId = :transactionId")
+    suspend fun deleteItemsForTransaction(transactionId: Long)
+
+    @Query("DELETE FROM transaction_item_allocations WHERE transactionId = :transactionId")
+    suspend fun deleteItemAllocationsForTransaction(transactionId: Long)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertItemEntity(item: TransactionItemEntity): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertItemEntities(items: List<TransactionItemEntity>): List<Long>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertItemAllocationEntities(allocations: List<TransactionItemAllocationEntity>)
+
+    @Query("SELECT * FROM transaction_items WHERE transactionId = :transactionId ORDER BY id ASC")
+    suspend fun getItemsForTransaction(transactionId: Long): List<TransactionItemEntity>
+
+    @Query("SELECT * FROM transaction_item_allocations WHERE transactionId = :transactionId ORDER BY id ASC")
+    suspend fun getItemAllocationsForTransaction(transactionId: Long): List<TransactionItemAllocationEntity>
+
     // Atomic save/update inside a single Room transaction
     // Enforces strict share balance validation, duplicate participant rejection,
     // safe participant replacement, and deterministic allocation persistence.
@@ -133,14 +166,15 @@ interface TransactionDao {
         transaction: TransactionEntity,
         participants: List<TransactionParticipantEntity>
     ): Long {
-        return saveTransactionWithParticipantsAndAllocations(transaction, participants, emptyList())
+        return saveTransactionWithParticipantsAndAllocations(transaction, participants, emptyList(), emptyList())
     }
 
     @androidx.room.Transaction
     suspend fun saveTransactionWithParticipantsAndAllocations(
         transaction: TransactionEntity,
         participants: List<TransactionParticipantEntity>,
-        allocations: List<ExpenseAllocationEntity>
+        allocations: List<ExpenseAllocationEntity>,
+        itemsWithAllocations: List<Pair<TransactionItemEntity, List<TransactionItemAllocationEntity>>> = emptyList()
     ): Long {
         require(transaction.amountPaise > 0L) { "Transaction amount must be greater than zero" }
 
@@ -170,6 +204,8 @@ interface TransactionDao {
         } else {
             deleteParticipantsForTransaction(transaction.id)
             deleteAllocationsForTransaction(transaction.id)
+            deleteItemAllocationsForTransaction(transaction.id)
+            deleteItemsForTransaction(transaction.id)
             val rows = updateTransactionEntity(transaction)
             if (rows == 0) {
                 insertTransactionEntity(transaction)
@@ -186,6 +222,18 @@ interface TransactionDao {
         if (transaction.isSpread && allocations.isNotEmpty()) {
             val updatedAllocations = allocations.map { it.copy(id = 0L, transactionId = txnId) }
             insertAllocationEntities(updatedAllocations)
+        }
+
+        if (itemsWithAllocations.isNotEmpty()) {
+            for ((itemEntity, itemAllocEntities) in itemsWithAllocations) {
+                val savedItemId = insertItemEntity(itemEntity.copy(id = 0L, transactionId = txnId))
+                if (itemAllocEntities.isNotEmpty()) {
+                    val updatedAllocations = itemAllocEntities.map {
+                        it.copy(id = 0L, itemId = savedItemId, transactionId = txnId)
+                    }
+                    insertItemAllocationEntities(updatedAllocations)
+                }
+            }
         }
 
         return txnId

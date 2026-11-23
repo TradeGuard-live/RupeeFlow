@@ -143,6 +143,68 @@ data class ExpenseAllocationEntity(
 )
 
 @Entity(
+    tableName = "transaction_items",
+    foreignKeys = [
+        ForeignKey(
+            entity = TransactionEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["transactionId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["transactionId"])
+    ]
+)
+data class TransactionItemEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+    val transactionId: Long,
+    val name: String,
+    val quantity: Int = 1,
+    val unitPricePaise: Long,
+    val totalAmountPaise: Long,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "transaction_item_allocations",
+    foreignKeys = [
+        ForeignKey(
+            entity = TransactionItemEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["itemId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = TransactionEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["transactionId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = FriendEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["friendId"],
+            onDelete = ForeignKey.RESTRICT
+        )
+    ],
+    indices = [
+        Index(value = ["itemId"]),
+        Index(value = ["transactionId"]),
+        Index(value = ["friendId"])
+    ]
+)
+data class TransactionItemAllocationEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+    val itemId: Long,
+    val transactionId: Long,
+    val friendId: Long?, // null represents "ME"
+    val allocatedAmountPaise: Long
+)
+
+@Entity(
     tableName = "transaction_participants",
     foreignKeys = [
         ForeignKey(

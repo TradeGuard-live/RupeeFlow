@@ -27,6 +27,7 @@ import androidx.core.content.FileProvider
 import com.naman.rupeeflow.domain.model.ReportDraft
 import com.naman.rupeeflow.domain.model.ReportPeriodType
 import com.naman.rupeeflow.domain.model.Transaction
+import com.naman.rupeeflow.domain.model.TransactionType
 import com.naman.rupeeflow.domain.util.CurrencyUtils
 import com.naman.rupeeflow.domain.util.DateTimeUtils
 import com.naman.rupeeflow.report.PdfReportGenerator
@@ -892,18 +893,37 @@ fun ReportGeneratorScreen(
                                     val merchantPart = txn.merchantName?.takeIf { it.isNotBlank() }?.let { " • $it" } ?: ""
                                     val refNum = (txn.upiReferenceNumber ?: txn.referenceNumber)?.trim()?.takeIf { it.isNotBlank() }
                                     val refPart = refNum?.let { " • Ref: $it" } ?: ""
+                                    val splitPart = if (txn.isSplit) " • Total: ${CurrencyUtils.formatPaiseToRupees(txn.amountPaise)}" else ""
                                     Text(
-                                        text = "${DateTimeUtils.formatDate(txn.transactionDate, "dd MMM")}$merchantPart$refPart • ${txn.category?.name ?: "Other"}",
+                                        text = "${DateTimeUtils.formatDate(txn.transactionDate, "dd MMM")}$merchantPart$refPart • ${txn.category?.name ?: "Other"}$splitPart",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = AppTheme.colors.textTertiary
                                     )
                                 }
-                                Text(
-                                    text = CurrencyUtils.formatPaiseToRupees(txn.amountPaise),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isIncluded) AppTheme.colors.textPrimary else AppTheme.colors.textTertiary
-                                )
+                                val personalSharePaise = when (txn.transactionType) {
+                                    TransactionType.EXPENSE, TransactionType.UPI_LITE_PAYMENT ->
+                                        com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpense(txn)
+                                    TransactionType.INCOME ->
+                                        if (txn.isSplit) com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalIncome(txn) else txn.amountPaise
+                                    TransactionType.REFUND ->
+                                        if (txn.isSplit) com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalRefund(txn) else txn.amountPaise
+                                    else -> txn.amountPaise
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = CurrencyUtils.formatPaiseToRupees(personalSharePaise),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isIncluded) AppTheme.colors.textPrimary else AppTheme.colors.textTertiary
+                                    )
+                                    if (txn.isSplit) {
+                                        Text(
+                                            text = "My share",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = AppTheme.colors.incomeGreen
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

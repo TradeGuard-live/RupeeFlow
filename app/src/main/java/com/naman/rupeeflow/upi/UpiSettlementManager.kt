@@ -409,8 +409,13 @@ class UpiSettlementManager(
         var bestCandidate: Settlement? = null
         var bestScore = -1
 
+        val extractedFromContent = rawContent?.let {
+            com.naman.rupeeflow.data.sms.parser.ReferenceExtractor.extractUpiReference(it)
+                ?: com.naman.rupeeflow.data.sms.parser.ReferenceExtractor.extract(it)
+        }
         val ref = upiReferenceNumber?.trim()?.takeIf { it.isNotBlank() }
             ?: referenceNumber?.trim()?.takeIf { it.isNotBlank() }
+            ?: extractedFromContent?.trim()?.takeIf { it.isNotBlank() }
         val payeeText = listOfNotNull(merchantOrPayee, senderUpiId, rawContent).joinToString(" ").lowercase()
 
         for (candidate in directionMatches) {
@@ -464,7 +469,7 @@ class UpiSettlementManager(
 
         if (bestCandidate == null || bestScore < 20) return null
 
-        val finalRef = ref ?: bestCandidate.referenceNumber ?: bestCandidate.upiTransactionRef
+        val finalRef = ref ?: extractedFromContent ?: bestCandidate.referenceNumber ?: bestCandidate.upiTransactionRef
         val updated = bestCandidate.copy(
             upiPaymentStatus = SettlementPaymentStatus.SUCCESS,
             upiVerificationStatus = SettlementVerificationStatus.AUTOMATIC_VERIFIED,

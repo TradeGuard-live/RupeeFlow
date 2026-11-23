@@ -7,6 +7,8 @@ import com.naman.rupeeflow.data.local.dao.TransactionDao
 import com.naman.rupeeflow.data.local.dao.TransactionWithParticipants
 import com.naman.rupeeflow.data.local.entity.ExpenseAllocationEntity
 import com.naman.rupeeflow.data.local.entity.TransactionEntity
+import com.naman.rupeeflow.data.local.entity.TransactionItemAllocationEntity
+import com.naman.rupeeflow.data.local.entity.TransactionItemEntity
 import com.naman.rupeeflow.data.local.entity.TransactionParticipantEntity
 import com.naman.rupeeflow.domain.matching.MerchantNormalizer
 import com.naman.rupeeflow.domain.model.*
@@ -163,10 +165,36 @@ class TransactionRepositoryImpl(
             emptyList()
         }
 
+        val itemsWithAllocations = if (transaction.items.isNotEmpty()) {
+            transaction.items.map { item ->
+                val itemEntity = TransactionItemEntity(
+                    id = item.id,
+                    transactionId = transaction.id,
+                    name = item.name,
+                    quantity = item.quantity,
+                    unitPricePaise = item.unitPricePaise,
+                    totalAmountPaise = item.totalAmountPaise
+                )
+                val allocEntities = item.allocations.map { alloc ->
+                    TransactionItemAllocationEntity(
+                        id = alloc.id,
+                        itemId = item.id,
+                        transactionId = transaction.id,
+                        friendId = alloc.friendId,
+                        allocatedAmountPaise = alloc.allocatedAmountPaise
+                    )
+                }
+                Pair(itemEntity, allocEntities)
+            }
+        } else {
+            emptyList()
+        }
+
         val result = transactionDao.saveTransactionWithParticipantsAndAllocations(
             entity,
             participantEntities,
-            allocationEntities
+            allocationEntities,
+            itemsWithAllocations
         )
 
         // Automatically learn merchant-category association
@@ -310,6 +338,28 @@ class TransactionRepositoryImpl(
             )
         }
 
+        val allocationsByItemId = itemAllocations.groupBy { it.itemId }
+        val itemDomains = items.sortedBy { it.id }.map { itemEntity ->
+            val allocs = allocationsByItemId[itemEntity.id].orEmpty().map { allocEntity ->
+                ItemAllocation(
+                    id = allocEntity.id,
+                    itemId = allocEntity.itemId,
+                    transactionId = allocEntity.transactionId,
+                    friendId = allocEntity.friendId,
+                    allocatedAmountPaise = allocEntity.allocatedAmountPaise
+                )
+            }
+            TransactionItem(
+                id = itemEntity.id,
+                transactionId = itemEntity.transactionId,
+                name = itemEntity.name,
+                quantity = itemEntity.quantity,
+                unitPricePaise = itemEntity.unitPricePaise,
+                totalAmountPaise = itemEntity.totalAmountPaise,
+                allocations = allocs
+            )
+        }
+
         return Transaction(
             id = transaction.id,
             title = transaction.title,
@@ -351,6 +401,7 @@ class TransactionRepositoryImpl(
             spreadStartDate = transaction.spreadStartDate,
             spreadEndDate = transaction.spreadEndDate,
             allocations = allocationDomains,
+            items = itemDomains,
             createdAt = transaction.createdAt,
             updatedAt = transaction.updatedAt
         )

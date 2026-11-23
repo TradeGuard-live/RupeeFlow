@@ -70,15 +70,16 @@ class SmsReceiver : BroadcastReceiver() {
                 )
                 if (isDup) return@launch
 
-                // Location capture on detection (if opted in)
-                val capturedLocation = when (prefs.locationCaptureMode) {
-                    com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_DETECTION -> {
-                        com.naman.rupeeflow.location.LocationDiagnostics.logCaptureRequested("SMS received")
-                        com.naman.rupeeflow.location.OfflineLocationManager.getLastKnownLocation(context)
-                    }
-                    com.naman.rupeeflow.domain.model.LocationCaptureMode.OFF -> {
+                // Location capture on detection (if opted in or permission granted)
+                val capturedLocation = when {
+                    prefs.locationCaptureMode == com.naman.rupeeflow.domain.model.LocationCaptureMode.OFF -> {
                         com.naman.rupeeflow.location.LocationDiagnostics.logCaptureSkippedOff()
                         null
+                    }
+                    prefs.locationCaptureMode == com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_DETECTION ||
+                    com.naman.rupeeflow.location.OfflineLocationManager.hasPermission(context) -> {
+                        com.naman.rupeeflow.location.LocationDiagnostics.logCaptureRequested("SMS received")
+                        com.naman.rupeeflow.location.OfflineLocationManager.captureDetectionLocation(context, timeoutMs = 2500L)
                     }
                     else -> null
                 }

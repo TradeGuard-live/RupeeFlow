@@ -481,8 +481,66 @@ fun TransactionDetailDialog(
                     }
                 }
 
-                // Participants / Split breakdown
-                if (transaction.participants.isNotEmpty()) {
+                // Item-wise Breakdown (When transaction was split by items)
+                if (transaction.items.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Items Breakdown (${transaction.items.size} items)",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = AppTheme.colors.textPrimary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    RupeeFlowCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 14.dp
+                    ) {
+                        transaction.items.forEach { item ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = item.name,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = AppTheme.colors.textPrimary
+                                    )
+                                    val qtyStr = if (item.quantity > 1) "${item.quantity} × ${CurrencyUtils.formatPaiseToRupees(item.unitPricePaise)}" else null
+                                    val allocSummary = if (item.allocations.isNotEmpty()) {
+                                        val names = item.allocations.map { a ->
+                                            if (a.friendId == null) "Me" else {
+                                                transaction.participants.firstOrNull { it.friendId == a.friendId }?.friendName ?: "Friend"
+                                            }
+                                        }.joinToString(", ")
+                                        "Assigned to: $names"
+                                    } else null
+                                    val subText = listOfNotNull(qtyStr, allocSummary).joinToString(" • ")
+                                    if (subText.isNotBlank()) {
+                                        Text(
+                                            text = subText,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = AppTheme.colors.textSecondary
+                                        )
+                                    }
+                                }
+                                Text(
+                                    text = CurrencyUtils.formatPaiseToRupees(item.totalAmountPaise),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = AppTheme.colors.textPrimary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Participants / Split breakdown (strictly omitting ₹0 share participants)
+                val activeParticipants = transaction.participants.filter { it.shareAmountPaise > 0L }
+                if (activeParticipants.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "Participants & Breakdown",
@@ -495,7 +553,7 @@ fun TransactionDetailDialog(
                         modifier = Modifier.fillMaxWidth(),
                         cornerRadius = 14.dp
                     ) {
-                        transaction.participants.forEach { part ->
+                        activeParticipants.forEach { part ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()

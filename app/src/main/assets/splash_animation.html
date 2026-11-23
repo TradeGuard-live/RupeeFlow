@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>RupeeFlow</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0b1018;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="splash-canvas"></canvas>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const TOTAL_FRAMES = 41;
+      const ANIM_FPS = 14;
+      const DURATION = TOTAL_FRAMES / ANIM_FPS; // ~2.93 seconds
+      const STAGE_SPLIT_FRAME = 28;
+      const ONION_SKIN = true;
+
+      const Ease = {
+        clamp: function (v, min, max) {
+          return v < min ? min : (v > max ? max : v);
+        },
+        norm: function (v, a, b) {
+          return Ease.clamp((v - a) / (b - a), 0, 1);
+        },
+        lerp: function (a, b, t) {
+          return a + (b - a) * t;
+        },
+        outCubic: function (t) {
+          return 1 - Math.pow(1 - t, 3);
+        },
+        inOutCubic: function (t) {
+          return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        },
+        outBack: function (t, s) {
+          const overshoot = s === undefined ? 1.70158 : s;
+          const c3 = overshoot + 1;
+          return 1 + c3 * Math.pow(t - 1, 3) + overshoot * Math.pow(t - 1, 2);
+        }
+      };
+
+      const canvas = document.getElementById('splash-canvas');
+      const ctx = canvas.getContext('2d');
+      let startTime = null;
+
+      function traceSquircle(c, cx, cy, size, exponent) {
+        const half = size * 0.5;
+        const n = exponent || 4.2;
+        const steps = 64;
+        c.beginPath();
+        for (let i = 0; i <= steps; i++) {
+          const a = (i / steps) * Math.PI * 2;
+          const cosA = Math.cos(a);
+          const sinA = Math.sin(a);
+          const x = cx + half * Math.sign(cosA) * Math.pow(Math.abs(cosA), 2 / n);
+          const y = cy + half * Math.sign(sinA) * Math.pow(Math.abs(sinA), 2 / n);
+          if (i === 0) c.moveTo(x, y);
+          else c.lineTo(x, y);
+        }
+        c.closePath();
+      }
+
+      function drawRupeeFlowIcon(c, opts) {
+        const x = opts.x;
+        const y = opts.y;
+        const size = opts.size;
+        const alpha = opts.alpha !== undefined ? opts.alpha : 1;
+        const drawProgress = opts.drawProgress !== undefined ? opts.drawProgress : 1;
+        const iconScale = opts.iconScale !== undefined ? opts.iconScale : 1;
+        const rupeeScale = opts.rupeeScale !== undefined ? opts.rupeeScale : 1;
+        const glowStrength = opts.glowStrength || 0;
+
+        if (size <= 1 || alpha <= 0.01) return;
+
+        c.save();
+        c.globalAlpha = Ease.clamp(alpha, 0, 1);
+        c.translate(x, y);
+        c.scale(iconScale, iconScale);
+
+        // Dark Navy Squircle (#18202A)
+        c.save();
+        c.shadowColor = glowStrength > 0.01
+          ? 'rgba(16, 185, 129, ' + (0.34 * glowStrength).toFixed(3) + ')'
+          : 'rgba(0, 0, 0, 0.45)';
+        c.shadowBlur = size * (0.22 + glowStrength * 0.24);
+        c.shadowOffsetY = size * 0.08;
+
+        traceSquircle(c, 0, 0, size, 4.2);
+        c.fillStyle = '#18202A';
+        c.fill();
+        c.restore();
+
+        // Inner Border
+        traceSquircle(c, 0, 0, size - 1.5, 4.2);
+        c.lineWidth = Math.max(1.5, size * 0.018);
+        c.strokeStyle = glowStrength > 0.01
+          ? 'rgba(16, 185, 129, ' + (0.35 + glowStrength * 0.55).toFixed(3) + ')'
+          : '#263242';
+        c.stroke();
+
+        // Rupee Symbol (₹)
+        c.save();
+        c.scale(rupeeScale, rupeeScale);
+        c.lineCap = 'round';
+        c.lineJoin = 'round';
+
+        const u = size * 0.48;
+        const strokeW = Math.max(3.5, size * (0.076 + glowStrength * 0.008));
+
+        if (glowStrength > 0.01) {
+          c.shadowColor = 'rgba(6, 182, 212, ' + (0.48 * glowStrength).toFixed(3) + ')';
+          c.shadowBlur = size * 0.16 * glowStrength;
+        }
+
+        // Top Bar (Electric Blue)
+        const pTop = Ease.norm(drawProgress, 0.0, 0.5);
+        if (pTop > 0) {
+          c.strokeStyle = '#3882F6';
+          c.lineWidth = strokeW;
+          const xStart = -0.35 * u;
+          const xEnd = 0.35 * u;
+          const yTop = -0.33 * u;
+          c.beginPath();
+          c.moveTo(xStart, yTop);
+          c.lineTo(Ease.lerp(xStart, xEnd, pTop), yTop);
+          c.stroke();
+        }
+
+        // Middle Bar (Cyan)
+        const pMid = Ease.norm(drawProgress, 0.14, 0.68);
+        if (pMid > 0) {
+          c.strokeStyle = '#06B6D4';
+          c.lineWidth = strokeW;
+          const xStart = -0.35 * u;
+          const xEnd = 0.27 * u;
+          const yMid = -0.10 * u;
+          c.beginPath();
+          c.moveTo(xStart, yMid);
+          c.lineTo(Ease.lerp(xStart, xEnd, pMid), yMid);
+          c.stroke();
+        }
+
+        // Bowl & Tail (Emerald Green)
+        const pStem = Ease.norm(drawProgress, 0.24, 1.0);
+        if (pStem > 0) {
+          c.strokeStyle = '#10B981';
+          c.lineWidth = strokeW * 1.04;
+
+          const p0x = -0.14 * u, p0y = -0.33 * u;
+          const cp1x = 0.20 * u, cp1y = -0.33 * u;
+          const cp2x = 0.20 * u, cp2y = 0.11 * u;
+          const p1x = -0.20 * u, p1y = 0.11 * u;
+          const p2x = 0.29 * u, p2y = 0.43 * u;
+
+          c.beginPath();
+          c.moveTo(p0x, p0y);
+
+          if (pStem <= 0.56) {
+            const t = pStem / 0.56;
+            const ax = Ease.lerp(p0x, cp1x, t), ay = Ease.lerp(p0y, cp1y, t);
+            const bx = Ease.lerp(cp1x, cp2x, t), by = Ease.lerp(cp1y, cp2y, t);
+            const cx = Ease.lerp(cp2x, p1x, t), cy = Ease.lerp(cp2y, p1y, t);
+            const dx = Ease.lerp(ax, bx, t), dy = Ease.lerp(ay, by, t);
+            const ex = Ease.lerp(bx, cx, t), ey = Ease.lerp(by, cy, t);
+            const fx = Ease.lerp(dx, ex, t), fy = Ease.lerp(dy, ey, t);
+            c.bezierCurveTo(ax, ay, dx, dy, fx, fy);
+          } else {
+            c.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p1x, p1y);
+            const tTail = (pStem - 0.56) / 0.44;
+            c.lineTo(Ease.lerp(p1x, p2x, tTail), Ease.lerp(p1y, p2y, tTail));
+          }
+          c.stroke();
+        }
+
+        c.restore();
+        c.restore();
+      }
+
+      function drawSparkleAccents(c, cx, cy, iconSize, frameFloat) {
+        const sparkles = [
+          { dx: -0.68, dy: -0.56, start: 6, dur: 11, color: '#3882F6', r: 6 },
+          { dx: 0.72, dy: -0.52, start: 11, dur: 11, color: '#10B981', r: 7 },
+          { dx: -0.62, dy: 0.58, start: 15, dur: 10, color: '#06B6D4', r: 5.5 }
+        ];
+
+        for (let i = 0; i < sparkles.length; i++) {
+          const sp = sparkles[i];
+          const p = Ease.norm(frameFloat, sp.start, sp.start + sp.dur);
+          if (p <= 0 || p >= 1) continue;
+
+          const env = Math.sin(p * Math.PI);
+          const sx = cx + sp.dx * iconSize * (0.95 + p * 0.22);
+          const sy = cy + sp.dy * iconSize * (0.95 + p * 0.22);
+          const rad = sp.r * env;
+
+          c.save();
+          c.globalAlpha = env * 0.85;
+          c.translate(sx, sy);
+          c.rotate(p * 0.8);
+          c.fillStyle = sp.color;
+
+          c.beginPath();
+          c.moveTo(0, -rad);
+          c.quadraticCurveTo(0, 0, rad, 0);
+          c.quadraticCurveTo(0, 0, 0, rad);
+          c.quadraticCurveTo(0, 0, -rad, 0);
+          c.quadraticCurveTo(0, 0, 0, -rad);
+          c.closePath();
+          c.fill();
+          c.restore();
+        }
+      }
+
+      function drawWordmark(c, opts) {
+        const startX = opts.x;
+        const centerY = opts.y;
+        const fontSize = opts.fontSize;
+        const introT = opts.introT;
+        const retractT = opts.retractT || 0;
+        const clipLeftX = opts.clipLeftX;
+
+        const word = 'RupeeFlow';
+        c.save();
+
+        if (clipLeftX !== undefined) {
+          c.beginPath();
+          c.rect(clipLeftX, 0, 4000, 4000);
+          c.clip();
+        }
+
+        c.font = '800 ' + fontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+        c.textBaseline = 'middle';
+        c.textAlign = 'left';
+
+        const totalWidth = c.measureText(word).width;
+        const flowGradient = c.createLinearGradient(
+          startX + totalWidth * 0.5,
+          centerY - fontSize * 0.4,
+          startX + totalWidth,
+          centerY + fontSize * 0.4
+        );
+        flowGradient.addColorStop(0, '#10B981');
+        flowGradient.addColorStop(1, '#06B6D4');
+
+        const slideBackX = -Ease.inOutCubic(retractT) * (totalWidth + fontSize * 0.65);
+
+        let penX = startX;
+        for (let i = 0; i < word.length; i++) {
+          const ch = word[i];
+          const chWidth = c.measureText(ch).width;
+          const isFlowPart = i >= 5;
+
+          const charStart = (i / word.length) * 0.52;
+          const charEnd = charStart + 0.48;
+          const localIn = Ease.norm(introT, charStart, charEnd);
+          const springScale = Ease.outBack(localIn, 1.85);
+          const alpha = Ease.clamp(localIn * 1.45, 0, 1) * (1 - Ease.norm(retractT, 0.45, 0.95));
+
+          if (alpha > 0.01 && springScale > 0.01) {
+            const liftY = (1 - Ease.outCubic(localIn)) * fontSize * 0.36;
+            const drawX = penX + slideBackX;
+
+            if (ONION_SKIN && localIn > 0.06 && localIn < 0.88 && retractT === 0) {
+              c.save();
+              c.globalAlpha = 0.22 * (1 - localIn);
+              c.translate(drawX + chWidth * 0.5, centerY + liftY * 1.75);
+              c.scale(springScale * 0.9, springScale * 0.9);
+              c.fillStyle = isFlowPart ? '#06B6D4' : '#3882F6';
+              c.fillText(ch, -chWidth * 0.5, 0);
+              c.restore();
+            }
+
+            c.save();
+            c.globalAlpha = alpha;
+            c.translate(drawX + chWidth * 0.5, centerY + liftY);
+            c.scale(springScale, springScale);
+            c.fillStyle = isFlowPart ? flowGradient : '#f8fafc';
+            c.fillText(ch, -chWidth * 0.5, 0);
+            c.restore();
+          }
+
+          penX += chWidth;
+        }
+
+        c.restore();
+      }
+
+      function renderScene(frameFloat) {
+        const dpr = window.devicePixelRatio || 1;
+        const w = canvas.width / dpr;
+        const h = canvas.height / dpr;
+        if (w <= 0 || h <= 0) return;
+
+        ctx.save();
+        ctx.scale(dpr, dpr);
+
+        // Background
+        ctx.fillStyle = '#0b1018';
+        ctx.fillRect(0, 0, w, h);
+
+        // Ambient Radial Glow
+        const cx = w * 0.5;
+        const cy = h * 0.5;
+        const minDim = Math.min(w, h);
+        const radGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, minDim * 0.55);
+        radGlow.addColorStop(0, 'rgba(16, 185, 129, 0.11)');
+        radGlow.addColorStop(0.55, 'rgba(56, 130, 246, 0.045)');
+        radGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = radGlow;
+        ctx.fillRect(0, 0, w, h);
+
+        // Responsive Sizing (Adapts to both mobile portrait & desktop landscape)
+        const iconSize = Ease.clamp(minDim * 0.21, 60, 120);
+        const fontSize = Math.round(iconSize * 0.60);
+        const gap = Math.round(iconSize * 0.22);
+
+        ctx.font = '800 ' + fontSize + 'px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+        const wordWidth = ctx.measureText('RupeeFlow').width;
+        const lockupWidth = iconSize + gap + wordWidth;
+        const leftLockupIconX = cx - lockupWidth * 0.5 + iconSize * 0.5;
+
+        if (frameFloat <= STAGE_SPLIT_FRAME) {
+          const p1 = Ease.norm(frameFloat, 0, STAGE_SPLIT_FRAME);
+          const popScale = Ease.outBack(Ease.norm(p1, 0.0, 0.42), 1.85);
+          const strokeDraw = Ease.outCubic(Ease.norm(p1, 0.06, 0.66));
+          const textIntro = Ease.norm(p1, 0.12, 0.88);
+          const slideLeft = Ease.outCubic(Ease.norm(p1, 0.08, 0.52));
+
+          const iconX = Ease.lerp(cx, leftLockupIconX, slideLeft);
+          const textX = iconX + iconSize * 0.5 + gap;
+
+          if (ONION_SKIN && p1 > 0.04 && p1 < 0.48) {
+            drawRupeeFlowIcon(ctx, {
+              x: Ease.lerp(cx, iconX, 0.6),
+              y: cy,
+              size: iconSize * popScale * 0.94,
+              alpha: 0.2 * (1 - p1 * 2),
+              drawProgress: strokeDraw
+            });
+          }
+
+          drawWordmark(ctx, {
+            x: textX,
+            y: cy,
+            fontSize: fontSize,
+            introT: textIntro,
+            retractT: 0,
+            clipLeftX: iconX
+          });
+
+          drawRupeeFlowIcon(ctx, {
+            x: iconX,
+            y: cy,
+            size: iconSize * popScale,
+            drawProgress: strokeDraw
+          });
+
+          drawSparkleAccents(ctx, iconX, cy, iconSize, frameFloat);
+        } else {
+          const p2 = Ease.norm(frameFloat, STAGE_SPLIT_FRAME, TOTAL_FRAMES);
+          const retractT = Ease.norm(p2, 0.0, 0.72);
+          const centerGlide = Ease.inOutCubic(Ease.norm(p2, 0.12, 0.88));
+
+          const iconX = Ease.lerp(leftLockupIconX, cx, centerGlide);
+          const textX = iconX + iconSize * 0.5 + gap;
+
+          const beatEnv = Math.sin(Ease.norm(p2, 0.18, 1.0) * Math.PI);
+          const elasticScale = 1 + beatEnv * 0.13;
+          const rupeeBeat = 1 + beatEnv * 0.09;
+          const baseGrow = Ease.lerp(1.0, 1.12, centerGlide);
+
+          if (retractT < 0.98) {
+            drawWordmark(ctx, {
+              x: textX,
+              y: cy,
+              fontSize: fontSize,
+              introT: 1,
+              retractT: retractT,
+              clipLeftX: iconX
+            });
+          }
+
+          if (ONION_SKIN && beatEnv > 0.15) {
+            drawRupeeFlowIcon(ctx, {
+              x: iconX,
+              y: cy,
+              size: iconSize * baseGrow * (1 + beatEnv * 0.2),
+              alpha: 0.16 * beatEnv,
+              drawProgress: 1
+            });
+          }
+
+          drawRupeeFlowIcon(ctx, {
+            x: iconX,
+            y: cy,
+            size: iconSize * baseGrow,
+            iconScale: elasticScale,
+            rupeeScale: rupeeBeat,
+            drawProgress: 1,
+            glowStrength: beatEnv
+          });
+        }
+
+        ctx.restore();
+      }
+
+      function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.max(1, Math.round(window.innerWidth * dpr));
+        canvas.height = Math.max(1, Math.round(window.innerHeight * dpr));
+      }
+
+      window.addEventListener('resize', resizeCanvas);
+
+      function tick(now) {
+        if (!startTime) startTime = now;
+        const elapsed = (now - startTime) / 1000;
+
+        // Plays once and holds cleanly on the final frame (Frame 41)
+        const frameFloat = Ease.clamp((elapsed / DURATION) * TOTAL_FRAMES, 0, TOTAL_FRAMES);
+        renderScene(frameFloat);
+
+        if (elapsed < DURATION) {
+          requestAnimationFrame(tick);
+        } else {
+          try {
+            if (window.RupeeFlowNative && window.RupeeFlowNative.onSplashFinished) {
+              window.RupeeFlowNative.onSplashFinished();
+            }
+          } catch (e) {}
+        }
+      }
+
+      resizeCanvas();
+      requestAnimationFrame(tick);
+    })();
+  </script>
+</body>
+</html>

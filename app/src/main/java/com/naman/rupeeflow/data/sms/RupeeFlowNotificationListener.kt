@@ -43,6 +43,12 @@ class RupeeFlowNotificationListener : NotificationListenerService() {
         serviceJob.cancel()
     }
 
+    override fun onTaskRemoved(rootIntent: android.content.Intent?) {
+        super.onTaskRemoved(rootIntent)
+        // System invokes onTaskRemoved when user swipes the app out of the Recents screen
+        com.naman.rupeeflow.ui.screens.splash.SplashSessionManager.hasPlayedColdStartSplash = false
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         super.onNotificationPosted(sbn)
         if (sbn == null) return
@@ -121,14 +127,15 @@ class RupeeFlowNotificationListener : NotificationListenerService() {
                     )
                     if (isDup) return@withLock
 
-                    val capturedLocation = when (prefs.locationCaptureMode) {
-                        com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_DETECTION -> {
-                            com.naman.rupeeflow.location.LocationDiagnostics.logCaptureRequested("Notification received")
-                            com.naman.rupeeflow.location.OfflineLocationManager.getLastKnownLocation(applicationContext)
-                        }
-                        com.naman.rupeeflow.domain.model.LocationCaptureMode.OFF -> {
+                    val capturedLocation = when {
+                        prefs.locationCaptureMode == com.naman.rupeeflow.domain.model.LocationCaptureMode.OFF -> {
                             com.naman.rupeeflow.location.LocationDiagnostics.logCaptureSkippedOff()
                             null
+                        }
+                        prefs.locationCaptureMode == com.naman.rupeeflow.domain.model.LocationCaptureMode.ON_DETECTION ||
+                        com.naman.rupeeflow.location.OfflineLocationManager.hasPermission(applicationContext) -> {
+                            com.naman.rupeeflow.location.LocationDiagnostics.logCaptureRequested("Notification received")
+                            com.naman.rupeeflow.location.OfflineLocationManager.captureDetectionLocation(applicationContext, timeoutMs = 2500L)
                         }
                         else -> null
                     }

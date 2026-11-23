@@ -42,6 +42,7 @@ fun SettlementDetailDialog(
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showReverseConfirm by remember { mutableStateOf(false) }
     var showUnreverseConfirm by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     val directionText = when {
         settlement.payerId != null && settlement.receiverId != null -> {
@@ -181,12 +182,48 @@ fun SettlementDetailDialog(
                     } else friendName.ifBlank { payerName ?: receiverName ?: "Friend" }
                 )
 
-                if (!settlement.referenceNumber.isNullOrBlank()) {
-                    DetailRow(
-                        icon = Icons.Default.Tag,
-                        label = "Reference / UTR",
-                        value = settlement.referenceNumber
-                    )
+                val ref = settlement.referenceNumber?.takeIf { it.isNotBlank() } ?: settlement.upiTransactionRef?.takeIf { it.isNotBlank() }
+                if (!ref.isNullOrBlank()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Tag, contentDescription = null, tint = AppTheme.colors.textSecondary, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(text = "Reference / UTR", style = MaterialTheme.typography.bodyMedium, color = AppTheme.colors.textSecondary)
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = ref,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = AppTheme.colors.textPrimary
+                            )
+                            IconButton(
+                                onClick = {
+                                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                    val clip = android.content.ClipData.newPlainText("UPI Reference / UTR", ref)
+                                    clipboard?.setPrimaryClip(clip)
+                                    android.widget.Toast.makeText(context, "Reference / UTR copied", android.widget.Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = "Copy Reference / UTR",
+                                    tint = AppTheme.colors.primaryAccent,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
                 }
 
                 if (settlement.paymentMethod == com.naman.rupeeflow.domain.model.PaymentMethod.UPI) {

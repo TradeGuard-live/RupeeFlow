@@ -153,7 +153,7 @@ fun AddGroupExpenseDialog(
                         emptyMap()
                     }
                 }
-                SplitMethod.CUSTOM -> {
+                SplitMethod.CUSTOM, SplitMethod.ITEM_WISE -> {
                     activeParticipants.associateWith { mId ->
                         CurrencyUtils.parseInputToPaise(customInputs[mId] ?: "")
                     }
@@ -393,7 +393,7 @@ fun AddGroupExpenseDialog(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            items(SplitMethod.values()) { method ->
+                            items(SplitMethod.values().filter { it != SplitMethod.ITEM_WISE }) { method ->
                                 val isSelected = selectedSplitMethod == method
                                 FilterChip(
                                     selected = isSelected,
@@ -480,7 +480,7 @@ fun AddGroupExpenseDialog(
                                                 singleLine = true
                                             )
                                         }
-                                        SplitMethod.CUSTOM -> {
+                                        SplitMethod.CUSTOM, SplitMethod.ITEM_WISE -> {
                                             OutlinedTextField(
                                                 value = customInputs[mId] ?: "",
                                                 onValueChange = { customInputs[mId] = it },

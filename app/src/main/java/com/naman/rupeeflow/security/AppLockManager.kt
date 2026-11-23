@@ -140,7 +140,11 @@ class AppLockManager(
     override fun onActivityResumed(activity: Activity) {}
     override fun onActivityPaused(activity: Activity) {}
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
-    override fun onActivityDestroyed(activity: Activity) {}
+    override fun onActivityDestroyed(activity: Activity) {
+        if (activity is com.naman.rupeeflow.MainActivity && activity.isFinishing) {
+            com.naman.rupeeflow.ui.screens.splash.SplashSessionManager.hasPlayedColdStartSplash = false
+        }
+    }
 
     companion object {
         private const val TAG = "AppLockManager"

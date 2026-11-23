@@ -136,7 +136,7 @@ object VoiceCommandValidator {
                         )
                     }
                 }
-                SplitMethod.EXACT_AMOUNT, SplitMethod.CUSTOM -> {
+                SplitMethod.EXACT_AMOUNT, SplitMethod.CUSTOM, SplitMethod.ITEM_WISE -> {
                     var totalCustom = 0L
                     for (fId in cmd.participantFriendIds) {
                         val share = cmd.customSharesPaise[fId] ?: 0L

@@ -289,6 +289,59 @@ object OfflineLocationManager {
     }
 
     /**
+     * Dedicated hardware location capture for automatic transaction detection (SMS / Notifications).
+     * 1. Checks permissions and location services.
+     * 2. Checks fresh cached location (< 30s) or recent (< 2m).
+     * 3. Requests a fresh hardware location with a tight timeout ([timeoutMs] = 2500ms) to avoid delaying detection.
+     * 4. Falls back to a recent cache (< 15 mins) if GPS fix was not acquired within timeout.
+     * Marks [locationSource] as [LocationSource.DEVICE_AT_DETECTION].
+     */
+    suspend fun captureDetectionLocation(
+        context: Context,
+        timeoutMs: Long = 2500L
+    ): TransactionLocation? {
+        if (!hasPermission(context)) {
+            LocationDiagnostics.logPermissionMissing()
+            return null
+        }
+        if (!isLocationEnabled(context)) {
+            LocationDiagnostics.logGpsDisabled()
+            return null
+        }
+
+        LocationDiagnostics.logCaptureRequested("Transaction detection")
+
+        // 1. Try immediate cached location if fresh (< 2 mins)
+        val immediate = getLastKnownLocation(context, allowStale = false)
+        if (immediate != null) {
+            val ageMs = System.currentTimeMillis() - immediate.locationCapturedAt
+            if (ageMs < FRESH_CACHE_MAX_AGE_MS) {
+                return immediate.copy(locationSource = LocationSource.DEVICE_AT_DETECTION)
+            }
+        }
+
+        // 2. Request fresh hardware location with tight timeout
+        val fresh = requestFreshLocation(context, timeoutMs = timeoutMs)
+        if (fresh != null) {
+            return fresh.copy(locationSource = LocationSource.DEVICE_AT_DETECTION)
+        }
+
+        // 3. Fallback: recent cache up to 15 minutes old
+        val recentCached = getLastKnownLocation(context, allowStale = true)
+        if (recentCached != null) {
+            val ageMs = System.currentTimeMillis() - recentCached.locationCapturedAt
+            if (ageMs <= 15 * 60 * 1000L) {
+                return recentCached.copy(
+                    locationSource = LocationSource.DEVICE_AT_DETECTION,
+                    locationLabel = "[Recent location]"
+                )
+            }
+        }
+
+        return immediate?.copy(locationSource = LocationSource.DEVICE_AT_DETECTION)
+    }
+
+    /**
      * Resolves the human-readable location status badge for a detected pending transaction.
      */
     fun resolvePendingLocationStatus(

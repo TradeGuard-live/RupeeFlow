@@ -63,7 +63,8 @@ enum class SplitMethod {
     EXACT_AMOUNT,
     PERCENTAGE,
     SHARES,
-    CUSTOM;
+    CUSTOM,
+    ITEM_WISE;
 
     val displayName: String
         get() = when (this) {
@@ -72,6 +73,7 @@ enum class SplitMethod {
             PERCENTAGE -> "Percentage"
             SHARES -> "Shares / Weights"
             CUSTOM -> "Custom Split"
+            ITEM_WISE -> "Split by Items"
         }
 }
 

@@ -18,6 +18,7 @@ import com.naman.rupeeflow.domain.util.DateTimeUtils
 import com.naman.rupeeflow.domain.util.safeSumOf
 import com.naman.rupeeflow.report.CategoryReportItem
 import com.naman.rupeeflow.report.ExpenseGroupReportItem
+import com.naman.rupeeflow.report.ParticipantReportItem
 import com.naman.rupeeflow.report.PdfReportGenerator
 import com.naman.rupeeflow.report.ReportGenerationData
 import kotlinx.coroutines.flow.*
@@ -50,6 +51,7 @@ data class ReportGeneratorUiState(
     val grossBillsPaise: Long = 0L,
     val categoryBreakdown: List<CategoryReportItem> = emptyList(),
     val expenseGroupBreakdown: List<ExpenseGroupReportItem> = emptyList(),
+    val participantBreakdown: List<ParticipantReportItem> = emptyList(),
     val savedDrafts: List<ReportDraft> = emptyList(),
     val generatedPdfFile: File? = null,
     val isGeneratingPdf: Boolean = false,
@@ -330,7 +332,8 @@ class ReportGeneratorViewModel(
                     onlineSpendingPaise = state.onlineSpendingPaise,
                     grossBillsPaise = state.grossBillsPaise,
                     categoryBreakdown = state.categoryBreakdown,
-                    expenseGroupBreakdown = state.expenseGroupBreakdown
+                    expenseGroupBreakdown = state.expenseGroupBreakdown,
+                    participantBreakdown = state.participantBreakdown
                 )
 
                 val file = PdfReportGenerator.generatePdf(context, data)
@@ -388,7 +391,8 @@ class ReportGeneratorViewModel(
                 onlineSpendingPaise = 0L,
                 grossBillsPaise = 0L,
                 categoryBreakdown = emptyList(),
-                expenseGroupBreakdown = emptyList()
+                expenseGroupBreakdown = emptyList(),
+                participantBreakdown = emptyList()
             )
         }
 
@@ -399,8 +403,18 @@ class ReportGeneratorViewModel(
             txn.transactionDate in startMillis..endMillis
         }
 
+        // Feature 1: Exclude expenses where user's personal share is ₹0 from report selection
+        val inRangeWithPersonalShare = inRange.filter { txn ->
+            if (txn.isSplit) {
+                val myExp = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalExpense(txn)
+                val myInc = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalIncome(txn)
+                val myRef = com.naman.rupeeflow.domain.ledger.PersonalFinancialAggregator.calculatePersonalRefund(txn)
+                (myExp > 0L || myInc > 0L || myRef > 0L)
+            } else true
+        }
+
         // Apply report exclusions (never modifies actual database data!)
-        val included = inRange.filter { txn ->
+        val included = inRangeWithPersonalShare.filter { txn ->
             !state.excludedTransactionIds.contains(txn.id) && !txn.isIgnored
         }
 
@@ -459,8 +473,29 @@ class ReportGeneratorViewModel(
                 )
             }.sortedByDescending { it.amountPaise }
 
+        // Participant breakdown strictly omitting any participant whose share is ₹0
+        val participantMap = mutableMapOf<String, Pair<Long, Int>>()
+        for (txn in included) {
+            if (txn.isSplit && txn.participants.isNotEmpty()) {
+                for (part in txn.participants) {
+                    if (part.shareAmountPaise > 0L) {
+                        val name = if (part.friendId == null) "Me" else part.friendName
+                        val current = participantMap.getOrDefault(name, Pair(0L, 0))
+                        participantMap[name] = Pair(current.first + part.shareAmountPaise, current.second + 1)
+                    }
+                }
+            }
+        }
+        val participantBreakdown = participantMap.map { (name, pair) ->
+            ParticipantReportItem(
+                participantName = name,
+                sharePaise = pair.first,
+                transactionCount = pair.second
+            )
+        }.sortedByDescending { it.sharePaise }
+
         return state.copy(
-            rawTransactionsInRange = inRange,
+            rawTransactionsInRange = inRangeWithPersonalShare,
             includedTransactions = included,
             totalExpensesPaise = totalExpensesPaise,
             totalIncomePaise = totalIncomePaise,
@@ -470,7 +505,8 @@ class ReportGeneratorViewModel(
             onlineSpendingPaise = onlineSpendingPaise,
             grossBillsPaise = grossBillsPaise,
             categoryBreakdown = categoryBreakdown,
-            expenseGroupBreakdown = expenseGroupBreakdown
+            expenseGroupBreakdown = expenseGroupBreakdown,
+            participantBreakdown = participantBreakdown
         )
     }
 }

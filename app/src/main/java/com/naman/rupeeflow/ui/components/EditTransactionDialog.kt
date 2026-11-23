@@ -145,6 +145,32 @@ fun EditTransactionDialog(
         )
     }
 
+    var itemEntries by remember {
+        mutableStateOf(
+            if (transaction.items.isNotEmpty()) {
+                transaction.items.map { itm ->
+                    val assignedSet = itm.allocations.map { it.friendId }.toSet()
+                    ItemWiseEntryState(
+                        tempId = itm.id,
+                        name = itm.name,
+                        quantity = itm.quantity,
+                        unitPriceRupees = if (itm.unitPricePaise % 100L == 0L) (itm.unitPricePaise / 100L).toString() else String.format(java.util.Locale.US, "%.2f", itm.unitPricePaise / 100.0),
+                        assignedParticipantIds = assignedSet
+                    )
+                }
+            } else {
+                listOf(
+                    ItemWiseEntryState(
+                        name = "Item 1",
+                        quantity = 1,
+                        unitPriceRupees = "",
+                        assignedParticipantIds = if (isMeIncluded) setOf(null) else emptySet()
+                    )
+                )
+            }
+        )
+    }
+
     // 14. Merchant
     var merchantName by remember { mutableStateOf(transaction.merchantName ?: "") }
 
@@ -643,7 +669,8 @@ fun EditTransactionDialog(
                             listOf(
                                 SplitMethod.EQUAL to "Equal (=)",
                                 SplitMethod.PERCENTAGE to "Percentage (%)",
-                                SplitMethod.EXACT_AMOUNT to "Custom ₹"
+                                SplitMethod.EXACT_AMOUNT to "Custom ₹",
+                                SplitMethod.ITEM_WISE to "By Items"
                             ).forEach { (method, label) ->
                                 val isSelected = splitMethod == method
                                 Box(
@@ -880,6 +907,278 @@ fun EditTransactionDialog(
                             }
                         }
                     }
+
+                    // D. Item-Wise Expense Split Breakdown
+                    if (splitMethod == SplitMethod.ITEM_WISE) {
+                        val itemsTotalPaise = itemEntries.sumOf {
+                            it.quantity.coerceAtLeast(1) * CurrencyUtils.parseInputToPaise(it.unitPriceRupees)
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            itemEntries.forEachIndexed { itemIdx, itemEntry ->
+                                val itemTotalPaise = itemEntry.quantity.coerceAtLeast(1) * CurrencyUtils.parseInputToPaise(itemEntry.unitPriceRupees)
+                                val assignedCount = itemEntry.assignedParticipantIds.size
+                                val perPersonEstimate = if (assignedCount > 0 && itemTotalPaise > 0L) {
+                                    itemTotalPaise / assignedCount
+                                } else 0L
+
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = AppTheme.colors.surfaceSecondary,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "Item #${itemIdx + 1}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = AppTheme.colors.primaryAccent,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            if (itemEntries.size > 1) {
+                                                IconButton(
+                                                    onClick = {
+                                                        itemEntries = itemEntries.toMutableList().apply { removeAt(itemIdx) }
+                                                    },
+                                                    modifier = Modifier.size(24.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Close,
+                                                        contentDescription = "Remove Item",
+                                                        tint = CoralRed,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+
+                                        OutlinedTextField(
+                                            value = itemEntry.name,
+                                            onValueChange = { newName ->
+                                                itemEntries = itemEntries.toMutableList().apply {
+                                                    this[itemIdx] = itemEntry.copy(name = newName)
+                                                }
+                                            },
+                                            placeholder = { Text("Item name (e.g. Pizza, Drinks)", color = AppTheme.colors.textMuted, fontSize = 13.sp) },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = rupeeFlowTextFieldColors()
+                                        )
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            // Quantity Selector (- / +)
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(AppTheme.colors.surfaceElevated)
+                                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                            ) {
+                                                IconButton(
+                                                    onClick = {
+                                                        if (itemEntry.quantity > 1) {
+                                                            itemEntries = itemEntries.toMutableList().apply {
+                                                                this[itemIdx] = itemEntry.copy(quantity = itemEntry.quantity - 1)
+                                                            }
+                                                        }
+                                                    },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Text("−", fontWeight = FontWeight.Bold, color = AppTheme.colors.textPrimary)
+                                                }
+                                                Text(
+                                                    text = "${itemEntry.quantity}",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AppTheme.colors.textPrimary,
+                                                    modifier = Modifier.padding(horizontal = 6.dp)
+                                                )
+                                                IconButton(
+                                                    onClick = {
+                                                        itemEntries = itemEntries.toMutableList().apply {
+                                                            this[itemIdx] = itemEntry.copy(quantity = itemEntry.quantity + 1)
+                                                        }
+                                                    },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Text("+", fontWeight = FontWeight.Bold, color = AppTheme.colors.textPrimary)
+                                                }
+                                            }
+
+                                            // Unit Price Input
+                                            OutlinedTextField(
+                                                value = itemEntry.unitPriceRupees,
+                                                onValueChange = { priceInput ->
+                                                    val filtered = priceInput.filter { it.isDigit() || it == '.' }
+                                                    itemEntries = itemEntries.toMutableList().apply {
+                                                        this[itemIdx] = itemEntry.copy(unitPriceRupees = filtered)
+                                                    }
+                                                },
+                                                leadingIcon = { Text("₹", color = AppTheme.colors.primaryAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold) },
+                                                placeholder = { Text("0.00", color = AppTheme.colors.textMuted) },
+                                                singleLine = true,
+                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                                modifier = Modifier.weight(1f),
+                                                shape = RoundedCornerShape(10.dp),
+                                                colors = rupeeFlowTextFieldColors()
+                                            )
+
+                                            // Item Total
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                Text(
+                                                    text = CurrencyUtils.formatPaiseToRupees(itemTotalPaise),
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = AppTheme.colors.textPrimary
+                                                )
+                                                if (assignedCount > 1 && perPersonEstimate > 0L) {
+                                                    Text(
+                                                        text = "~${CurrencyUtils.formatPaiseToRupees(perPersonEstimate)}/ea",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = AppTheme.colors.incomeGreen
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        // Assigned Participants Selector
+                                        Text(
+                                            text = "Assigned to:",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = AppTheme.colors.textSecondary
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            allParticipantIds.forEach { pId ->
+                                                val isAssigned = itemEntry.assignedParticipantIds.contains(pId)
+                                                val pName = if (pId == null) "Me" else friends.firstOrNull { it.id == pId }?.name ?: "Friend"
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = if (isAssigned) AppTheme.colors.primaryAccent.copy(alpha = 0.2f) else AppTheme.colors.surfaceElevated,
+                                                    border = BorderStroke(1.dp, if (isAssigned) AppTheme.colors.primaryAccent else AppTheme.colors.cardBorder),
+                                                    modifier = Modifier
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .clickable {
+                                                            val updatedSet = if (isAssigned) {
+                                                                itemEntry.assignedParticipantIds - pId
+                                                            } else {
+                                                                itemEntry.assignedParticipantIds + pId
+                                                            }
+                                                            itemEntries = itemEntries.toMutableList().apply {
+                                                                this[itemIdx] = itemEntry.copy(assignedParticipantIds = updatedSet)
+                                                            }
+                                                        }
+                                                ) {
+                                                    Text(
+                                                        text = if (isAssigned) "✓ $pName" else pName,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = if (isAssigned) AppTheme.colors.primaryAccent else AppTheme.colors.textSecondary,
+                                                        fontWeight = if (isAssigned) FontWeight.Bold else FontWeight.Normal,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Add Item Button
+                            OutlinedButton(
+                                onClick = {
+                                    itemEntries = itemEntries + ItemWiseEntryState(
+                                        name = "Item ${itemEntries.size + 1}",
+                                        quantity = 1,
+                                        unitPriceRupees = "",
+                                        assignedParticipantIds = if (isMeIncluded) setOf(null) else emptySet()
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, AppTheme.colors.primaryAccent.copy(alpha = 0.5f))
+                            ) {
+                                Text("+ Add Another Item", color = AppTheme.colors.primaryAccent, fontWeight = FontWeight.SemiBold)
+                            }
+
+                            // Summary of calculated participant shares
+                            val tempShares = mutableMapOf<Long?, Long>()
+                            allParticipantIds.forEach { tempShares[it] = 0L }
+                            itemEntries.forEach { itm ->
+                                val total = itm.quantity.coerceAtLeast(1) * CurrencyUtils.parseInputToPaise(itm.unitPriceRupees)
+                                val assigned = itm.assignedParticipantIds.toList()
+                                if (assigned.isNotEmpty() && total > 0L) {
+                                    val splits = LedgerCalculator.calculateEqualSplit(total, assigned.size)
+                                    assigned.forEachIndexed { i, pId ->
+                                        tempShares[pId] = (tempShares[pId] ?: 0L) + splits[i]
+                                    }
+                                }
+                            }
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = AppTheme.colors.surfaceSecondary,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "Calculated Total: ${CurrencyUtils.formatPaiseToRupees(itemsTotalPaise)}",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AppTheme.colors.textPrimary
+                                        )
+                                        Text(
+                                            text = "${itemEntries.size} items",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = AppTheme.colors.textSecondary
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    allParticipantIds.forEach { pId ->
+                                        val pName = if (pId == null) "Me (Your Share)" else friends.firstOrNull { it.id == pId }?.name ?: "Friend"
+                                        val share = tempShares[pId] ?: 0L
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 2.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(pName, style = MaterialTheme.typography.bodySmall, color = if (pId == null) AppTheme.colors.textPrimary else AppTheme.colors.textSecondary)
+                                            Text(
+                                                CurrencyUtils.formatPaiseToRupees(share),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (share > 0L) (if (pId == null) AppTheme.colors.incomeGreen else AppTheme.colors.primaryAccent) else AppTheme.colors.textMuted
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -902,7 +1201,7 @@ fun EditTransactionDialog(
         Spacer(modifier = Modifier.height(24.dp))
 
         // Validation Check for Split
-        val isSplitValid = remember(isSplitEnabled, allParticipantIds, splitMethod, amountPaise, percentageInputs, customRupeeInputs) {
+        val isSplitValid = remember(isSplitEnabled, allParticipantIds, splitMethod, amountPaise, percentageInputs, customRupeeInputs, itemEntries) {
             if (!isSplitEnabled || allParticipantIds.isEmpty()) {
                 true
             } else when (splitMethod) {
@@ -916,15 +1215,23 @@ fun EditTransactionDialog(
                     sumPaise == amountPaise
                 }
                 SplitMethod.SHARES -> true
+                SplitMethod.ITEM_WISE -> {
+                    val itemsTotalPaise = itemEntries.sumOf {
+                        it.quantity.coerceAtLeast(1) * CurrencyUtils.parseInputToPaise(it.unitPriceRupees)
+                    }
+                    itemEntries.isNotEmpty() &&
+                    itemsTotalPaise > 0L &&
+                    itemEntries.all { it.name.isNotBlank() && CurrencyUtils.parseInputToPaise(it.unitPriceRupees) > 0L && it.assignedParticipantIds.isNotEmpty() }
+                }
             }
         }
 
         if (!isSplitValid && isSplitEnabled && allParticipantIds.isNotEmpty()) {
             Text(
-                text = if (splitMethod == SplitMethod.PERCENTAGE) {
-                    "Please adjust percentages so the total equals 100%."
-                } else {
-                    "Please ensure the sum of participant shares strictly equals the total bill."
+                text = when (splitMethod) {
+                    SplitMethod.PERCENTAGE -> "Please adjust percentages so the total equals 100%."
+                    SplitMethod.ITEM_WISE -> "Please ensure all items have a name, unit price, and at least one assigned participant."
+                    else -> "Please ensure the sum of participant shares strictly equals the total bill."
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = AmberGold,
@@ -932,20 +1239,27 @@ fun EditTransactionDialog(
             )
         }
 
+        val itemsTotalPaise = if (isSplitEnabled && splitMethod == SplitMethod.ITEM_WISE) {
+            itemEntries.sumOf { it.quantity.coerceAtLeast(1) * CurrencyUtils.parseInputToPaise(it.unitPriceRupees) }
+        } else 0L
+        val effectiveAmountPaise = if (isSplitEnabled && splitMethod == SplitMethod.ITEM_WISE && itemsTotalPaise > 0L) itemsTotalPaise else amountPaise
+
         // Save Changes Button
         Button(
             onClick = {
-                if (isSaving || amountPaise <= 0L || !isSplitValid) return@Button
+                if (isSaving || effectiveAmountPaise <= 0L || !isSplitValid) return@Button
                 isSaving = true
                 val finalTitle = title.ifBlank { selectedCategory?.name ?: selectedType.displayName }
                 val categoryId = selectedCategory?.id ?: transaction.categoryId
 
                 // Build participants
                 val participants = mutableListOf<TransactionParticipant>()
+                val domainItems = mutableListOf<TransactionItem>()
+
                 if (isSplitEnabled && allParticipantIds.isNotEmpty()) {
                     when (splitMethod) {
                         SplitMethod.EQUAL -> {
-                            val shares = LedgerCalculator.calculateEqualSplit(amountPaise, allParticipantIds.size)
+                            val shares = LedgerCalculator.calculateEqualSplit(effectiveAmountPaise, allParticipantIds.size)
                             val pct = if (allParticipantIds.isNotEmpty()) 100.0 / allParticipantIds.size else 0.0
                             allParticipantIds.forEachIndexed { index, pId ->
                                 val pName = if (pId == null) "Me" else friends.firstOrNull { it.id == pId }?.name ?: "Friend"
@@ -963,7 +1277,7 @@ fun EditTransactionDialog(
                         }
                         SplitMethod.PERCENTAGE -> {
                             val pcts = allParticipantIds.map { percentageInputs[it]?.toDoubleOrNull() ?: 0.0 }
-                            val shares = LedgerCalculator.calculatePercentageSplit(amountPaise, pcts)
+                            val shares = LedgerCalculator.calculatePercentageSplit(effectiveAmountPaise, pcts)
                             allParticipantIds.forEachIndexed { index, pId ->
                                 val pName = if (pId == null) "Me" else friends.firstOrNull { it.id == pId }?.name ?: "Friend"
                                 participants.add(
@@ -982,7 +1296,7 @@ fun EditTransactionDialog(
                             allParticipantIds.forEach { pId ->
                                 val pName = if (pId == null) "Me" else friends.firstOrNull { it.id == pId }?.name ?: "Friend"
                                 val sharePaise = CurrencyUtils.parseInputToPaise(customRupeeInputs[pId] ?: "")
-                                val pct = if (amountPaise > 0L) (sharePaise.toDouble() / amountPaise.toDouble()) * 100.0 else 0.0
+                                val pct = if (effectiveAmountPaise > 0L) (sharePaise.toDouble() / effectiveAmountPaise.toDouble()) * 100.0 else 0.0
                                 participants.add(
                                     TransactionParticipant(
                                         transactionId = transaction.id,
@@ -997,7 +1311,7 @@ fun EditTransactionDialog(
                         }
                         SplitMethod.SHARES -> {
                             val weights = allParticipantIds.map { 1 }
-                            val shares = LedgerCalculator.calculateSharesSplit(amountPaise, weights)
+                            val shares = LedgerCalculator.calculateSharesSplit(effectiveAmountPaise, weights)
                             val pct = if (allParticipantIds.isNotEmpty()) 100.0 / allParticipantIds.size else 0.0
                             allParticipantIds.forEachIndexed { index, pId ->
                                 val pName = if (pId == null) "Me" else friends.firstOrNull { it.id == pId }?.name ?: "Friend"
@@ -1009,6 +1323,58 @@ fun EditTransactionDialog(
                                         shareAmountPaise = shares.getOrElse(index) { 0L },
                                         percentage = pct,
                                         splitMethod = SplitMethod.SHARES
+                                    )
+                                )
+                            }
+                        }
+                        SplitMethod.ITEM_WISE -> {
+                            val participantSharesMap = mutableMapOf<Long?, Long>()
+                            allParticipantIds.forEach { participantSharesMap[it] = 0L }
+
+                            itemEntries.forEach { itemEntry ->
+                                val itemTotal = itemEntry.quantity.coerceAtLeast(1) * CurrencyUtils.parseInputToPaise(itemEntry.unitPriceRupees)
+                                val assignedList = itemEntry.assignedParticipantIds.toList()
+                                val itemSplits = if (assignedList.isNotEmpty() && itemTotal > 0L) {
+                                    LedgerCalculator.calculateEqualSplit(itemTotal, assignedList.size)
+                                } else emptyList()
+
+                                val allocs = assignedList.mapIndexed { idx, pId ->
+                                    val share = itemSplits.getOrElse(idx) { 0L }
+                                    participantSharesMap[pId] = (participantSharesMap[pId] ?: 0L) + share
+                                    ItemAllocation(
+                                        id = 0L,
+                                        itemId = 0L,
+                                        transactionId = transaction.id,
+                                        friendId = pId,
+                                        allocatedAmountPaise = share
+                                    )
+                                }
+
+                                domainItems.add(
+                                    TransactionItem(
+                                        id = 0L,
+                                        transactionId = transaction.id,
+                                        name = itemEntry.name.trim().ifBlank { "Item" },
+                                        quantity = itemEntry.quantity.coerceAtLeast(1),
+                                        unitPricePaise = CurrencyUtils.parseInputToPaise(itemEntry.unitPriceRupees),
+                                        totalAmountPaise = itemTotal,
+                                        allocations = allocs
+                                    )
+                                )
+                            }
+
+                            allParticipantIds.forEach { pId ->
+                                val pName = if (pId == null) "Me" else friends.firstOrNull { it.id == pId }?.name ?: "Friend"
+                                val pShare = participantSharesMap[pId] ?: 0L
+                                val pct = if (effectiveAmountPaise > 0L) (pShare.toDouble() / effectiveAmountPaise.toDouble()) * 100.0 else 0.0
+                                participants.add(
+                                    TransactionParticipant(
+                                        transactionId = transaction.id,
+                                        friendId = pId,
+                                        friendName = pName,
+                                        shareAmountPaise = pShare,
+                                        percentage = pct,
+                                        splitMethod = SplitMethod.ITEM_WISE
                                     )
                                 )
                             }
@@ -1025,7 +1391,7 @@ fun EditTransactionDialog(
                 val spreadEnd = if (isSpreadActive) ExpenseAllocationCalculator.calculateEndDate(spreadStart!!, spreadDurationDays) else null
                 val domainAllocations = if (isSpreadActive) {
                     val calculated = ExpenseAllocationCalculator.calculateAllocations(
-                        amountPaise = amountPaise,
+                        amountPaise = effectiveAmountPaise,
                         durationDays = spreadDurationDays,
                         startDateMillis = spreadStart!!
                     )
@@ -1043,7 +1409,7 @@ fun EditTransactionDialog(
                 val updatedTransaction = transaction.copy(
                     title = finalTitle.trim(),
                     description = description.trim(),
-                    amountPaise = amountPaise,
+                    amountPaise = effectiveAmountPaise,
                     categoryId = categoryId,
                     category = selectedCategory,
                     transactionDate = selectedDateTimeMillis,
@@ -1076,6 +1442,7 @@ fun EditTransactionDialog(
                     spreadStartDate = spreadStart,
                     spreadEndDate = spreadEnd,
                     allocations = domainAllocations,
+                    items = if (isSplitEnabled && splitMethod == SplitMethod.ITEM_WISE) domainItems else transaction.items,
                     updatedAt = System.currentTimeMillis()
                 )
 
@@ -1090,7 +1457,7 @@ fun EditTransactionDialog(
                 containerColor = AppTheme.colors.primaryAccent,
                 contentColor = Color.White
             ),
-            enabled = !isSaving && amountPaise > 0L && isSplitValid
+            enabled = !isSaving && effectiveAmountPaise > 0L && isSplitValid
         ) {
             Text(
                 text = "Save Changes",

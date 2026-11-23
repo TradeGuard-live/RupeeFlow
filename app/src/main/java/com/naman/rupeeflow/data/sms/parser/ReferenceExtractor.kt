@@ -33,6 +33,10 @@ object ReferenceExtractor {
         Pattern.compile("(?i)(?:call|helpline|toll\\s*free|contact|dial|sms\\s+block)\\s*[:#-]?\\s*(\\d{6,15})")
     )
 
+    private val OTP_PATTERNS = listOf(
+        Pattern.compile("(?i)(?:\\botp|one\\s*time\\s*password|verification\\s*code|code\\s*is)\\s*[:#-]?\\s*(\\d{4,8})")
+    )
+
     // Dedicated regex patterns for supported UPI reference number labels
     // Order matters: more specific labels are checked first
     private val UPI_REF_LABELED_PATTERNS = listOf(
@@ -58,7 +62,13 @@ object ReferenceExtractor {
         Pattern.compile("(?i)(?:\\bupi\\s*(?:transaction|txn)\\s*(?:id|no\\.?|num|number)?)[\\s:=#-]+([0-9a-zA-Z]{6,35})"),
 
         // 8. Explicit Ref with separator and 8+ characters (e.g. "Ref: 104810950877" or "Ref 104810950877")
-        Pattern.compile("(?i)(?:\\bref\\b)[\\s:=#-]+([0-9a-zA-Z]{8,35})")
+        Pattern.compile("(?i)(?:\\bref\\b)[\\s:=#-]+([0-9a-zA-Z]{8,35})"),
+
+        // 9. Slash-delimited UPI reference patterns (e.g. "UPI/432109876543", "UPI/CR/432109876543", "UPI/P2A/432109876543/...")
+        Pattern.compile("(?i)(?:\\bupi\\s*/\\s*(?:[a-zA-Z0-9]+\\s*/\\s*)?)([0-9]{12})\\b"),
+
+        // 10. Slash-delimited UTR pattern (e.g. "UTR/432109876543")
+        Pattern.compile("(?i)(?:\\butr\\s*/\\s*)([0-9a-zA-Z]{6,35})\\b")
     )
 
     // Fallback general reference patterns (IMPS, NEFT, RTGS)
@@ -196,6 +206,17 @@ object ReferenceExtractor {
             while (matcher.find()) {
                 val helpline = matcher.group(1)?.trim()
                 if (!helpline.isNullOrBlank() && candidate == helpline) {
+                    return false
+                }
+            }
+        }
+
+        // 9. Check if candidate matches any OTP mentioned in the SMS
+        for (pattern in OTP_PATTERNS) {
+            val matcher = pattern.matcher(fullText)
+            while (matcher.find()) {
+                val otp = matcher.group(1)?.trim()
+                if (!otp.isNullOrBlank() && candidate == otp) {
                     return false
                 }
             }

@@ -204,6 +204,7 @@ data class Transaction(
     val spreadStartDate: Long? = null,
     val spreadEndDate: Long? = null,
     val allocations: List<ExpenseAllocation> = emptyList(),
+    val items: List<TransactionItem> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 ) {
@@ -257,6 +258,24 @@ data class UnsettledExpenseItem(
     val isFullySettled: Boolean get() = remainingOutstandingPaise == 0L && originalShareAmountPaise > 0L
     val isUnpaid: Boolean get() = settledAmountPaise == 0L && remainingOutstandingPaise > 0L
 }
+
+data class TransactionItem(
+    val id: Long = 0L,
+    val transactionId: Long = 0L,
+    val name: String,
+    val quantity: Int = 1,
+    val unitPricePaise: Long,
+    val totalAmountPaise: Long = quantity * unitPricePaise,
+    val allocations: List<ItemAllocation> = emptyList()
+)
+
+data class ItemAllocation(
+    val id: Long = 0L,
+    val itemId: Long = 0L,
+    val transactionId: Long = 0L,
+    val friendId: Long?, // null represents "ME"
+    val allocatedAmountPaise: Long
+)
 
 // Production hardening: default values for backward compatibility and clean construction
 data class Settlement(
