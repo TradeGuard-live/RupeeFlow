@@ -86,6 +86,12 @@
             </intent-filter>
         </service>
 
+        <!-- Task Tracking Service to detect when user removes app from Recents -->
+        <service
+            android:name=".ui.screens.splash.RupeeFlowTaskService"
+            android:exported="false"
+            android:stopWithTask="false" />
+
         <!-- FileProvider for secure PDF report sharing -->
         <provider
             android:name="androidx.core.content.FileProvider"

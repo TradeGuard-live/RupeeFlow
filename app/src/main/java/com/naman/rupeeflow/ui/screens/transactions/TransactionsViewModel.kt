@@ -694,8 +694,8 @@ class TransactionsViewModel(
 
     private fun getDatePeriodLabel(filter: String, offset: Int): String {
         return when (filter) {
-            "MONTHLY" -> DatePeriodHelper.getMonthRange(offset).label
-            "WEEKLY" -> DatePeriodHelper.getWeekRange(offset).label
+            "MONTHLY" -> DatePeriodHelper.getMonthRange(offset, referenceTime = clock(), timeZone = timeZoneProvider()).label
+            "WEEKLY" -> DatePeriodHelper.getWeekRange(offset, referenceTime = clock(), timeZone = timeZoneProvider()).label
             else -> ""
         }
     }
@@ -733,16 +733,16 @@ class TransactionsViewModel(
             // Date period filter
             val matchesDate = when (dateFilter) {
                 "MONTHLY" -> {
-                    val range = DatePeriodHelper.getMonthRange(dateOffset)
+                    val range = DatePeriodHelper.getMonthRange(dateOffset, referenceTime = clock(), timeZone = timeZoneProvider())
                     txn.transactionDate >= range.startMillis && txn.transactionDate < range.endMillisExclusive
                 }
                 "WEEKLY" -> {
-                    val range = DatePeriodHelper.getWeekRange(dateOffset)
+                    val range = DatePeriodHelper.getWeekRange(dateOffset, referenceTime = clock(), timeZone = timeZoneProvider())
                     txn.transactionDate >= range.startMillis && txn.transactionDate < range.endMillisExclusive
                 }
-                "THIS_MONTH" -> txn.transactionDate >= DateTimeUtils.getStartOfMonth()
+                "THIS_MONTH" -> txn.transactionDate >= DateTimeUtils.getStartOfMonth(clock())
                 "LAST_MONTH" -> {
-                    val range = DatePeriodHelper.getMonthRange(-1)
+                    val range = DatePeriodHelper.getMonthRange(-1, referenceTime = clock(), timeZone = timeZoneProvider())
                     txn.transactionDate >= range.startMillis && txn.transactionDate < range.endMillisExclusive
                 }
                 else -> true

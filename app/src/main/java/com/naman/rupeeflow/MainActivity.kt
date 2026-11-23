@@ -47,6 +47,13 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Bind task tracking service to detect when user removes app from Recents switcher
+        try {
+            startService(android.content.Intent(this, com.naman.rupeeflow.ui.screens.splash.RupeeFlowTaskService::class.java))
+        } catch (e: Exception) {
+            // Graceful fallback on background start restrictions
+        }
+
         // Request SMS & Notification permissions gracefully
         requestRequiredPermissions()
 
@@ -62,9 +69,11 @@ class MainActivity : FragmentActivity() {
             val isBiometricEnabled by appLockViewModel.isBiometricEnabled.collectAsStateWithLifecycle()
             val navController = rememberNavController()
 
-            // Cold-start splash state (plays only once per process lifetime)
+            // Cold-start / fresh launch splash state:
+            // Plays on cold launch and when reopened after being removed from Recents.
+            // When app is in RAM (user switches apps and returns), splash is NOT shown.
             var isSplashVisible by rememberSaveable {
-                mutableStateOf(!SplashSessionManager.hasPlayedColdStartSplash)
+                mutableStateOf(savedInstanceState == null && !SplashSessionManager.hasPlayedColdStartSplash)
             }
 
             // Security Hardening: Apply FLAG_SECURE to prevent task switcher snapshot leaks
@@ -146,9 +155,9 @@ class MainActivity : FragmentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // When activity is finishing (e.g. user swiped away from Recents overview or exited app),
+        // When activity is destroyed and NOT changing configurations (e.g. rotation),
         // reset the splash flag so the animation plays again next time the app is launched.
-        if (isFinishing) {
+        if (!isChangingConfigurations) {
             SplashSessionManager.hasPlayedColdStartSplash = false
         }
     }

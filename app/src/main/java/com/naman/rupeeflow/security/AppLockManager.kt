@@ -141,7 +141,7 @@ class AppLockManager(
     override fun onActivityPaused(activity: Activity) {}
     override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
     override fun onActivityDestroyed(activity: Activity) {
-        if (activity is com.naman.rupeeflow.MainActivity && activity.isFinishing) {
+        if (activity is com.naman.rupeeflow.MainActivity && !activity.isChangingConfigurations) {
             com.naman.rupeeflow.ui.screens.splash.SplashSessionManager.hasPlayedColdStartSplash = false
         }
     }
