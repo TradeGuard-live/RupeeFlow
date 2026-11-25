@@ -193,6 +193,7 @@ fun FastAddExpenseSheet(
             )
         )
     }
+    var deliveryFeeRupees by remember { mutableStateOf("") }
     // Bill attachment path preserved across biometric prompt, camera, and picker
     var billImagePath by rememberSaveable { mutableStateOf<String?>(null) }
     var showVoiceSheet by remember { mutableStateOf(false) }
@@ -1345,6 +1346,70 @@ fun FastAddExpenseSheet(
                                             Text("+ Add Another Item", color = AppTheme.colors.primaryAccent, fontWeight = FontWeight.SemiBold)
                                         }
 
+                                        // Handling Fee / Delivery Fees Option
+                                        val includedParticipantIds = allParticipantIds.filter { pId ->
+                                            itemEntries.any { it.assignedParticipantIds.contains(pId) }
+                                        }.ifEmpty { allParticipantIds }
+                                        val deliveryFeePaise = CurrencyUtils.parseInputToPaise(deliveryFeeRupees)
+                                        val feeSplits = if (deliveryFeePaise > 0L && includedParticipantIds.isNotEmpty()) {
+                                            LedgerCalculator.calculateEqualSplit(deliveryFeePaise, includedParticipantIds.size)
+                                        } else emptyList()
+                                        val feeShareByParticipant = includedParticipantIds.mapIndexed { idx, pId ->
+                                            pId to feeSplits.getOrElse(idx) { 0L }
+                                        }.toMap()
+
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = AppTheme.colors.surfaceSecondary,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(12.dp)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = "Delivery / Handling Fee",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = AppTheme.colors.primaryAccent,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    if (deliveryFeePaise > 0L && includedParticipantIds.isNotEmpty()) {
+                                                        Text(
+                                                            text = "+${CurrencyUtils.formatPaiseToRupees(deliveryFeePaise / includedParticipantIds.size)}/person",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = AppTheme.colors.incomeGreen,
+                                                            fontWeight = FontWeight.SemiBold
+                                                        )
+                                                    }
+                                                }
+
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = "Evenly spread across all ${includedParticipantIds.size} member${if (includedParticipantIds.size != 1) "s" else ""} included in this expense",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = AppTheme.colors.textSecondary,
+                                                    fontSize = 11.sp
+                                                )
+
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                OutlinedTextField(
+                                                    value = deliveryFeeRupees,
+                                                    onValueChange = { priceInput ->
+                                                        deliveryFeeRupees = priceInput.filter { it.isDigit() || it == '.' }
+                                                    },
+                                                    leadingIcon = { Text("₹", color = AppTheme.colors.primaryAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold) },
+                                                    placeholder = { Text("0.00 (optional delivery / handling fee)", color = AppTheme.colors.textMuted, fontSize = 13.sp) },
+                                                    singleLine = true,
+                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    colors = rupeeFlowTextFieldColors()
+                                                )
+                                            }
+                                        }
+
                                         // Summary of calculated participant shares
                                         val tempShares = mutableMapOf<Long?, Long>()
                                         allParticipantIds.forEach { tempShares[it] = 0L }
@@ -1358,6 +1423,12 @@ fun FastAddExpenseSheet(
                                                 }
                                             }
                                         }
+                                        // Spread delivery fee to participating members
+                                        feeShareByParticipant.forEach { (pId, feeShare) ->
+                                            tempShares[pId] = (tempShares[pId] ?: 0L) + feeShare
+                                        }
+
+                                        val finalCalculatedTotalPaise = itemsTotalPaise + deliveryFeePaise
 
                                         Surface(
                                             shape = RoundedCornerShape(12.dp),
@@ -1370,13 +1441,13 @@ fun FastAddExpenseSheet(
                                                     horizontalArrangement = Arrangement.SpaceBetween
                                                 ) {
                                                     Text(
-                                                        text = "Calculated Total: ${CurrencyUtils.formatPaiseToRupees(itemsTotalPaise)}",
+                                                        text = "Calculated Total: ${CurrencyUtils.formatPaiseToRupees(finalCalculatedTotalPaise)}",
                                                         style = MaterialTheme.typography.titleSmall,
                                                         fontWeight = FontWeight.Bold,
                                                         color = AppTheme.colors.textPrimary
                                                     )
                                                     Text(
-                                                        text = "${itemEntries.size} items",
+                                                        text = if (deliveryFeePaise > 0L) "${itemEntries.size} items + Fee" else "${itemEntries.size} items",
                                                         style = MaterialTheme.typography.labelSmall,
                                                         color = AppTheme.colors.textSecondary
                                                     )
@@ -1385,13 +1456,24 @@ fun FastAddExpenseSheet(
                                                 allParticipantIds.forEach { pId ->
                                                     val pName = if (pId == null) "Me (Your Share)" else friends.firstOrNull { it.id == pId }?.name ?: "Friend"
                                                     val share = tempShares[pId] ?: 0L
+                                                    val personFee = feeShareByParticipant[pId] ?: 0L
                                                     Row(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
                                                             .padding(vertical = 2.dp),
                                                         horizontalArrangement = Arrangement.SpaceBetween
                                                     ) {
-                                                        Text(pName, style = MaterialTheme.typography.bodySmall, color = if (pId == null) AppTheme.colors.textPrimary else AppTheme.colors.textSecondary)
+                                                        Column {
+                                                            Text(pName, style = MaterialTheme.typography.bodySmall, color = if (pId == null) AppTheme.colors.textPrimary else AppTheme.colors.textSecondary)
+                                                            if (personFee > 0L) {
+                                                                Text(
+                                                                    text = "incl. ${CurrencyUtils.formatPaiseToRupees(personFee)} fee",
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = AppTheme.colors.textMuted,
+                                                                    fontSize = 10.sp
+                                                                )
+                                                            }
+                                                        }
                                                         Text(
                                                             CurrencyUtils.formatPaiseToRupees(share),
                                                             style = MaterialTheme.typography.bodySmall,
@@ -1445,8 +1527,9 @@ fun FastAddExpenseSheet(
                             val itemsTotalPaise = itemEntries.sumOf {
                                 it.quantity.coerceAtLeast(1) * CurrencyUtils.parseInputToPaise(it.unitPriceRupees)
                             }
+                            val deliveryFeePaise = CurrencyUtils.parseInputToPaise(deliveryFeeRupees)
                             itemEntries.isNotEmpty() &&
-                            itemsTotalPaise > 0L &&
+                            (itemsTotalPaise + deliveryFeePaise) > 0L &&
                             itemEntries.all { it.name.isNotBlank() && CurrencyUtils.parseInputToPaise(it.unitPriceRupees) > 0L && it.assignedParticipantIds.isNotEmpty() }
                         }
                     }
@@ -1465,10 +1548,11 @@ fun FastAddExpenseSheet(
                     )
                 }
 
+                val deliveryFeePaise = if (isSplitEnabled && splitMethod == SplitMethod.ITEM_WISE) CurrencyUtils.parseInputToPaise(deliveryFeeRupees) else 0L
                 val itemsTotalPaise = if (isSplitEnabled && splitMethod == SplitMethod.ITEM_WISE) {
                     itemEntries.sumOf { it.quantity.coerceAtLeast(1) * CurrencyUtils.parseInputToPaise(it.unitPriceRupees) }
                 } else 0L
-                val effectiveAmountPaise = if (isSplitEnabled && splitMethod == SplitMethod.ITEM_WISE && itemsTotalPaise > 0L) itemsTotalPaise else amountPaise
+                val effectiveAmountPaise = if (isSplitEnabled && splitMethod == SplitMethod.ITEM_WISE && (itemsTotalPaise + deliveryFeePaise) > 0L) (itemsTotalPaise + deliveryFeePaise) else amountPaise
 
                 // Save Button
                 Button(
@@ -1549,6 +1633,17 @@ fun FastAddExpenseSheet(
                                     }
                                 }
                                 SplitMethod.ITEM_WISE -> {
+                                    val deliveryFeePaise = CurrencyUtils.parseInputToPaise(deliveryFeeRupees)
+                                    val includedParticipantIds = allParticipantIds.filter { pId ->
+                                        itemEntries.any { it.assignedParticipantIds.contains(pId) }
+                                    }.ifEmpty { allParticipantIds }
+                                    val feeSplits = if (deliveryFeePaise > 0L && includedParticipantIds.isNotEmpty()) {
+                                        LedgerCalculator.calculateEqualSplit(deliveryFeePaise, includedParticipantIds.size)
+                                    } else emptyList()
+                                    val feeShareByParticipant = includedParticipantIds.mapIndexed { idx, pId ->
+                                        pId to feeSplits.getOrElse(idx) { 0L }
+                                    }.toMap()
+
                                     val participantSharesMap = mutableMapOf<Long?, Long>()
                                     allParticipantIds.forEach { participantSharesMap[it] = 0L }
 
@@ -1584,9 +1679,33 @@ fun FastAddExpenseSheet(
                                         )
                                     }
 
+                                    // If delivery & handling fee was entered, add as a transaction item and include allocations
+                                    if (deliveryFeePaise > 0L && includedParticipantIds.isNotEmpty()) {
+                                        val feeAllocs = includedParticipantIds.mapIndexed { idx, pId ->
+                                            ItemAllocation(
+                                                id = 0L,
+                                                itemId = 0L,
+                                                transactionId = 0L,
+                                                friendId = pId,
+                                                allocatedAmountPaise = feeSplits.getOrElse(idx) { 0L }
+                                            )
+                                        }
+                                        domainItems.add(
+                                            TransactionItem(
+                                                id = 0L,
+                                                transactionId = 0L,
+                                                name = "Delivery & Handling Fee",
+                                                quantity = 1,
+                                                unitPricePaise = deliveryFeePaise,
+                                                totalAmountPaise = deliveryFeePaise,
+                                                allocations = feeAllocs
+                                            )
+                                        )
+                                    }
+
                                     allParticipantIds.forEach { pId ->
                                         val pName = if (pId == null) "Me" else friends.firstOrNull { it.id == pId }?.name ?: "Friend"
-                                        val pShare = participantSharesMap[pId] ?: 0L
+                                        val pShare = (participantSharesMap[pId] ?: 0L) + (feeShareByParticipant[pId] ?: 0L)
                                         val pct = if (effectiveAmountPaise > 0L) (pShare.toDouble() / effectiveAmountPaise.toDouble()) * 100.0 else 0.0
                                         participants.add(
                                             TransactionParticipant(

@@ -13,8 +13,6 @@ object ReferenceExtractor {
         "gpay txn id",
         "phonepe transaction id",
         "phonepe txn id",
-        "phonepe ref id",
-        "phonepe ref",
         "order id",
         "order no",
         "order #",
@@ -40,41 +38,45 @@ object ReferenceExtractor {
     // Dedicated regex patterns for supported UPI reference number labels
     // Order matters: more specific labels are checked first
     private val UPI_REF_LABELED_PATTERNS = listOf(
-        // 1. UPI Reference Number / UPI Ref No / UPI Ref ID / UPI Ref
-        Pattern.compile("(?i)(?:\\bupi\\s*reference\\s*(?:number|no\\.?)?|\\bupi\\s*ref(?:erence)?\\s*(?:no\\.?|id|num|number)?)[\\s:=#-]+([0-9a-zA-Z]{6,35})"),
+        // 1. Direct UPI prefix with 12 digits: UPI:432612345678, UPI-432612345678, UPI/432612345678, UPI/CR/432612345678, UPI/P2A/432612345678, UPI 432612345678
+        Pattern.compile("(?i)(?:\\bupi[\\s:/-]+(?:(?:cr|dr|p2a|p2p|rev|inw|inward)[\\s:/-]+)?)([0-9]{12})\\b"),
 
-        // 2. Bank Reference Number / Bank Ref No
-        Pattern.compile("(?i)(?:\\bbank\\s*reference\\s*(?:number|no\\.?)?|\\bbank\\s*ref\\s*(?:no\\.?|id|num|number)?)[\\s:=#-]+([0-9a-zA-Z]{6,35})"),
+        // 2. UPI Reference Number / UPI Ref / UPI Ref. No. / UPI Ref ID
+        Pattern.compile("(?i)(?:\\bupi\\s*(?:reference|ref\\.?)\\s*(?:no\\.?|id|num|number)?)\\s*[:=#-]*\\s*([0-9a-zA-Z]{6,35})"),
 
-        // 3. Transaction Reference / Txn Ref No
-        Pattern.compile("(?i)(?:\\b(?:transaction|txn)\\s*reference\\s*(?:number|no\\.?)?|\\b(?:transaction|txn)\\s*ref\\s*(?:no\\.?|id|num|number)?)[\\s:=#-]+([0-9a-zA-Z]{6,35})"),
+        // 3. Bank Reference Number / Bank Ref No / Bank Ref. No.
+        Pattern.compile("(?i)(?:\\bbank\\s*(?:reference|ref\\.?)\\s*(?:no\\.?|id|num|number)?)\\s*[:=#-]*\\s*([0-9a-zA-Z]{6,35})"),
 
-        // 4. UTR / UTR No / UTR Number
-        Pattern.compile("(?i)(?:\\butr(?:\\s*(?:no\\.?|id|num|number))?)[\\s:=#-]+([0-9a-zA-Z]{6,35})"),
+        // 4. UTR / UTR No / UTR Number / Ref UTR / UTR: / UTR/ / UTR-
+        Pattern.compile("(?i)(?:(?:\\bref\\s*)?\\butr\\.?\\s*(?:no\\.?|id|num|number)?)\\s*[:/#=-]*\\s*([0-9a-zA-Z]{6,35})"),
 
-        // 5. RRN / RRN No / RRN Number
-        Pattern.compile("(?i)(?:\\brrn(?:\\s*(?:no\\.?|id|num|number))?)[\\s:=#-]+([0-9a-zA-Z]{6,35})"),
+        // 5. RRN / RRN No / RRN Number / RRN: / RRN/ / RRN-
+        Pattern.compile("(?i)(?:\\brrn\\.?\\s*(?:no\\.?|id|num|number)?)\\s*[:/#=-]*\\s*([0-9a-zA-Z]{6,35})"),
 
-        // 6. Reference No / Ref No / Reference Number (when explicitly labeled as reference)
-        Pattern.compile("(?i)(?:\\b(?:reference|ref)\\s*(?:no\\.?|num|number|#))[\\s:=#-]+([0-9a-zA-Z]{6,35})"),
+        // 6. Transaction Reference / Txn Ref / Txn ID / Transaction ID / UPI Transaction ID
+        Pattern.compile("(?i)(?:\\b(?:upi\\s*)?(?:transaction|txn)[\\s.]*(?:reference|ref\\.?|id|no\\.?|num|number)?)\\s*[:=#-]*\\s*([0-9a-zA-Z]{6,35})"),
 
-        // 7. UPI Transaction ID (only when value is bank/network reference, verified by validator)
-        Pattern.compile("(?i)(?:\\bupi\\s*(?:transaction|txn)\\s*(?:id|no\\.?|num|number)?)[\\s:=#-]+([0-9a-zA-Z]{6,35})"),
+        // 7. Reference No / Ref No / Reference Number / Ref. No.
+        Pattern.compile("(?i)(?:\\b(?:reference|ref\\.?)\\s*(?:no\\.?|num|number|#))\\s*[:=#-]*\\s*([0-9a-zA-Z]{6,35})"),
 
-        // 8. Explicit Ref with separator and 8+ characters (e.g. "Ref: 104810950877" or "Ref 104810950877")
-        Pattern.compile("(?i)(?:\\bref\\b)[\\s:=#-]+([0-9a-zA-Z]{8,35})"),
+        // 8. App-specific ref: PhonePe Ref, GPay Ref, Google Pay Ref
+        Pattern.compile("(?i)(?:\\b(?:phonepe|gpay|google\\s*pay)\\s*(?:reference|ref\\.?)\\s*(?:no\\.?|id)?)\\s*[:=#-]*\\s*([0-9a-zA-Z]{6,35})"),
 
-        // 9. Slash-delimited UPI reference patterns (e.g. "UPI/432109876543", "UPI/CR/432109876543", "UPI/P2A/432109876543/...")
-        Pattern.compile("(?i)(?:\\bupi\\s*/\\s*(?:[a-zA-Z0-9]+\\s*/\\s*)?)([0-9]{12})\\b"),
+        // 9. Direct IMPS / NEFT / RTGS reference: IMPS-123..., IMPS:123..., IMPS/123..., IMPS Ref 123...
+        Pattern.compile("(?i)(?:\\b(?:imps|neft|rtgs)[\\s:/-]+(?:(?:ref(?:erence)?\\.?\\s*(?:no\\.?)?|(?:cr|dr|p2a|p2p|inw|inward))[\\s:/-]+)?)([0-9a-zA-Z]{6,35})\\b"),
 
-        // 10. Slash-delimited UTR pattern (e.g. "UTR/432109876543")
-        Pattern.compile("(?i)(?:\\butr\\s*/\\s*)([0-9a-zA-Z]{6,35})\\b")
+        // 10. Slash or colon delimited UTR / INF Inward
+        Pattern.compile("(?i)(?:\\b(?:utr|inf/inward)[\\s:/-]+)([0-9a-zA-Z]{6,35})\\b"),
+
+        // 11. Explicit Ref with separator (6+ characters)
+        Pattern.compile("(?i)(?:\\bref\\.?\\b)\\s*[:=#-]*\\s*([0-9a-zA-Z]{6,35})")
     )
 
     // Fallback general reference patterns (IMPS, NEFT, RTGS)
     private val GENERAL_FALLBACK_PATTERNS = listOf(
-        Pattern.compile("(?i)(?:\\b(?:imps|neft|rtgs)\\s*ref(?:\\s*no)?)[\\s:=#-]+([0-9a-zA-Z]{6,35})"),
-        Pattern.compile("(?i)(?:\\b(?:txn\\s*id|transaction\\s*id))[\\s:=#-]+([0-9a-zA-Z]{6,35})")
+        Pattern.compile("(?i)(?:\\b(?:imps|neft|rtgs)\\s*(?:ref(?:erence)?\\.?|no\\.?)?)[\\s:=#-]+([0-9a-zA-Z]{6,35})"),
+        Pattern.compile("(?i)(?:\\b(?:txn\\s*id|transaction\\s*id))[\\s:=#-]+([0-9a-zA-Z]{6,35})"),
+        Pattern.compile("(?i)(?:\\b(?:reference|ref\\.?))[\\s:=#-]+([0-9a-zA-Z]{6,35})")
     )
 
     private val INDIAN_PHONE_REGEX = Regex("^[6-9]\\d{9}$")
@@ -99,7 +101,10 @@ object ReferenceExtractor {
         for (pattern in UPI_REF_LABELED_PATTERNS) {
             val matcher = pattern.matcher(trimmed)
             while (matcher.find()) {
-                val candidate = matcher.group(1)?.trim()?.trimEnd('.', ',', ';', ':') ?: continue
+                val candidate = matcher.group(1)?.trim()
+                    ?.trimStart('(', '[', '{', '<', '"', '\'', '/', '-', '#')
+                    ?.trimEnd('.', ',', ';', ':', ')', ']', '}', '>', '"', '\'', '/', '-')
+                    ?: continue
                 val matchStart = matcher.start()
                 if (isValidUpiReference(candidate, trimmed, matchStart)) {
                     return candidate
@@ -124,7 +129,10 @@ object ReferenceExtractor {
         for (pattern in GENERAL_FALLBACK_PATTERNS) {
             val matcher = pattern.matcher(trimmed)
             while (matcher.find()) {
-                val candidate = matcher.group(1)?.trim()?.trimEnd('.', ',', ';', ':') ?: continue
+                val candidate = matcher.group(1)?.trim()
+                    ?.trimStart('(', '[', '{', '<', '"', '\'', '/', '-', '#')
+                    ?.trimEnd('.', ',', ';', ':', ')', ']', '}', '>', '"', '\'', '/', '-')
+                    ?: continue
                 val matchStart = matcher.start()
                 if (isValidUpiReference(candidate, trimmed, matchStart)) {
                     return candidate
