@@ -66,7 +66,8 @@ class GmailConnectActivity : ComponentActivity() {
                 finishWithMessage("HDFC email transaction sync connected")
             } catch (recoverable: UserRecoverableAuthException) {
                 @Suppress("DEPRECATION")
-                startActivityForResult(recoverable.intent, REQUEST_CONSENT)
+                recoverable.intent?.let { startActivityForResult(it, REQUEST_CONSENT) }
+                    ?: finishWithMessage("Google authorization could not be opened. Please try again.")
             } catch (_: Exception) {
                 finishWithMessage("Gmail authorization failed. Please try again.")
             }
