@@ -33,9 +33,10 @@ import java.io.File
         SavingsEntryEntity::class,
         ExpenseAllocationEntity::class,
         TransactionItemEntity::class,
-        TransactionItemAllocationEntity::class
+        TransactionItemAllocationEntity::class,
+        TransactionIngestionKeyEntity::class
     ],
-    version = 16, // Upgraded to version 16: Item-Wise Expense Splitting (transaction_items & transaction_item_allocations)
+    version = 17, // Version 17: atomic cross-source transaction deduplication
     exportSchema = true // Schema export enabled
 )
 @TypeConverters(Converters::class)
@@ -46,6 +47,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
     abstract fun transactionDao(): TransactionDao
     abstract fun settlementDao(): SettlementDao
     abstract fun pendingTransactionDao(): PendingTransactionDao
+    abstract fun transactionIngestionKeyDao(): TransactionIngestionKeyDao
     abstract fun friendGroupDao(): FriendGroupDao
     abstract fun expenseGroupDao(): ExpenseGroupDao
     abstract fun reportDraftDao(): ReportDraftDao
@@ -1068,6 +1070,18 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `transaction_ingestion_keys` (
+                        `key` TEXT NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`key`)
+                    )
+                """.trimIndent())
+            }
+        }
+
         val MIGRATION_14_16 = object : Migration(14, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 MIGRATION_14_15.migrate(db)
@@ -1182,7 +1196,7 @@ abstract class RupeeFlowDatabase : RoomDatabase() {
                         MIGRATION_12_13, MIGRATION_11_13, MIGRATION_10_13, MIGRATION_9_13, MIGRATION_8_13, MIGRATION_7_13, MIGRATION_6_13, MIGRATION_5_13, MIGRATION_1_13,
                         MIGRATION_13_14, MIGRATION_12_14, MIGRATION_11_14, MIGRATION_10_14, MIGRATION_9_14, MIGRATION_8_14, MIGRATION_7_14, MIGRATION_6_14, MIGRATION_5_14, MIGRATION_1_14,
                         MIGRATION_14_15, MIGRATION_13_15, MIGRATION_12_15, MIGRATION_11_15, MIGRATION_10_15, MIGRATION_9_15, MIGRATION_8_15, MIGRATION_7_15, MIGRATION_6_15, MIGRATION_5_15, MIGRATION_1_15,
-                        MIGRATION_15_16, MIGRATION_14_16, MIGRATION_13_16, MIGRATION_12_16, MIGRATION_11_16, MIGRATION_10_16, MIGRATION_9_16, MIGRATION_8_16, MIGRATION_7_16, MIGRATION_6_16, MIGRATION_5_16, MIGRATION_1_16
+                        MIGRATION_15_16, MIGRATION_16_17, MIGRATION_14_16, MIGRATION_13_16, MIGRATION_12_16, MIGRATION_11_16, MIGRATION_10_16, MIGRATION_9_16, MIGRATION_8_16, MIGRATION_7_16, MIGRATION_6_16, MIGRATION_5_16, MIGRATION_1_16
                     )
                     .addCallback(DatabaseCallback(scope))
                     // Destructive migration removed! Data preservation guaranteed.

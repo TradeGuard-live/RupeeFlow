@@ -136,6 +136,7 @@ enum class TransactionSource {
     MANUAL,
     SMS,
     NOTIFICATION,
+    EMAIL,
     IMPORTED
 }
 

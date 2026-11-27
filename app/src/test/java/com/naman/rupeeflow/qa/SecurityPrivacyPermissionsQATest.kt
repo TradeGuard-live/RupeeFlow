@@ -100,8 +100,9 @@ class SecurityPrivacyPermissionsQATest {
         assertTrue("Must declare ACCESS_FINE_LOCATION for offline GPS transaction location", declaredPermissions.contains("android.permission.ACCESS_FINE_LOCATION"))
         assertTrue("Must declare ACCESS_COARSE_LOCATION for offline transaction location", declaredPermissions.contains("android.permission.ACCESS_COARSE_LOCATION"))
 
-        // Strictly verify that dangerous extraneous permissions are NOT declared
-        assertFalse("Must NOT declare INTERNET (100% offline local-first application)", declaredPermissions.contains("android.permission.INTERNET"))
+        // Gmail read-only synchronization requires network access. Keep all other
+        // unrelated permissions restricted under the least-privilege policy.
+        assertTrue("Must declare INTERNET for user-authorized Gmail synchronization", declaredPermissions.contains("android.permission.INTERNET"))
         assertFalse("Must NOT declare ACCESS_BACKGROUND_LOCATION", declaredPermissions.contains("android.permission.ACCESS_BACKGROUND_LOCATION"))
         assertFalse("Must NOT declare CAMERA", declaredPermissions.contains("android.permission.CAMERA"))
         assertFalse("Must NOT declare READ_CONTACTS", declaredPermissions.contains("android.permission.READ_CONTACTS"))
@@ -295,8 +296,9 @@ class SecurityPrivacyPermissionsQATest {
 
         val content = manifestFile.readText()
 
-        // Verify INTERNET permission is absent
-        assertFalse("RupeeFlow must never request INTERNET permission", content.contains("android.permission.INTERNET"))
+        // Gmail read-only synchronization requires INTERNET; transport remains hardened
+        // by usesCleartextTraffic=false and the dedicated network security config.
+        assertTrue("Gmail synchronization requires INTERNET permission", content.contains("android.permission.INTERNET"))
         assertFalse("RupeeFlow must never request ACCESS_NETWORK_STATE", content.contains("android.permission.ACCESS_NETWORK_STATE"))
 
         // Verify allowBackup=false in application tag to prevent adb backup leaks

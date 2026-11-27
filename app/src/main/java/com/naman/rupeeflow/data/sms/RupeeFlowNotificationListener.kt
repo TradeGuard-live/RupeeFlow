@@ -190,7 +190,7 @@ class RupeeFlowNotificationListener : NotificationListenerService() {
                         googleMapsUrl = capturedLocation?.googleMapsUrl
                     )
 
-                    val pendingId = app.appContainer.database.pendingTransactionDao().insert(entity)
+                    val pendingId = com.naman.rupeeflow.data.email.TransactionIngestionCoordinator(app.appContainer.database).insertIfNew(entity) ?: return@withLock
                     com.naman.rupeeflow.location.LocationDiagnostics.logDatabaseSave(true, pendingId)
                     if (capturedLocation != null) {
                         com.naman.rupeeflow.location.LocationDiagnostics.logAssociationSucceeded(pendingId)

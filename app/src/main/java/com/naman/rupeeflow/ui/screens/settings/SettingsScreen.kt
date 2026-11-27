@@ -291,6 +291,17 @@ fun SettingsScreen(
                         iconTint = AmberGold
                     )
 
+                    HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 12.dp))
+
+                    SettingsActionRow(
+                        title = "Connect HDFC Transaction Emails",
+                        subtitle = "Gmail read-only access for HDFC transaction alerts, including payments below ₹500.",
+                        icon = Icons.Default.Email,
+                        onClick = {
+                            context.startActivity(Intent(context, com.naman.rupeeflow.data.email.GmailConnectActivity::class.java))
+                        }
+                    )
+
                     if (onNavigateToPending != null) {
                         HorizontalDivider(color = AppTheme.colors.divider, modifier = Modifier.padding(vertical = 12.dp))
                         Row(
