@@ -33,17 +33,28 @@ class HdfcGmailSyncWorker(context: Context, params: WorkerParameters) : Coroutin
                 GoogleNetHttpTransport.newTrustedTransport(), GsonFactory.getDefaultInstance(), credential
             ).setApplicationName("RupeeFlow").build()
 
-            val refs = gmail.users().messages().list("me")
-                .setQ("newer_than:7d {from:(hdfcbank.com) from:(hdfcbank.net)}")
-                .setMaxResults(100L).execute().messages.orEmpty()
-
             val app = applicationContext as? RupeeFlowApplication ?: return@withContext Result.failure()
             val coordinator = TransactionIngestionCoordinator(app.appContainer.database)
             val repository = app.appContainer.pendingTransactionRepository
-            for (ref in refs) {
-                val message = gmail.users().messages().get("me", ref.id).setFormat("full").execute()
-                processMessage(message, coordinator, repository)
-            }
+
+            // Process up to 500 recent HDFC messages across pages. Message-ID claims make
+            // overlapping seven-day polling windows safe and idempotent.
+            var pageToken: String? = null
+            var processed = 0
+            do {
+                val page = gmail.users().messages().list("me")
+                    .setQ("newer_than:7d {from:(hdfcbank.com) from:(hdfcbank.net)}")
+                    .setMaxResults(100L)
+                    .setPageToken(pageToken)
+                    .execute()
+                for (ref in page.messages.orEmpty()) {
+                    val message = gmail.users().messages().get("me", ref.id).setFormat("full").execute()
+                    processMessage(message, coordinator, repository)
+                    processed++
+                    if (processed >= 500) break
+                }
+                pageToken = if (processed >= 500) null else page.nextPageToken
+            } while (!pageToken.isNullOrBlank())
             Result.success()
         } catch (_: Exception) {
             Result.retry()
