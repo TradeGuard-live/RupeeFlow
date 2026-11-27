@@ -17,6 +17,14 @@ object HdfcEmailParser {
         val plainBody = Html.fromHtml(body.orEmpty(), Html.FROM_HTML_MODE_LEGACY).toString()
         val content = listOf(subject.orEmpty(), plainBody).filter(String::isNotBlank).joinToString("\n")
         if (content.isBlank()) return null
+
+        // Do not treat statements, offers or balance-only emails containing an amount
+        // as a purchase. Require explicit transaction evidence before parsing.
+        val hasTransactionEvidence = Regex(
+            "(?i)\\b(debited|credited|spent|paid|received|deposited|withdrawn|deducted|refund(?:ed)?|reversed|upi\\s+transaction|transaction\\s+(?:of|for))\\b"
+        ).containsMatchIn(content)
+        if (!hasTransactionEvidence) return null
+
         return SmsParser.parse(content, "HDFCBK", timestamp)
             .takeIf { it.isValidTransaction && it.amountPaise > 0L }
     }

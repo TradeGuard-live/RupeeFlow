@@ -23,6 +23,17 @@ class HdfcEmailParserTest {
     }
 
     @Test
+    fun rejectsHdfcMarketingEmailThatOnlyMentionsAnAmount() {
+        val result = HdfcEmailParser.parse(
+            fromHeader = "HDFC Bank <offers@hdfcbank.com>",
+            subject = "Special offer: save Rs. 500 today",
+            body = "Explore our latest offers and rewards.",
+            timestamp = System.currentTimeMillis()
+        )
+        assertNull(result)
+    }
+
+    @Test
     fun rejectsNonHdfcSenderDomain() {
         val result = HdfcEmailParser.parse(
             fromHeader = "HDFC Alerts <alerts@not-hdfc.example>",
