@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Gmail API background synchronization -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- SMS Detection Permissions -->
     <!-- Only RECEIVE_SMS is needed to intercept incoming transaction alerts; READ_SMS is not needed -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
