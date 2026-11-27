@@ -60,6 +60,10 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".data.email.GmailConnectActivity"
+            android:exported="false" />
+
         <!-- SMS Broadcast Receiver -->
         <receiver
             android:name=".data.sms.SmsReceiver"

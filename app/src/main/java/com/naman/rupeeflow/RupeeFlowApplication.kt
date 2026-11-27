@@ -21,6 +21,7 @@ class RupeeFlowApplication : Application() {
         appContainer.pendingAttachmentManager
 
         TransactionNotificationHelper.createNotificationChannel(this)
+        com.naman.rupeeflow.data.email.GmailSyncScheduler.scheduleIfConnected(this)
 
         CoroutineScope(Dispatchers.IO).launch {
             appContainer.categoryRepository.ensureDefaultCategories()
