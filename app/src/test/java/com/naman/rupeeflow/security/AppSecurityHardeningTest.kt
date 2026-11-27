@@ -120,9 +120,10 @@ class AppSecurityHardeningTest {
             content.contains("android:exported=\"false\"")
         )
 
-        // 5. Offline-first principle: No android.permission.INTERNET
-        assertFalse(
-            "Application is strictly offline-first and must not request INTERNET permission",
+        // 5. Gmail read-only synchronization requires INTERNET permission.
+        // Cleartext traffic remains disabled and trust is restricted by Network Security Config.
+        assertTrue(
+            "Gmail synchronization requires INTERNET permission",
             content.contains("android.permission.INTERNET")
         )
     }
